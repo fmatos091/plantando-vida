@@ -1,6 +1,11 @@
+import os
 from flask import Flask, render_template
+
 app = Flask(__name__)
-app.secret_key = "sua_chave_super_secreta"
+
+# Secret key: em produção usa a variável de ambiente SECRET_KEY do Railway.
+# Em desenvolvimento local usa o valor padrão abaixo.
+app.secret_key = os.environ.get("SECRET_KEY", "sua_chave_super_secreta")
 
 
 
@@ -10,7 +15,10 @@ app.secret_key = "sua_chave_super_secreta"
 from views import *
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Em produção o gunicorn ignora este bloco.
+    # debug=False garante segurança ao rodar localmente com variável de ambiente.
+    debug = os.environ.get("FLASK_ENV") != "production"
+    app.run(debug=debug)
 
 
 #Criando meu Banco de dados
