@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<!-- body centraliza o conteúdo vertical e horizontalmente na tela -->
+<body class="bg-green-50 min-h-screen flex items-center justify-center">
+
+    <!-- ===================== CARD DE LOGIN =====================
+         Caixa branca centralizada que envolve todo o formulário.
+         Largura máxima de md (448px) para não esticar em telas grandes.
+    -->
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+
+        <!-- Título do card -->
+        <h2 class="text-center text-2xl font-bold text-green-700 mb-6">
+            🔐 Entrar na sua conta
+        </h2>
+
+        <!-- ===================== MENSAGENS DE FEEDBACK (FLASH) =====================
+             Exibe mensagens enviadas pelo backend via flash().
+             Categoria "erro": fundo vermelho claro para credenciais inválidas.
+             Categoria "sucesso": fundo verde claro para senha redefinida com êxito.
+             get_flashed_messages é uma função do Jinja2/Flask.
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                {% if category == "erro" %}
+                    <!-- Alerta de erro -->
+                    <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+                        ⚠️ {{ message }}
+                    </div>
+                {% elif category == "sucesso" %}
+                    <!-- Alerta de sucesso -->
+                    <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+                        ✅ {{ message }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+        <!-- fim das mensagens -->
+
+        <!-- ===================== FORMULÁRIO DE LOGIN =====================
+             method="POST" envia os dados de forma segura (não aparece na URL).
+             action="/login" indica a rota do Flask que vai processar os dados.
+             A rota /login em views.py recebe email e senha, valida no banco
+             e cria a sessão do usuário se as credenciais estiverem corretas.
+        -->
+        <form method="POST" action="/login" class="space-y-4">
+
+            <!-- Campo de email: o atributo name="email" deve coincidir
+                 com request.form["email"] no backend (views.py) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" name="email" required placeholder="seu@email.com"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo de senha: type="password" oculta os caracteres digitados.
+                 O atributo name="senha" é lido pelo backend em request.form["senha"]
+                 e comparado com o hash armazenado no banco via check_password_hash. -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                <input type="password" name="senha" required placeholder="Sua senha"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Link "Esqueci minha senha": redireciona para /esqueci-senha -->
+            <div class="text-right">
+                <a href="/esqueci-senha" class="text-sm text-green-600 hover:underline">
+                    Esqueci minha senha
+                </a>
+            </div>
+
+            <!-- Botão de envio: dispara o POST para /login com os dados do formulário -->
+            <button type="submit"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                Entrar
+            </button>
+
+        </form>
+        <!-- fim do formulário -->
+
+        <!-- Link de redirecionamento para a página de cadastro,
+             caso o usuário ainda não tenha uma conta -->
+        <p class="text-center text-sm text-gray-500 mt-4">
+            Não tem conta?
+            <a href="/cadastros" class="text-green-600 hover:underline">Cadastre-se</a>
+        </p>
+
+        <!-- Botão Início: redireciona para a home (index.html) -->
+        <div class="mt-3 text-center">
+            <a href="/" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">
+                🏠 Início
+            </a>
+        </div>
+
+    </div>
+    <!-- fim do card de login -->
+
+</body>
+</html>

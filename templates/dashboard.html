@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Painel - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- ===================== ESTILOS PERSONALIZADOS =====================
+         Animação de entrada e efeitos de hover nos cards.
+    -->
+    <style>
+        /* Animação suave de entrada para os cards */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        /* Atraso progressivo para cada card aparecer em sequência */
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+        .delay-3 { animation-delay: 0.3s; opacity: 0; }
+        .delay-4 { animation-delay: 0.4s; opacity: 0; }
+        .delay-5 { animation-delay: 0.5s; opacity: 0; }
+    </style>
+</head>
+
+<body class="bg-green-50 min-h-screen">
+
+    <!-- ===================== NAVBAR =====================
+         Barra de navegação no topo com o nome do projeto à esquerda
+         e a saudação do usuário logado à direita (via Jinja2: {{ nome }}).
+    -->
+    <nav class="bg-green-700 text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <!-- Logo e nome do projeto com link para a home -->
+        <div class="flex items-center gap-2">
+            <span class="text-2xl">🌱</span>
+            <!-- Botão Início: clicável no logo/nome, redireciona para index.html -->
+            <a href="/" class="text-xl font-bold hover:text-green-200 transition">Plantando Vida</a>
+        </div>
+        <!-- Saudação com nome do usuário logado -->
+        <span class="text-sm text-green-200">Olá, <strong class="text-white">{{ nome }}</strong>!</span>
+    </nav>
+    <!-- fim da navbar -->
+
+
+    <!-- ===================== CONTEÚDO PRINCIPAL =====================
+         Área central com largura máxima de 2xl.
+         Exibe o cabeçalho de boas-vindas e o menu de ações do usuário.
+    -->
+    <main class="max-w-2xl mx-auto mt-10 px-4 pb-16">
+
+        <!-- Cabeçalho de boas-vindas -->
+        <div class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-green-800">Bem-vindo, {{ nome }}! 🌿</h1>
+            <p class="text-gray-500 mt-1">O que você deseja fazer hoje?</p>
+        </div>
+
+        <!-- ===================== CARDS DE AÇÃO =====================
+             Cada card representa uma ação disponível para o usuário.
+             Os cards aparecem em sequência com animação de entrada.
+             As rotas (href) deverão ser criadas no backend (views.py).
+        -->
+        <div class="flex flex-col gap-4">
+
+            <!-- Card 1: Realizar Plantio
+                 Direciona para o formulário de registro de um novo plantio. -->
+            <a href="/novo-plantio" class="fade-in delay-1">
+                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-green-50 transition cursor-pointer border border-transparent hover:border-green-300">
+                    <div class="text-4xl">🌱</div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-green-700">Realizar Plantio</h2>
+                        <p class="text-gray-400 text-sm">Registre um novo plantio de árvore</p>
+                    </div>
+                    <!-- Seta indicando que o card é clicável -->
+                    <span class="ml-auto text-green-400 text-xl">→</span>
+                </div>
+            </a>
+
+            <!-- Card 2: Minhas Plantas Aprovadas
+                 Exibe todos os plantios do usuário que foram aprovados. -->
+            <a href="/plantios/aprovados" class="fade-in delay-2">
+                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-green-50 transition cursor-pointer border border-transparent hover:border-green-300">
+                    <div class="text-4xl">✅</div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-green-700">Minhas Plantas — Aprovadas</h2>
+                        <p class="text-gray-400 text-sm">Veja os plantios confirmados pela equipe</p>
+                    </div>
+                    <span class="ml-auto text-green-400 text-xl">→</span>
+                </div>
+            </a>
+
+            <!-- Card 3: Aguardando Aprovação
+                 Exibe os plantios do usuário que ainda estão em análise. -->
+            <a href="/plantios/pendentes" class="fade-in delay-3">
+                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-yellow-50 transition cursor-pointer border border-transparent hover:border-yellow-300">
+                    <div class="text-4xl">⏳</div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-yellow-600">Aguardando Aprovação</h2>
+                        <p class="text-gray-400 text-sm">Plantios enviados e em análise</p>
+                    </div>
+                    <span class="ml-auto text-yellow-400 text-xl">→</span>
+                </div>
+            </a>
+
+            <!-- Card 4: Atualizar Dados Cadastrais
+                 Direciona para o formulário de edição dos dados pessoais do usuário. -->
+            <a href="/meu-perfil" class="fade-in delay-4">
+                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-blue-50 transition cursor-pointer border border-transparent hover:border-blue-300">
+                    <div class="text-4xl">👤</div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-blue-600">Atualizar Dados Cadastrais</h2>
+                        <p class="text-gray-400 text-sm">Edite seu nome, email, telefone e mais</p>
+                    </div>
+                    <span class="ml-auto text-blue-400 text-xl">→</span>
+                </div>
+            </a>
+
+            <!-- Card 5: Sair do Login
+                 Chama a rota /logout que limpa a sessão e redireciona para /login. -->
+            <a href="/logout" class="fade-in delay-5">
+                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-red-50 transition cursor-pointer border border-transparent hover:border-red-300">
+                    <div class="text-4xl">🚪</div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-red-500">Sair do Login</h2>
+                        <p class="text-gray-400 text-sm">Encerrar sua sessão com segurança</p>
+                    </div>
+                    <span class="ml-auto text-red-400 text-xl">→</span>
+                </div>
+            </a>
+
+        </div>
+        <!-- fim dos cards de ação -->
+
+    </main>
+    <!-- fim do conteúdo principal -->
+
+</body>
+</html>

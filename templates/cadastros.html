@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<!-- body centraliza o conteúdo vertical e horizontalmente na tela -->
+<body class="bg-green-50 min-h-screen flex items-center justify-center py-10">
+
+    <!-- ===================== CARD DE CADASTRO =====================
+         Caixa branca centralizada com sombra e bordas arredondadas.
+         Largura máxima de md (448px) para não esticar em telas grandes.
+    -->
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+
+        <!-- Título do card -->
+        <h2 class="text-center text-2xl font-bold text-green-700 mb-6">
+            🌱 Faça seu Cadastro
+        </h2>
+
+        <!-- ===================== FORMULÁRIO DE CADASTRO =====================
+             method="POST" envia os dados de forma segura (não aparece na URL).
+             action="/cadastros" indica a rota do Flask que vai processar os dados.
+             A rota /cadastros em views.py recebe os campos, salva no banco
+             e redireciona para /login após o cadastro com sucesso.
+        -->
+        <form method="POST" action="/cadastros" class="space-y-4">
+
+            <!-- Campo nome completo: lido no backend via request.form["nome"] -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nome completo</label>
+                <input name="nome" required placeholder="Seu nome completo"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo data de nascimento: lido no backend via request.form["data_nascimento"] -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Data de nascimento</label>
+                <input type="date" name="data_nascimento" required
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo CPF: lido no backend via request.form["cpf"] -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">CPF</label>
+                <input name="cpf" required placeholder="000.000.000-00"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo email: lido no backend via request.form["email"].
+                 Deve ser único no banco — cadastros duplicados retornam erro. -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" name="email" required placeholder="seu@email.com"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo telefone: lido no backend via request.form["telefone"] -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                <input name="telefone" required placeholder="(00) 00000-0000"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo senha: type="password" oculta os caracteres digitados.
+                 A senha é salva no banco com hash via generate_password_hash (views.py). -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                <input type="password" name="senha" required placeholder="Crie uma senha"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Botão de envio: dispara o POST para /cadastros com os dados do formulário -->
+            <button type="submit"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                🌱 Me cadastrar
+            </button>
+
+        </form>
+        <!-- fim do formulário -->
+
+        <!-- Link de redirecionamento para login,
+             caso o usuário já possua uma conta -->
+        <p class="text-center text-sm text-gray-500 mt-4">
+            Já tem conta?
+            <a href="/login" class="text-green-600 hover:underline">Entrar</a>
+        </p>
+
+        <!-- Botão Início: redireciona para a home (index.html) -->
+        <div class="mt-3 text-center">
+            <a href="/" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">
+                🏠 Início
+            </a>
+        </div>
+
+    </div>
+    <!-- fim do card de cadastro -->
+
+</body>
+</html>

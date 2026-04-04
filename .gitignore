@@ -1,0 +1,16 @@
+# Arquivos de cache do Python — gerados automaticamente, não devem ir ao repositório
+__pycache__/
+*.pyc
+*.pyo
+
+# Banco de dados local — cada ambiente terá o seu próprio
+database.db
+
+# Ambiente virtual Python (caso seja criado futuramente)
+venv/
+.env/
+env/
+
+# Configurações de editores
+.vscode/
+.idea/

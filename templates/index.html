@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- ===================== ESTILOS PERSONALIZADOS =====================
+         Animações e efeitos visuais que complementam o Tailwind.
+    -->
+    <style>
+        /* Animação suave de entrada para o conteúdo principal */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in-up {
+            animation: fadeInUp 0.8s ease forwards;
+        }
+
+        /* Efeito de zoom suave ao passar o mouse nas imagens da galeria */
+        .img-zoom {
+            overflow: hidden;
+        }
+        .img-zoom img {
+            transition: transform 0.4s ease;
+        }
+        .img-zoom:hover img {
+            transform: scale(1.07);
+        }
+
+        /* Sobreposição escura sobre o hero para legibilidade do texto */
+        .hero-overlay {
+            background: linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.65));
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 font-sans">
+
+    <!-- ===================== HERO (BANNER PRINCIPAL) =====================
+         Seção de destaque com imagem de fundo de floresta/natureza.
+         Ocupa a tela inteira e exibe o título, subtítulo e botões de ação.
+         A imagem é carregada via Unsplash (banco de imagens gratuito).
+    -->
+    <section
+        class="relative min-h-screen flex flex-col items-center justify-center text-white text-center px-4"
+        style="background-image: url('https://images.unsplash.com/photo-1542601906897-ecd71b622bd2?w=1600&q=80'); background-size: cover; background-position: center;">
+
+        <!-- Camada escura sobre a imagem para melhorar o contraste do texto -->
+        <div class="absolute inset-0 hero-overlay"></div>
+
+        <!-- Conteúdo do hero (fica acima da camada escura com z-10) -->
+        <div class="relative z-10 fade-in-up max-w-2xl">
+
+            <!-- Ícone e nome do projeto -->
+            <div class="text-6xl mb-4">🌱</div>
+            <h1 class="text-5xl font-extrabold mb-4 drop-shadow-lg">Plantando Vida</h1>
+            <p class="text-lg text-green-200 mb-10 drop-shadow">
+                Aqui você contribui com o futuro da Humanidade.
+            </p>
+
+            <!-- Botões de ação: cadastro e login -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+
+                <!-- Botão de cadastro: leva para /cadastros -->
+                <a href="/cadastros">
+                    <button class="bg-green-500 hover:bg-green-400 text-white font-bold px-8 py-3 rounded-full shadow-lg transition text-lg">
+                        🌱 Quero Participar
+                    </button>
+                </a>
+
+                <!-- Botão de login: leva para /login -->
+                <a href="/login">
+                    <button class="bg-white hover:bg-gray-100 text-green-800 font-bold px-8 py-3 rounded-full shadow-lg transition text-lg">
+                        🔐 Já tenho conta
+                    </button>
+                </a>
+
+            </div>
+        </div>
+
+        <!-- Seta indicando que há mais conteúdo abaixo -->
+        <div class="absolute bottom-8 z-10 animate-bounce text-white text-3xl">↓</div>
+
+    </section>
+    <!-- fim do hero -->
+
+
+    <!-- ===================== SEÇÃO DE MISSÃO =====================
+         Três colunas com ícone, título e texto explicando os pilares do projeto.
+    -->
+    <section class="bg-white py-16 px-6">
+        <div class="max-w-4xl mx-auto text-center">
+
+            <!-- Cabeçalho da seção -->
+            <h2 class="text-3xl font-bold text-green-700 mb-2">Nossa Missão</h2>
+            <p class="text-gray-500 mb-12">Cada árvore plantada é um passo para um planeta mais saudável.</p>
+
+            <!-- Grade de 3 pilares -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-8">
+
+                <!-- Pilar 1: Plantar -->
+                <div class="flex flex-col items-center">
+                    <div class="text-5xl mb-4">🌳</div>
+                    <h3 class="text-xl font-semibold text-green-700 mb-2">Plantar</h3>
+                    <p class="text-gray-500 text-sm">Organizamos e registramos cada plantio feito pela nossa comunidade.</p>
+                </div>
+
+                <!-- Pilar 2: Conectar -->
+                <div class="flex flex-col items-center">
+                    <div class="text-5xl mb-4">🤝</div>
+                    <h3 class="text-xl font-semibold text-green-700 mb-2">Conectar</h3>
+                    <p class="text-gray-500 text-sm">Unimos pessoas que acreditam em um futuro mais verde e sustentável.</p>
+                </div>
+
+                <!-- Pilar 3: Impacto -->
+                <div class="flex flex-col items-center">
+                    <div class="text-5xl mb-4">🌍</div>
+                    <h3 class="text-xl font-semibold text-green-700 mb-2">Impacto</h3>
+                    <p class="text-gray-500 text-sm">Acompanhe o impacto real das suas ações no meio ambiente.</p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+    <!-- fim da seção de missão -->
+
+
+    <!-- ===================== GALERIA DE FOTOS =====================
+         Grade com 3 imagens reais de pessoas plantando árvores.
+         Cada imagem tem efeito de zoom ao passar o mouse.
+         Imagens carregadas via Unsplash (gratuito, sem necessidade de login).
+    -->
+    <section class="bg-green-50 py-16 px-6">
+        <div class="max-w-4xl mx-auto">
+
+            <!-- Cabeçalho da seção -->
+            <h2 class="text-3xl font-bold text-green-700 text-center mb-2">Pessoas Fazendo a Diferença</h2>
+            <p class="text-gray-500 text-center mb-10">Voluntários reais transformando o planeta, uma árvore de cada vez.</p>
+
+            <!-- Grade de imagens 3 colunas -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+                <!-- Foto 1: pessoa plantando muda -->
+                <div class="img-zoom rounded-xl shadow-md h-56">
+                    <img
+                        src="https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=600&q=80"
+                        alt="Pessoa plantando muda de árvore"
+                        class="w-full h-full object-cover rounded-xl" />
+                </div>
+
+                <!-- Foto 2: grupo plantando árvores -->
+                <div class="img-zoom rounded-xl shadow-md h-56">
+                    <img
+                        src="https://images.unsplash.com/photo-1532629345422-7515f3d16bb6?w=600&q=80"
+                        alt="Grupo de voluntários plantando árvores"
+                        class="w-full h-full object-cover rounded-xl" />
+                </div>
+
+                <!-- Foto 3: mãos segurando planta -->
+                <div class="img-zoom rounded-xl shadow-md h-56">
+                    <img
+                        src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&q=80"
+                        alt="Mãos segurando planta com cuidado"
+                        class="w-full h-full object-cover rounded-xl" />
+                </div>
+
+            </div>
+        </div>
+    </section>
+    <!-- fim da galeria -->
+
+
+    <!-- ===================== CHAMADA FINAL (CTA) =====================
+         Faixa verde escura convidando o usuário a se cadastrar.
+    -->
+    <section class="bg-green-700 py-14 px-6 text-center text-white">
+
+        <!-- Texto de incentivo -->
+        <h2 class="text-3xl font-bold mb-3">Faça parte dessa mudança</h2>
+        <p class="text-green-200 mb-8">Crie sua conta gratuitamente e comece a registrar seus plantios hoje.</p>
+
+        <!-- Botão de cadastro -->
+        <a href="/cadastros">
+            <button class="bg-white text-green-700 font-bold px-10 py-3 rounded-full hover:bg-green-100 transition text-lg shadow-lg">
+                🌱 Criar minha conta
+            </button>
+        </a>
+
+    </section>
+    <!-- fim do CTA -->
+
+
+    <!-- ===================== RODAPÉ =====================
+         Informações básicas do projeto no final da página.
+    -->
+    <footer class="bg-gray-800 text-gray-400 text-center text-sm py-6">
+        <p>© 2026 Plantando Vida — Todos os direitos reservados.</p>
+    </footer>
+    <!-- fim do rodapé -->
+
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redefinir senha - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<!-- body centraliza o conteúdo vertical e horizontalmente na tela -->
+<body class="bg-green-50 min-h-screen flex items-center justify-center">
+
+    <!-- ===================== CARD DE REDEFINIÇÃO =====================
+         Exibido quando o usuário acessa o link com o token válido.
+         O token é passado pela URL (/redefinir-senha/<token>) e inserido
+         como campo oculto no formulário para ser enviado ao backend.
+    -->
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+
+        <!-- Título do card -->
+        <h2 class="text-center text-2xl font-bold text-green-700 mb-2">
+            🔒 Redefinir senha
+        </h2>
+        <p class="text-center text-gray-500 text-sm mb-6">
+            Escolha uma nova senha para sua conta.
+        </p>
+
+        <!-- ===================== FORMULÁRIO DE NOVA SENHA =====================
+             method="POST" envia os dados de forma segura.
+             action aponta para a mesma rota com o token na URL.
+             O backend valida o token, aplica o hash na nova senha e atualiza o banco.
+        -->
+        <form method="POST" action="/redefinir-senha/{{ token }}" class="space-y-4">
+
+            <!-- Campo oculto com o token — garante que o token correto
+                 seja associado à requisição mesmo em POST -->
+            <input type="hidden" name="token" value="{{ token }}" />
+
+            <!-- Campo nova senha: type="password" oculta os caracteres.
+                 A senha será salva com hash via generate_password_hash no backend. -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nova senha</label>
+                <input type="password" name="senha" required placeholder="Digite sua nova senha"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo de confirmação: preenchido pelo usuário para evitar erros de digitação.
+                 A validação de igualdade é feita pelo JavaScript abaixo antes do envio. -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar nova senha</label>
+                <input type="password" id="confirmar" required placeholder="Repita a nova senha"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Mensagem de erro exibida se as senhas não coincidirem (validação frontend) -->
+            <p id="erro-senha" class="text-red-500 text-sm hidden">
+                ⚠️ As senhas não coincidem.
+            </p>
+
+            <!-- Botão de envio: valida os campos antes de submeter o formulário -->
+            <button type="submit" onclick="return validarSenhas()"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                Salvar nova senha
+            </button>
+
+        </form>
+        <!-- fim do formulário -->
+
+        <!-- Botão Início: redireciona para a home (index.html) -->
+        <div class="mt-4 text-center">
+            <a href="/" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">
+                🏠 Início
+            </a>
+        </div>
+
+    </div>
+    <!-- fim do card -->
+
+    <!-- ===================== VALIDAÇÃO FRONTEND =====================
+         Verifica se os dois campos de senha são iguais antes de enviar o formulário.
+         Exibe mensagem de erro e bloqueia o envio caso não coincidam.
+         (O backend também valida o token, mas esta verificação melhora a experiência.)
+    -->
+    <script>
+        function validarSenhas() {
+            const senha     = document.querySelector('input[name="senha"]').value;
+            const confirmar = document.getElementById('confirmar').value;
+            const erro      = document.getElementById('erro-senha');
+
+            if (senha !== confirmar) {
+                // Exibe a mensagem de erro e impede o envio
+                erro.classList.remove('hidden');
+                return false;
+            }
+
+            // Senhas coincidem: esconde o erro e permite o envio
+            erro.classList.add('hidden');
+            return true;
+        }
+    </script>
+
+</body>
+</html>
