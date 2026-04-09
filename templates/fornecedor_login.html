@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acesso do Fornecedor - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<!-- body centraliza o conteúdo vertical e horizontalmente na tela -->
+<body class="bg-green-50 min-h-screen flex items-center justify-center">
+
+    <!-- ===================== CARD DE ACESSO =====================
+         Caixa branca centralizada com sombra.
+         O fornecedor entra com o CNPJ cadastrado para acessar seu painel exclusivo.
+    -->
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+
+        <!-- Ícone e título -->
+        <div class="text-center mb-6">
+            <div class="text-5xl mb-2">🌿</div>
+            <h2 class="text-2xl font-bold text-green-700">Acesso do Fornecedor</h2>
+            <p class="text-gray-500 text-sm mt-1">Informe seu CNPJ e senha para acessar seu cadastro</p>
+        </div>
+
+        <!-- ===================== MENSAGENS DE FEEDBACK (FLASH) =====================
+             Exibe erros caso o CNPJ não seja encontrado no banco.
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                {% if category == "erro" %}
+                    <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+                        ⚠️ {{ message }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+
+        <!-- ===================== FORMULÁRIO DE ACESSO =====================
+             method="POST" envia CNPJ e senha de forma segura.
+             action="/fornecedor/login" aciona a rota no views.py que valida
+             o CNPJ e a senha (check_password_hash) e cria a sessão.
+        -->
+        <form method="POST" action="/fornecedor/login" class="space-y-4">
+
+            <!-- Campo CNPJ: a formatação é removida automaticamente no backend -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">CNPJ</label>
+                <input name="cnpj" required placeholder="00.000.000/0001-00"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo senha: validado com check_password_hash no backend -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                <input type="password" name="senha" required placeholder="Sua senha de acesso"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Link "Esqueci minha senha": redireciona para /fornecedor/esqueci-senha -->
+            <div class="text-right">
+                <a href="/fornecedor/esqueci-senha" class="text-sm text-green-600 hover:underline">
+                    Esqueci minha senha
+                </a>
+            </div>
+
+            <!-- Botão de acesso: envia CNPJ e senha para validação no backend -->
+            <button type="submit"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                Acessar meu cadastro
+            </button>
+
+        </form>
+        <!-- fim do formulário -->
+
+        <!-- Link para cadastro, caso o fornecedor ainda não esteja registrado -->
+        <p class="text-center text-sm text-gray-500 mt-4">
+            Ainda não é cadastrado?
+            <a href="/fornecedor" class="text-green-600 hover:underline">Quero me cadastrar</a>
+        </p>
+
+        <!-- Botão Início: redireciona para a home -->
+        <div class="mt-3 text-center">
+            <a href="/" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">
+                🏠 Início
+            </a>
+        </div>
+
+    </div>
+    <!-- fim do card de acesso -->
+
+</body>
+</html>

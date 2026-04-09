@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
     <meta charset="UTF-8">
@@ -14,19 +15,46 @@
     <style>
         /* Animação suave de entrada para os cards */
         @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to   { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
+
         .fade-in {
             animation: fadeInUp 0.6s ease forwards;
         }
 
         /* Atraso progressivo para cada card aparecer em sequência */
-        .delay-1 { animation-delay: 0.1s; opacity: 0; }
-        .delay-2 { animation-delay: 0.2s; opacity: 0; }
-        .delay-3 { animation-delay: 0.3s; opacity: 0; }
-        .delay-4 { animation-delay: 0.4s; opacity: 0; }
-        .delay-5 { animation-delay: 0.5s; opacity: 0; }
+        .delay-1 {
+            animation-delay: 0.1s;
+            opacity: 0;
+        }
+
+        .delay-2 {
+            animation-delay: 0.2s;
+            opacity: 0;
+        }
+
+        .delay-3 {
+            animation-delay: 0.3s;
+            opacity: 0;
+        }
+
+        .delay-4 {
+            animation-delay: 0.4s;
+            opacity: 0;
+        }
+
+        .delay-5 {
+            animation-delay: 0.5s;
+            opacity: 0;
+        }
     </style>
 </head>
 
@@ -55,10 +83,10 @@
     -->
     <main class="max-w-2xl mx-auto mt-10 px-4 pb-16">
 
-        <!-- Cabeçalho de boas-vindas -->
-        <div class="mb-8 text-center">
+        <!-- Cabeçalho de boas-vindas: ambos os textos centralizados em relação ao mesmo bloco -->
+        <div class="mb-8 flex flex-col items-center text-center">
             <h1 class="text-3xl font-bold text-green-800">Bem-vindo, {{ nome }}! 🌿</h1>
-            <p class="text-gray-500 mt-1">O que você deseja fazer hoje?</p>
+            <p class="text-gray-500 mt-1">O que vamos fazer hoje?</p>
         </div>
 
         <!-- ===================== CARDS DE AÇÃO =====================
@@ -69,36 +97,80 @@
         <div class="flex flex-col gap-4">
 
             <!-- Card 1: Realizar Plantio
-                 Direciona para o formulário de registro de um novo plantio. -->
-            <a href="/novo-plantio" class="fade-in delay-1">
-                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-green-50 transition cursor-pointer border border-transparent hover:border-green-300">
+                 Ao clicar, expande um submenu com duas opções de tipo de plantio.
+                 A seta gira 90° quando o submenu está aberto (feedback visual). -->
+            <div class="fade-in delay-1">
+
+                <!-- Cabeçalho do card: clicável para expandir/recolher o submenu -->
+                <div onclick="togglePlantio()"
+                    class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-green-50 transition cursor-pointer border border-transparent hover:border-green-300">
                     <div class="text-4xl">🌱</div>
                     <div>
                         <h2 class="text-lg font-semibold text-green-700">Realizar Plantio</h2>
-                        <p class="text-gray-400 text-sm">Registre um novo plantio de árvore</p>
+                        <p class="text-gray-400 text-sm">Escolha como deseja plantar</p>
                     </div>
-                    <!-- Seta indicando que o card é clicável -->
-                    <span class="ml-auto text-green-400 text-xl">→</span>
+                    <!-- Seta que rotaciona ao expandir (controlada via JS) -->
+                    <span id="seta-plantio" class="ml-auto text-green-400 text-xl transition-transform duration-300">→</span>
                 </div>
-            </a>
+
+                <!-- Submenu expandível: oculto por padrão, exibido ao clicar no card.
+                     Contém dois botões de ação com descrições e cores distintas. -->
+                <div id="submenu-plantio" class="hidden mt-2 flex flex-col gap-2 pl-2">
+
+                    <!-- Opção 1: Adquirir planta em Local Credenciado
+                         Parte do valor pago é doado à APAE do município do usuário. -->
+                    <a href="/plantio/credenciado">
+                        <div class="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-4 hover:bg-green-100 hover:border-green-400 transition cursor-pointer">
+                            <div class="text-3xl">🏪</div>
+                            <div>
+                                <h3 class="text-base font-semibold text-green-700">Adquirir em Local Credenciado</h3>
+                                <p class="text-xs text-gray-500 mt-0.5">Parte do valor será doado à <strong>APAE</strong> do seu município</p>
+                            </div>
+                            <span class="ml-auto text-green-400">→</span>
+                        </div>
+                    </a>
+
+                    <!-- Opção 2: Plantio Voluntário
+                         Usuário registra um plantio feito por conta própria, sem custo. -->
+                    <a href="/plantio/voluntario">
+                        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-4 hover:bg-emerald-100 hover:border-emerald-400 transition cursor-pointer">
+                            <div class="text-3xl">🤝</div>
+                            <div>
+                                <h3 class="text-base font-semibold text-emerald-700">Plantio Voluntário</h3>
+                                <p class="text-xs text-gray-500 mt-0.5">Registre um plantio feito por você, de forma voluntária</p>
+                            </div>
+                            <span class="ml-auto text-emerald-400">→</span>
+                        </div>
+                    </a>
+
+                </div>
+                <!-- fim do submenu -->
+
+            </div>
 
             <!-- Card 2: Minhas Plantas Aprovadas
-                 Exibe todos os plantios do usuário que foram aprovados. -->
+                 Exibido SOMENTE quando o usuário possui ao menos um plantio aprovado.
+                 Se todos os plantios ainda estão em análise, o card fica oculto. -->
+            {% if total_aprovados > 0 %}
             <a href="/plantios/aprovados" class="fade-in delay-2">
-                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-green-50 transition cursor-pointer border border-transparent hover:border-green-300">
+                <div
+                    class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-green-50 transition cursor-pointer border border-transparent hover:border-green-300">
                     <div class="text-4xl">✅</div>
                     <div>
                         <h2 class="text-lg font-semibold text-green-700">Minhas Plantas — Aprovadas</h2>
-                        <p class="text-gray-400 text-sm">Veja os plantios confirmados pela equipe</p>
+                        <!-- Exibe a contagem de plantios aprovados como referência rápida -->
+                        <p class="text-gray-400 text-sm">{{ total_aprovados }} plantio{{ 's' if total_aprovados > 1 else '' }} confirmado{{ 's' if total_aprovados > 1 else '' }} pela equipe</p>
                     </div>
                     <span class="ml-auto text-green-400 text-xl">→</span>
                 </div>
             </a>
+            {% endif %}
 
             <!-- Card 3: Aguardando Aprovação
                  Exibe os plantios do usuário que ainda estão em análise. -->
             <a href="/plantios/pendentes" class="fade-in delay-3">
-                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-yellow-50 transition cursor-pointer border border-transparent hover:border-yellow-300">
+                <div
+                    class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-yellow-50 transition cursor-pointer border border-transparent hover:border-yellow-300">
                     <div class="text-4xl">⏳</div>
                     <div>
                         <h2 class="text-lg font-semibold text-yellow-600">Aguardando Aprovação</h2>
@@ -111,7 +183,8 @@
             <!-- Card 4: Atualizar Dados Cadastrais
                  Direciona para o formulário de edição dos dados pessoais do usuário. -->
             <a href="/meu-perfil" class="fade-in delay-4">
-                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-blue-50 transition cursor-pointer border border-transparent hover:border-blue-300">
+                <div
+                    class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-blue-50 transition cursor-pointer border border-transparent hover:border-blue-300">
                     <div class="text-4xl">👤</div>
                     <div>
                         <h2 class="text-lg font-semibold text-blue-600">Atualizar Dados Cadastrais</h2>
@@ -124,7 +197,8 @@
             <!-- Card 5: Sair do Login
                  Chama a rota /logout que limpa a sessão e redireciona para /login. -->
             <a href="/logout" class="fade-in delay-5">
-                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-red-50 transition cursor-pointer border border-transparent hover:border-red-300">
+                <div
+                    class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-red-50 transition cursor-pointer border border-transparent hover:border-red-300">
                     <div class="text-4xl">🚪</div>
                     <div>
                         <h2 class="text-lg font-semibold text-red-500">Sair do Login</h2>
@@ -140,5 +214,29 @@
     </main>
     <!-- fim do conteúdo principal -->
 
+    <!-- ===================== JAVASCRIPT =====================
+         togglePlantio(): alterna a visibilidade do submenu do Card 1.
+         - Adiciona/remove a classe "hidden" no submenu.
+         - Rotaciona a seta 90° quando aberto para indicar o estado expandido.
+    -->
+    <script>
+        function togglePlantio() {
+            const submenu = document.getElementById('submenu-plantio');
+            const seta    = document.getElementById('seta-plantio');
+            const aberto  = !submenu.classList.contains('hidden');
+
+            if (aberto) {
+                // Fecha o submenu e restaura a seta para a posição original
+                submenu.classList.add('hidden');
+                seta.style.transform = 'rotate(0deg)';
+            } else {
+                // Abre o submenu e rotaciona a seta 90° para indicar expansão
+                submenu.classList.remove('hidden');
+                seta.style.transform = 'rotate(90deg)';
+            }
+        }
+    </script>
+
 </body>
+
 </html>

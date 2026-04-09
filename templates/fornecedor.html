@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seja um Fornecedor - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<!-- body centraliza o conteúdo com fundo verde claro -->
+
+<body class="bg-green-50 min-h-screen flex items-center justify-center py-10">
+
+    <!-- ===================== CARD PRINCIPAL =====================
+         Caixa branca centralizada com sombra.
+         Largura máxima lg para acomodar todos os campos do formulário.
+    -->
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-lg">
+
+        <!-- Ícone e título -->
+        <div class="text-center mb-4">
+            <div class="text-5xl mb-2">🌿</div>
+            <h2 class="text-2xl font-bold text-green-700">Quero ser um Fornecedor</h2>
+        </div>
+
+        <!-- ===================== MENSAGEM DE APRESENTAÇÃO =====================
+             Exibida logo abaixo do título para contextualizar o formulário.
+        -->
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 text-center">
+            <p class="text-green-800 text-sm leading-relaxed">
+                Aqui você pode se cadastrar para fornecer mudas de plantas
+                <strong>Nativas</strong> ou <strong>Frutíferas</strong>.
+                Faça parte deste projeto muito importante para a Vida.
+            </p>
+        </div>
+
+        <!-- ===================== MENSAGENS DE FEEDBACK (FLASH) =====================
+             Exibe erros ou confirmações enviados pelo backend via flash().
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        {% if category == "erro" %}
+        <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+            ⚠️ {{ message }}
+        </div>
+        {% elif category == "sucesso" %}
+        <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+            ✅ {{ message }}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+
+        <!-- ===================== FORMULÁRIO DE CADASTRO =====================
+             method="POST" envia os dados de forma segura.
+             action="/fornecedor" aciona a rota no views.py que salva no banco.
+        -->
+        <form method="POST" action="/fornecedor" class="space-y-4">
+
+            <!-- Campo 1: Razão Social — nome oficial da empresa -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Razão Social</label>
+                <input name="razao_social" required placeholder="Nome oficial da empresa"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo 2: CNPJ com botão de consulta na Receita Federal via BrasilAPI.
+                 Ao clicar em "Consultar", o JavaScript busca o status do CNPJ
+                 e exibe a situação (ATIVA/BAIXADA) sem sair da página. -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">CNPJ</label>
+                <div class="flex gap-2">
+                    <input id="cnpj" name="cnpj" required placeholder="00.000.000/0001-00"
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    <!-- Botão que aciona a consulta do CNPJ na Receita Federal -->
+                    <button type="button" onclick="consultarCNPJ()"
+                        class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-3 rounded-lg transition whitespace-nowrap">
+                        Consultar
+                    </button>
+                </div>
+                <!-- Resultado da consulta do CNPJ exibido abaixo do campo -->
+                <div id="cnpj-resultado" class="mt-2 text-sm hidden"></div>
+            </div>
+
+            <!-- Campo 3: WhatsApp com máscara automática (00) 00000-0000.
+                 A máscara é aplicada via JavaScript no evento de digitação (oninput). -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
+                <input id="whatsapp" name="whatsapp" required placeholder="(00) 00000-0000" maxlength="15"
+                    oninput="mascaraWhatsapp(this)"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo 4: Tipo de Planta — checkbox para seleção múltipla.
+                 O JavaScript agrupa as seleções em um único valor enviado ao backend. -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Planta</label>
+                <div class="flex gap-6">
+                    <!-- Opção Frutíferas -->
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="chk-frutiferas" class="w-4 h-4 accent-green-600" />
+                        <span class="text-sm text-gray-700">🍎 Frutíferas</span>
+                    </label>
+                    <!-- Opção Nativas -->
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="chk-nativas" class="w-4 h-4 accent-green-600" />
+                        <span class="text-sm text-gray-700">🌳 Nativas</span>
+                    </label>
+                </div>
+                <!-- Campo oculto que recebe o valor combinado dos checkboxes via JS -->
+                <input type="hidden" id="tipo_planta" name="tipo_planta" />
+                <p id="erro-tipo" class="text-red-500 text-xs mt-1 hidden">Selecione ao menos um tipo de planta.</p>
+            </div>
+
+            <!-- Campo 5: UF e Cidade com integração à API do IBGE (gratuita, sem autenticação).
+                 Fluxo: usuário seleciona o estado (UF) → JavaScript consulta a API do IBGE
+                 → popula o select de cidades apenas com os municípios daquele estado. -->
+            <div class="flex gap-3">
+
+                <!-- Select UF: ao mudar, dispara carregarCidades() que busca as cidades via IBGE -->
+                <div class="w-32">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">UF</label>
+                    <select id="uf" name="uf" required onchange="carregarCidades()"
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
+                        <option value="">-- UF --</option>
+                        <!-- Estados brasileiros em ordem alfabética -->
+                        <option>AC</option>
+                        <option>AL</option>
+                        <option>AP</option>
+                        <option>AM</option>
+                        <option>BA</option>
+                        <option>CE</option>
+                        <option>DF</option>
+                        <option>ES</option>
+                        <option>GO</option>
+                        <option>MA</option>
+                        <option>MT</option>
+                        <option>MS</option>
+                        <option>MG</option>
+                        <option>PA</option>
+                        <option>PB</option>
+                        <option>PR</option>
+                        <option>PE</option>
+                        <option>PI</option>
+                        <option>RJ</option>
+                        <option>RN</option>
+                        <option>RS</option>
+                        <option>RO</option>
+                        <option>RR</option>
+                        <option>SC</option>
+                        <option>SP</option>
+                        <option>SE</option>
+                        <option>TO</option>
+                    </select>
+                </div>
+
+                <!-- Select Cidade: começa desabilitado e é populado via JS após seleção da UF -->
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+                    <select id="cidade" name="cidade" required disabled
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white disabled:bg-gray-100 disabled:text-gray-400">
+                        <option value="">Selecione a UF primeiro</option>
+                    </select>
+                    <!-- Indicador de carregamento exibido enquanto a API responde -->
+                    <p id="loading-cidades" class="text-xs text-green-600 mt-1 hidden">⏳ Carregando cidades...</p>
+                </div>
+
+            </div>
+
+            <!-- Campo 6: Link do Google Maps para localização do fornecedor -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Link do Google Maps</label>
+                <input name="maps_link" placeholder="https://maps.google.com/..."
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                <p class="text-xs text-gray-400 mt-1">Abra o Google Maps, clique em "Compartilhar" e cole o link aqui.
+                </p>
+            </div>
+
+            <!-- Campo 7: Senha de acesso ao painel do fornecedor.
+                 Salva com hash no banco via generate_password_hash (views.py). -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Crie sua senha de acesso</label>
+                <input type="password" name="senha" required placeholder="Mínimo 6 caracteres"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Botão de envio: valida os checkboxes antes de submeter -->
+            <button type="submit" onclick="return prepararEnvio()"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                🌿 Cadastrar como Fornecedor
+            </button>
+
+        </form>
+        <!-- fim do formulário -->
+
+        <!-- Botão "Já sou Cadastrado": abre a tela de acesso exclusivo do fornecedor
+             onde ele entra com o CNPJ para ver e editar apenas o seu próprio cadastro -->
+        <a href="/fornecedor/login">
+            <button
+                class="w-full mt-3 bg-emerald-800 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg transition">
+                🔐 Já sou Cadastrado
+            </button>
+        </a>
+
+        <!-- Link de navegação: apenas o botão Início -->
+        <div class="text-center mt-4">
+            <a href="/" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">🏠 Início</a>
+        </div>
+
+    </div>
+    <!-- fim do card principal -->
+
+
+    <!-- ===================== JAVASCRIPT =====================
+         Duas funções:
+         1. consultarCNPJ(): consulta a BrasilAPI com o CNPJ digitado e exibe
+            a Razão Social e situação cadastral (ATIVA ou não) sem recarregar a página.
+         2. prepararEnvio(): lê os checkboxes marcados, monta o valor combinado
+            no campo oculto "tipo_planta" e valida que ao menos um foi selecionado.
+    -->
+    <script>
+        // Consulta o CNPJ na BrasilAPI (Receita Federal) e exibe o resultado na tela
+        async function consultarCNPJ() {
+            const cnpjInput = document.getElementById('cnpj');
+            const resultado = document.getElementById('cnpj-resultado');
+            const cnpjLimpo = cnpjInput.value.replace(/\D/g, ''); // Remove pontos, barras e traços
+
+            if (cnpjLimpo.length !== 14) {
+                resultado.className = 'mt-2 text-sm text-red-600';
+                resultado.textContent = '⚠️ Digite um CNPJ completo (14 dígitos).';
+                resultado.classList.remove('hidden');
+                return;
+            }
+
+            // Exibe mensagem de carregamento enquanto aguarda a resposta da API
+            resultado.className = 'mt-2 text-sm text-gray-500';
+            resultado.textContent = '🔍 Consultando Receita Federal...';
+            resultado.classList.remove('hidden');
+
+            try {
+                // Requisição à BrasilAPI — gratuita, não exige chave de acesso
+                const resposta = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
+
+                if (!resposta.ok) {
+                    // CNPJ não encontrado na Receita Federal
+                    resultado.className = 'mt-2 text-sm text-red-600';
+                    resultado.textContent = '❌ CNPJ não encontrado na Receita Federal.';
+                    return;
+                }
+
+                const dados = await resposta.json();
+                const situacao = dados.descricao_situacao_cadastral;
+
+                if (situacao === 'ATIVA') {
+                    // CNPJ ativo: exibe nome e confirmação em verde
+                    resultado.className = 'mt-2 text-sm text-green-700 bg-green-50 p-2 rounded-lg';
+                    resultado.innerHTML = `✅ <strong>${dados.razao_social}</strong><br>Situação: ${situacao}`;
+                } else {
+                    // CNPJ inativo ou irregular: alerta em vermelho
+                    resultado.className = 'mt-2 text-sm text-red-700 bg-red-50 p-2 rounded-lg';
+                    resultado.innerHTML = `⚠️ <strong>${dados.razao_social}</strong><br>Situação: ${situacao} — não é possível cadastrar.`;
+                }
+
+            } catch (erro) {
+                resultado.className = 'mt-2 text-sm text-red-600';
+                resultado.textContent = '❌ Erro ao consultar. Verifique o CNPJ e tente novamente.';
+            }
+        }
+
+        // ===================== IBGE API — CARREGAR CIDADES =====================
+        // Chamada à API gratuita do IBGE para buscar os municípios do estado selecionado.
+        // Endpoint: https://servicodados.ibge.gov.br/api/v1/localidades/estados/{UF}/municipios
+        // Não requer autenticação. Retorna lista de objetos com { id, nome }.
+        async function carregarCidades() {
+            const uf = document.getElementById('uf').value;
+            const select = document.getElementById('cidade');
+            const loading = document.getElementById('loading-cidades');
+
+            if (!uf) {
+                // Nenhuma UF selecionada: desabilita o select de cidades
+                select.innerHTML = '<option value="">Selecione a UF primeiro</option>';
+                select.disabled = true;
+                return;
+            }
+
+            // Exibe indicador de carregamento e desabilita o select enquanto busca
+            select.disabled = true;
+            loading.classList.remove('hidden');
+            select.innerHTML = '<option value="">Carregando...</option>';
+
+            try {
+                // Requisição à API do IBGE ordenada por nome
+                const resposta = await fetch(
+                    `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`
+                );
+                const cidades = await resposta.json();
+
+                // Popula o select com as cidades retornadas pela API
+                select.innerHTML = '<option value="">Selecione a cidade</option>';
+                cidades.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.nome;
+                    opt.textContent = c.nome;
+                    select.appendChild(opt);
+                });
+
+                // Habilita o select após carregar as cidades
+                select.disabled = false;
+            } catch (erro) {
+                // Erro na API: informa o usuário e permite digitar manualmente
+                select.innerHTML = '<option value="">Erro ao carregar. Tente novamente.</option>';
+                select.disabled = false;
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        // Aplica máscara (00) 00000-0000 ao campo WhatsApp conforme o usuário digita
+        function mascaraWhatsapp(input) {
+            let v = input.value.replace(/\D/g, '').substring(0, 11);
+            if (v.length >= 7) {
+                v = `(${v.substring(0, 2)}) ${v.substring(2, 7)}-${v.substring(7)}`;
+            } else if (v.length >= 3) {
+                v = `(${v.substring(0, 2)}) ${v.substring(2)}`;
+            } else if (v.length >= 1) {
+                v = `(${v}`;
+            }
+            input.value = v;
+        }
+
+        // Lê os checkboxes, monta o valor para o campo oculto e valida antes de enviar
+        function prepararEnvio() {
+            const frutifera = document.getElementById('chk-frutiferas').checked;
+            const nativa = document.getElementById('chk-nativas').checked;
+            const erro = document.getElementById('erro-tipo');
+
+            if (!frutifera && !nativa) {
+                // Nenhuma opção selecionada: bloqueia envio
+                erro.classList.remove('hidden');
+                return false;
+            }
+
+            erro.classList.add('hidden');
+
+            // Monta o valor combinado conforme os checkboxes marcados
+            if (frutifera && nativa) document.getElementById('tipo_planta').value = 'Ambas';
+            else if (frutifera) document.getElementById('tipo_planta').value = 'Frutíferas';
+            else document.getElementById('tipo_planta').value = 'Nativas';
+
+            return true;
+        }
+    </script>
+
+</body>
+
+</html>

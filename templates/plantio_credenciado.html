@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrar Plantio Credenciado - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html5-qrcode: biblioteca para leitura de QR Code via câmera do dispositivo -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+
+<body class="bg-green-50 min-h-screen py-10 px-4">
+    <div class="max-w-2xl mx-auto">
+
+        <!-- ===================== CABEÇALHO ===================== -->
+        <div class="text-center mb-8">
+            <div class="text-5xl mb-3">🏪</div>
+            <h1 class="text-2xl font-bold text-green-800">Registrar Plantio Credenciado</h1>
+            <!-- Destaque da doação à APAE -->
+            <div
+                class="mt-3 inline-block bg-yellow-100 border border-yellow-300 text-yellow-800 text-sm px-4 py-2 rounded-full">
+                💛 Parte do valor será doado à <strong>APAE</strong> do município
+            </div>
+        </div>
+
+        <!-- ===================== MENSAGENS DE FEEDBACK ===================== -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        {% if category == "erro" %}
+        <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">⚠️ {{ message }}</div>
+        {% elif category == "sucesso" %}
+        <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">✅ {{ message }}</div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+
+        <!-- ===================== ETAPA 1: SELECIONAR FORNECEDOR =====================
+             Exibida sempre no topo. O usuário deve selecionar um fornecedor antes
+             de prosseguir. O botão "Validar Planta" só é ativado após a seleção.
+        -->
+        <div class="bg-white rounded-xl shadow p-6 mb-4" id="secao-fornecedor">
+            <h2 class="text-lg font-bold text-green-700 mb-1">
+                🏪 Etapa 1 — Selecionar Fornecedor Credenciado
+            </h2>
+            <p class="text-xs text-gray-400 mb-4">Selecione o fornecedor onde a muda foi adquirida.</p>
+
+            {% if fornecedores %}
+            <div class="flex flex-col gap-3" id="lista-fornecedores">
+                {% for f in fornecedores %}
+                <!-- Card clicável — f = (id, razao_social, cidade, uf, tipo_planta, whatsapp, maps_link) -->
+                <div onclick="selecionarFornecedor({{ f[0] }}, this)"
+                    class="fornecedor-card bg-gray-50 rounded-xl p-4 flex items-start gap-4 cursor-pointer border-2 border-transparent hover:border-green-400 hover:bg-green-50 transition">
+                    <!-- Ícone visual de seleção -->
+                    <div class="icone-sel text-2xl mt-0.5 text-gray-300">⭕</div>
+                    <div class="flex-1">
+                        <h3 class="text-base font-semibold text-green-800">{{ f[1] }}</h3>
+                        <p class="text-sm text-gray-500 mt-0.5">
+                            📍 {{ f[2] }}/{{ f[3] }} &nbsp;·&nbsp;
+                            {% if f[4] == 'Ambas' %}🍎🌳 Frutíferas e Nativas
+                            {% elif f[4] == 'Frutíferas' %}🍎 Frutíferas
+                            {% else %}🌳 Nativas{% endif %}
+                        </p>
+                        <p class="text-sm text-gray-400">📱 {{ f[5] }}</p>
+                    </div>
+                    {% if f[6] %}
+                    <!-- Link Maps: stopPropagation para não acionar seleção do card -->
+                    <a href="{{ f[6] }}" target="_blank" onclick="event.stopPropagation()"
+                        class="text-green-600 hover:underline text-xs mt-1 whitespace-nowrap">Ver no Maps</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center text-gray-400 py-6">
+                <div class="text-4xl mb-2">🌱</div>
+                <p>Nenhum fornecedor credenciado cadastrado ainda.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ===================== BOTÃO VALIDAR PLANTA =====================
+             Desabilitado até o usuário selecionar um fornecedor.
+             Ao clicar, abre o modal com a câmera para leitura do QR Code.
+        -->
+        <button type="button" id="btn-validar" disabled onclick="abrirCamera()"
+            class="w-full py-3 rounded-xl font-bold text-lg transition mb-6 bg-gray-200 text-gray-400 cursor-not-allowed">
+            📷 Validar Planta
+        </button>
+
+
+        <!-- ===================== MODAL CÂMERA / QR CODE =====================
+             Exibido ao clicar em "Validar Planta". Usa a câmera traseira do celular
+             para ler o QR Code do fornecedor. Ao escanear com sucesso, fecha o modal
+             e libera a Etapa 2 (formulário de dados do plantio).
+        -->
+        <div id="modal-camera"
+            class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex flex-col items-center justify-center px-4">
+            <div class="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl">
+
+                <!-- Título do modal -->
+                <h3 class="text-center text-base font-bold text-green-800 mb-1">📷 Leitura de QR Code</h3>
+                <p class="text-center text-xs text-gray-400 mb-4">Aponte a câmera para o QR Code do fornecedor</p>
+
+                <!-- Área onde a câmera será renderizada pela biblioteca html5-qrcode -->
+                <div id="leitor-qr" class="w-full rounded-xl overflow-hidden"></div>
+
+                <!-- Mensagem de status da leitura (aguardando / escaneando...) -->
+                <p id="status-qr" class="text-center text-sm text-gray-500 mt-3">Iniciando câmera...</p>
+
+                <!-- Botão de cancelar — para a câmera e fecha o modal -->
+                <button onclick="cancelarCamera()"
+                    class="mt-4 w-full py-2 rounded-xl bg-red-100 text-red-600 font-semibold text-sm hover:bg-red-200 transition">
+                    ✖ Cancelar
+                </button>
+            </div>
+        </div>
+
+
+        <!-- ===================== FORMULÁRIO ETAPA 2 =====================
+             Oculto inicialmente. Exibido somente após leitura bem-sucedida do QR Code.
+             enctype="multipart/form-data" obrigatório para envio de fotos.
+        -->
+        <form method="POST" action="/plantio/credenciado" enctype="multipart/form-data" id="form-plantio"
+            class="hidden">
+
+            <!-- Campo oculto: id do fornecedor selecionado (preenchido via JS) -->
+            <input type="hidden" name="fornecedor_id" id="fornecedor_id" value="" />
+
+            <!-- Campo oculto: conteúdo lido do QR Code (enviado junto ao formulário) -->
+            <input type="hidden" name="qr_data" id="qr_data" value="" />
+
+            <!-- ===================== SEÇÃO: DADOS DO PLANTIO ===================== -->
+            <div class="bg-white rounded-xl shadow p-6 mb-4">
+                <h2 class="text-lg font-bold text-green-700 mb-4">🌱 Etapa 2 — Dados do Plantio</h2>
+                <div class="space-y-4">
+
+                    <!-- Data do plantio -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Data do Plantio</label>
+                        <input type="date" name="data_plantio" required
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    </div>
+
+                    <!-- Espécie da planta -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Espécie da Planta</label>
+                        <input type="text" name="especie" required placeholder="Ex: Ipê Amarelo, Aroeira, Mangueira"
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    </div>
+
+                    <!-- Município e Bairro lado a lado -->
+                    <div class="flex gap-3">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Município</label>
+                            <input type="text" name="municipio" required placeholder="Cidade do plantio"
+                                class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
+                            <input type="text" name="bairro" required placeholder="Bairro do plantio"
+                                class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+                    </div>
+
+                    <!-- Latitude e Longitude lado a lado -->
+                    <div class="flex gap-3">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                            <input type="text" name="latitude" placeholder="-24.153268448091833"
+                                class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 font-mono text-sm" />
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                            <input type="text" name="longitude" placeholder="-49.81942797159125"
+                                class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 font-mono text-sm" />
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400">
+                        💡 Para obter as coordenadas: abra o Google Maps, clique no local e copie os números exibidos.
+                    </p>
+
+                </div>
+            </div>
+
+
+            <!-- ===================== SEÇÃO: ACOMPANHAMENTOS (OPCIONAIS) =====================
+                 Três ciclos de acompanhamento: cada um com data e foto.
+                 Todos opcionais — podem ser preenchidos futuramente na edição do registro.
+            -->
+            <div class="bg-white rounded-xl shadow p-6 mb-6">
+                <h2 class="text-lg font-bold text-green-700 mb-1">📸 Acompanhamentos</h2>
+                <p class="text-xs text-gray-400 mb-4">Opcional — pode ser preenchido agora ou após o plantio.</p>
+
+                <div class="space-y-5">
+
+                    <!-- Acompanhamento 1 -->
+                    <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                        <p class="text-sm font-semibold text-gray-600 mb-3">Acompanhamento 1</p>
+                        <div class="flex gap-3 flex-col sm:flex-row">
+                            <div class="flex-1">
+                                <label class="block text-xs text-gray-500 mb-1">Data</label>
+                                <input type="date" name="acompanhamento_1"
+                                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-xs text-gray-500 mb-1">Foto (jpg/png)</label>
+                                <input type="file" name="foto_1" accept=".jpg,.jpeg,.png"
+                                    class="w-full p-1.5 border border-gray-300 rounded-lg text-sm text-gray-500 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-green-100 file:text-green-700 file:font-medium hover:file:bg-green-200" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Acompanhamento 2 -->
+                    <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                        <p class="text-sm font-semibold text-gray-600 mb-3">Acompanhamento 2</p>
+                        <div class="flex gap-3 flex-col sm:flex-row">
+                            <div class="flex-1">
+                                <label class="block text-xs text-gray-500 mb-1">Data</label>
+                                <input type="date" name="acompanhamento_2"
+                                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-xs text-gray-500 mb-1">Foto (jpg/png)</label>
+                                <input type="file" name="foto_2" accept=".jpg,.jpeg,.png"
+                                    class="w-full p-1.5 border border-gray-300 rounded-lg text-sm text-gray-500 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-green-100 file:text-green-700 file:font-medium hover:file:bg-green-200" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Acompanhamento 3 -->
+                    <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                        <p class="text-sm font-semibold text-gray-600 mb-3">Acompanhamento 3</p>
+                        <div class="flex gap-3 flex-col sm:flex-row">
+                            <div class="flex-1">
+                                <label class="block text-xs text-gray-500 mb-1">Data</label>
+                                <input type="date" name="acompanhamento_3"
+                                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-xs text-gray-500 mb-1">Foto (jpg/png)</label>
+                                <input type="file" name="foto_3" accept=".jpg,.jpeg,.png"
+                                    class="w-full p-1.5 border border-gray-300 rounded-lg text-sm text-gray-500 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-green-100 file:text-green-700 file:font-medium hover:file:bg-green-200" />
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ===================== BOTÃO REGISTRAR PLANTIO =====================
+                 Envia o formulário completo com dados do plantio e acompanhamentos.
+            -->
+            <button type="submit"
+                class="w-full py-3 rounded-xl font-bold text-lg transition bg-green-600 hover:bg-green-700 text-white cursor-pointer">
+                🌱 Registrar Plantio
+            </button>
+
+        </form>
+        <!-- fim do formulário -->
+
+        <!-- Voltar ao dashboard -->
+        <div class="text-center mt-5">
+            <a href="/dashboard" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">
+                ← Voltar ao painel
+            </a>
+        </div>
+
+    </div>
+
+
+    <!-- ===================== JAVASCRIPT ===================== -->
+    <script>
+        // Variável global para controlar a instância do leitor QR
+        let html5QrCode = null;
+
+        // -----------------------------------------------------------------
+        // selecionarFornecedor(): marca visualmente o card escolhido,
+        // grava o id no campo oculto e ativa o botão "Validar Planta".
+        // -----------------------------------------------------------------
+        function selecionarFornecedor(id, cardClicado) {
+            // Remove seleção visual de todos os cards
+            document.querySelectorAll('.fornecedor-card').forEach(card => {
+                card.classList.remove('border-green-500', 'bg-green-50');
+                card.classList.add('border-transparent');
+                card.querySelector('.icone-sel').textContent = '⭕';
+                card.querySelector('.icone-sel').classList.replace('text-green-500', 'text-gray-300');
+            });
+
+            // Aplica seleção visual no card clicado
+            cardClicado.classList.add('border-green-500', 'bg-green-50');
+            cardClicado.classList.remove('border-transparent');
+            cardClicado.querySelector('.icone-sel').textContent = '✅';
+            cardClicado.querySelector('.icone-sel').classList.replace('text-gray-300', 'text-green-500');
+
+            // Grava o id do fornecedor no campo oculto do formulário
+            document.getElementById('fornecedor_id').value = id;
+
+            // Ativa o botão "Validar Planta"
+            const btn = document.getElementById('btn-validar');
+            btn.disabled = false;
+            btn.className = 'w-full py-3 rounded-xl font-bold text-lg transition mb-6 bg-green-600 hover:bg-green-700 text-white cursor-pointer';
+        }
+
+        // -----------------------------------------------------------------
+        // abrirCamera(): exibe o modal e inicia a câmera traseira
+        // para leitura do QR Code do fornecedor.
+        // -----------------------------------------------------------------
+        function abrirCamera() {
+            // Exibe o modal da câmera
+            document.getElementById('modal-camera').classList.remove('hidden');
+            document.getElementById('status-qr').textContent = 'Iniciando câmera...';
+
+            // Cria a instância do leitor QR no elemento #leitor-qr
+            html5QrCode = new Html5Qrcode("leitor-qr");
+
+            // Configuração: câmera traseira (environment), área de leitura de 250px
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            html5QrCode.start(
+                { facingMode: "environment" }, // câmera traseira do celular
+                config,
+                // Callback de SUCESSO: QR Code lido
+                function (textoDecodificado) {
+                    // Para a câmera após leitura bem-sucedida
+                    html5QrCode.stop().then(() => {
+                        html5QrCode = null;
+                        fecharModal();
+                        liberarEtapa2(textoDecodificado);
+                    }).catch(() => {
+                        html5QrCode = null;
+                        fecharModal();
+                        liberarEtapa2(textoDecodificado);
+                    });
+                },
+                // Callback de erro de frame (normal durante o escaneamento — ignorado)
+                function (_erroFrame) { }
+            ).then(() => {
+                // Câmera iniciada com sucesso
+                document.getElementById('status-qr').textContent = '🔍 Escaneando...';
+            }).catch(function (err) {
+                // Falha ao iniciar câmera (permissão negada ou câmera indisponível)
+                document.getElementById('status-qr').textContent = '⚠️ Câmera não disponível. Verifique as permissões.';
+                console.error("Erro ao iniciar câmera:", err);
+            });
+        }
+
+        // -----------------------------------------------------------------
+        // cancelarCamera(): para a câmera e fecha o modal sem avançar.
+        // -----------------------------------------------------------------
+        function cancelarCamera() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode = null;
+                    fecharModal();
+                }).catch(() => {
+                    html5QrCode = null;
+                    fecharModal();
+                });
+            } else {
+                fecharModal();
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // fecharModal(): oculta o modal da câmera e limpa o container do leitor.
+        // -----------------------------------------------------------------
+        function fecharModal() {
+            document.getElementById('modal-camera').classList.add('hidden');
+            // Limpa o conteúdo gerado pela biblioteca dentro do container
+            const leitor = document.getElementById('leitor-qr');
+            leitor.innerHTML = '';
+        }
+
+        // -----------------------------------------------------------------
+        // liberarEtapa2(): chamado após leitura bem-sucedida do QR Code.
+        // Salva o conteúdo lido, exibe o formulário e atualiza o botão.
+        // -----------------------------------------------------------------
+        function liberarEtapa2(qrTexto) {
+            // Salva o conteúdo do QR Code no campo oculto do formulário
+            document.getElementById('qr_data').value = qrTexto;
+
+            // Exibe o formulário de dados do plantio (Etapa 2)
+            const form = document.getElementById('form-plantio');
+            form.classList.remove('hidden');
+
+            // Rola suavemente até o início do formulário
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Atualiza o botão para indicar QR Code validado (desabilitado)
+            const btn = document.getElementById('btn-validar');
+            btn.disabled = true;
+            btn.className = 'w-full py-3 rounded-xl font-bold text-lg transition mb-6 bg-green-100 text-green-700 cursor-default';
+            btn.textContent = '✅ QR Code Validado';
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+    <!-- ===================== NAVBAR ADMINISTRATIVA =====================
+         Barra superior escura com título do painel e botão de logout.
+    -->
+    <nav class="bg-gray-800 text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <div class="flex items-center gap-2">
+            <span class="text-xl">🔒</span>
+            <span class="font-bold">Painel Administrativo</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <!-- Link para a home -->
+            <a href="/" class="text-gray-400 hover:text-white text-sm transition">🏠 Início</a>
+            <!-- Botão logout: encerra a sessão admin e redireciona para /admin/login -->
+            <a href="/admin/logout"
+                class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1 rounded-lg transition">
+                Sair
+            </a>
+        </div>
+    </nav>
+
+    <div class="max-w-5xl mx-auto px-4 py-8">
+
+        <!-- ===================== BARRA DE FILTRO / BUSCA =====================
+             Campo de texto para filtrar registros por nome, razão social, email, CNPJ ou cidade.
+             A busca é enviada via GET para a mesma rota, preservando a aba ativa.
+             O parâmetro "tipo" mantém a aba selecionada (fornecedores ou usuarios).
+        -->
+        <form method="GET" action="/admin/painel" class="flex gap-3 mb-6">
+            <!-- Campo de busca -->
+            <input name="busca" value="{{ busca }}" placeholder="Buscar por nome, CNPJ, email ou cidade..."
+                class="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            <!-- Mantém a aba ativa ao buscar -->
+            <input type="hidden" name="tipo" value="{{ tipo }}" />
+            <!-- Botão de busca -->
+            <button type="submit"
+                class="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2 rounded-lg transition">
+                🔍 Filtrar
+            </button>
+            <!-- Botão limpar filtro -->
+            {% if busca %}
+            <a href="/admin/painel?tipo={{ tipo }}">
+                <button type="button"
+                    class="bg-gray-300 hover:bg-gray-400 text-gray-700 font-semibold px-4 py-2 rounded-lg transition">
+                    ✕ Limpar
+                </button>
+            </a>
+            {% endif %}
+        </form>
+
+        <!-- ===================== ABAS DE NAVEGAÇÃO =====================
+             Três abas para alternar entre Fornecedores, Cadastros e Plantios.
+             A aba ativa é destacada com fundo verde; a inativa com fundo branco.
+             O clique gera uma requisição GET com o parâmetro "tipo" alterado.
+        -->
+        <div class="flex gap-2 mb-6 flex-wrap">
+            <!-- Aba Fornecedores -->
+            <a href="/admin/painel?tipo=fornecedores&busca={{ busca }}">
+                <button class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                    {{ 'bg-green-600 text-white' if tipo == 'fornecedores' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
+                    🌿 Fornecedores ({{ fornecedores|length }})
+                </button>
+            </a>
+            <!-- Aba Cadastros de Usuários -->
+            <a href="/admin/painel?tipo=usuarios&busca={{ busca }}">
+                <button class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                    {{ 'bg-green-600 text-white' if tipo == 'usuarios' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
+                    👤 Cadastros ({{ usuarios|length }})
+                </button>
+            </a>
+            <!-- Aba Plantios Pendentes -->
+            <a href="/admin/painel?tipo=plantios&busca={{ busca }}">
+                <button class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                    {{ 'bg-green-600 text-white' if tipo == 'plantios' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
+                    🌱 Plantios ({{ plantios|length }})
+                </button>
+            </a>
+        </div>
+
+
+        <!-- ===================== ABA FORNECEDORES =====================
+             Exibida quando tipo == "fornecedores".
+             Lista todos os fornecedores com razão social, CNPJ, cidade, UF, WhatsApp e tipo de planta.
+        -->
+        {% if tipo == 'fornecedores' %}
+
+        {% if fornecedores %}
+        <div class="flex flex-col gap-3">
+            {% for f in fornecedores %}
+            <!-- Card de cada fornecedor — f = (id, razao_social, cnpj, whatsapp, tipo_planta, cidade, uf) -->
+            <div class="bg-white rounded-xl shadow p-5 flex flex-col gap-1">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <!-- Razão Social e tipo de planta -->
+                        <h2 class="text-base font-semibold text-green-800">{{ f[1] }}</h2>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                            {% if f[4] == 'Ambas' %}🍎🌳 Frutíferas e Nativas
+                            {% elif f[4] == 'Frutíferas' %}🍎 Frutíferas
+                            {% else %}🌳 Nativas{% endif %}
+                        </span>
+                    </div>
+                    <!-- ID do registro -->
+                    <span class="text-xs text-gray-400">#{{ f[0] }}</span>
+                </div>
+                <!-- Dados complementares -->
+                <div class="text-sm text-gray-500 flex flex-wrap gap-4 mt-1">
+                    <span>📄 {{ f[2] }}</span>
+                    <span>📱 {{ f[3] }}</span>
+                    {% if f[5] %}<span>📍 {{ f[5] }}{% if f[6] %} — {{ f[6] }}{% endif %}</span>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <!-- Mensagem quando nenhum fornecedor é encontrado com o filtro -->
+        <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+            <div class="text-4xl mb-3">🌿</div>
+            <p>Nenhum fornecedor encontrado{% if busca %} para "{{ busca }}"{% endif %}.</p>
+        </div>
+        {% endif %}
+
+
+        <!-- ===================== ABA CADASTROS (USUÁRIOS) =====================
+             Exibida quando tipo == "usuarios".
+             Lista todos os usuários cadastrados com id, nome e email.
+        -->
+        {% elif tipo == 'usuarios' %}
+
+        {% if usuarios %}
+        <div class="flex flex-col gap-3">
+            {% for u in usuarios %}
+            <!-- Card de cada usuário — u = (id, nome, email) -->
+            <div class="bg-white rounded-xl shadow p-5 flex justify-between items-center">
+                <div>
+                    <h2 class="text-base font-semibold text-gray-800">{{ u[1] }}</h2>
+                    <p class="text-sm text-gray-500">{{ u[2] }}</p>
+                </div>
+                <!-- ID do registro -->
+                <span class="text-xs text-gray-400">#{{ u[0] }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <!-- Mensagem quando nenhum usuário é encontrado com o filtro -->
+        <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+            <div class="text-4xl mb-3">👤</div>
+            <p>Nenhum cadastro encontrado{% if busca %} para "{{ busca }}"{% endif %}.</p>
+        </div>
+        {% endif %}
+
+        <!-- ===================== ABA PLANTIOS =====================
+             Exibida quando tipo == "plantios".
+             Lista todos os plantios com status, dados do usuário e do fornecedor.
+             Permite Aprovar ou Reprovar (com justificativa) cada plantio em análise.
+             Índices da tupla p:
+               p[0] = id
+               p[1] = data_plantio
+               p[2] = especie
+               p[3] = municipio
+               p[4] = status
+               p[5] = justificativa
+               p[6] = criado_em
+               p[7] = nome (usuário)
+               p[8] = fornecedor_nome
+        -->
+        {% elif tipo == 'plantios' %}
+
+        <!-- Mensagens de flash exibidas após aprovar/reprovar -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        {% if category == "erro" %}
+        <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">⚠️ {{ message }}</div>
+        {% elif category == "sucesso" %}
+        <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">✅ {{ message }}</div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+
+        {% if plantios %}
+        <div class="flex flex-col gap-4">
+            {% for p in plantios %}
+            <!-- Card de cada plantio — exibe dados, badge de status e ações do admin -->
+            <div class="bg-white rounded-xl shadow p-5">
+
+                <!-- Cabeçalho: espécie, usuário e badge de status -->
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <h2 class="text-base font-semibold text-green-800">🌳 {{ p[2] }}</h2>
+                        <!-- Usuário responsável e fornecedor -->
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            👤 {{ p[7] }} &nbsp;·&nbsp; 🏪 {{ p[8] }}
+                        </p>
+                        <!-- Data e localização -->
+                        <p class="text-xs text-gray-400 mt-0.5">
+                            📅 {{ p[1] }} &nbsp;·&nbsp; 📍 {{ p[3] }}
+                        </p>
+                    </div>
+
+                    <!-- Badge de status colorido -->
+                    {% if p[4] == 'em_analise' %}
+                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 whitespace-nowrap">
+                        🕐 Em Análise
+                    </span>
+                    {% elif p[4] == 'aprovado' %}
+                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
+                        ✅ Aprovado
+                    </span>
+                    {% elif p[4] == 'reprovado' %}
+                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700 whitespace-nowrap">
+                        ❌ Reprovado
+                    </span>
+                    {% endif %}
+                </div>
+
+                <!-- Justificativa de reprovação (visível apenas quando reprovado) -->
+                {% if p[4] == 'reprovado' and p[5] %}
+                <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-3 text-sm text-red-700">
+                    <span class="font-semibold">Motivo:</span> {{ p[5] }}
+                </div>
+                {% endif %}
+
+                <!-- Botões de ação: visíveis apenas para plantios em análise -->
+                {% if p[4] == 'em_analise' %}
+                <div class="flex gap-3 mt-3 flex-wrap">
+
+                    <!-- Botão Aprovar: envia POST direto via form oculto -->
+                    <form method="POST" action="/admin/plantio/{{ p[0] }}/aprovar">
+                        <button type="submit"
+                            class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+                            ✅ Aprovar
+                        </button>
+                    </form>
+
+                    <!-- Botão Reprovar: abre o modal de justificativa inline -->
+                    <button type="button" onclick="abrirModalReprovar({{ p[0] }})"
+                        class="bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold px-4 py-2 rounded-lg transition">
+                        ❌ Reprovar
+                    </button>
+
+                </div>
+
+                <!-- Modal inline de reprovação — oculto até o botão ser clicado.
+                     id único por plantio para evitar conflito entre cards.
+                -->
+                <div id="modal-reprovar-{{ p[0] }}"
+                    class="hidden mt-4 bg-red-50 border border-red-200 rounded-xl p-4">
+                    <p class="text-sm font-semibold text-red-700 mb-2">Informe o motivo da reprovação:</p>
+                    <form method="POST" action="/admin/plantio/{{ p[0] }}/reprovar">
+                        <!-- Textarea com limite de 100 caracteres conforme regra de negócio -->
+                        <textarea name="justificativa" maxlength="100" rows="3" required
+                            placeholder="Máx. 100 caracteres..."
+                            class="w-full p-2 border border-red-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none mb-2"></textarea>
+                        <div class="flex gap-2">
+                            <!-- Confirmar reprovação -->
+                            <button type="submit"
+                                class="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+                                Confirmar Reprovação
+                            </button>
+                            <!-- Cancelar e fechar o modal -->
+                            <button type="button" onclick="fecharModalReprovar({{ p[0] }})"
+                                class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg transition">
+                                Cancelar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+
+                <!-- ID e data de registro -->
+                <p class="text-xs text-gray-300 mt-3">#{{ p[0] }} · {{ p[6] }}</p>
+
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <!-- Mensagem quando não há plantios cadastrados -->
+        <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+            <div class="text-4xl mb-3">🌱</div>
+            <p>Nenhum plantio registrado ainda.</p>
+        </div>
+        {% endif %}
+
+        {% endif %}
+        <!-- fim das abas -->
+
+    </div>
+
+
+    <!-- ===================== JAVASCRIPT: MODAL DE REPROVAÇÃO =====================
+         Funções para abrir e fechar o modal de justificativa de reprovação.
+         Cada card tem seu próprio modal com id único (modal-reprovar-<id>).
+    -->
+    <script>
+        // Exibe o modal de reprovação do plantio com o id informado
+        function abrirModalReprovar(id) {
+            const modal = document.getElementById('modal-reprovar-' + id);
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        // Fecha o modal de reprovação do plantio com o id informado
+        function fecharModalReprovar(id) {
+            const modal = document.getElementById('modal-reprovar-' + id);
+            if (modal) modal.classList.add('hidden');
+        }
+    </script>
+
+</body>
+</html>

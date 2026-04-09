@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Esqueci minha senha - Fornecedor</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<!-- body centraliza o conteúdo vertical e horizontalmente na tela -->
+<body class="bg-green-50 min-h-screen flex items-center justify-center">
+
+    <!-- ===================== CARD PRINCIPAL =====================
+         Exibe etapa 1 ou etapa 2 conforme a variável Jinja2 "etapa" enviada pelo backend.
+         Etapa 1: fornecedor informa o CNPJ cadastrado para localizar o registro.
+         Etapa 2: fornecedor define e confirma a nova senha.
+    -->
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+
+        <!-- Ícone e título -->
+        <div class="text-center mb-6">
+            <div class="text-5xl mb-2">🔑</div>
+            <h2 class="text-2xl font-bold text-green-700">Esqueci minha senha</h2>
+            <p class="text-gray-500 text-sm mt-1">
+                {% if etapa == 1 %}
+                    Informe seu CNPJ para localizar seu cadastro
+                {% else %}
+                    Olá, <strong>{{ razao_social }}</strong>! Crie sua nova senha
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- ===================== MENSAGENS DE FEEDBACK (FLASH) =====================
+             Exibe erros caso o CNPJ não seja encontrado no banco.
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                {% if category == "erro" %}
+                    <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+                        ⚠️ {{ message }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+
+
+        <!-- ===================== ETAPA 1: INFORMAR CNPJ =====================
+             Exibida quando etapa == 1.
+             O fornecedor informa o CNPJ cadastrado. O backend valida e avança para etapa 2.
+        -->
+        {% if etapa == 1 %}
+
+        <form method="POST" action="/fornecedor/esqueci-senha" class="space-y-4">
+            <!-- Campo oculto que identifica a etapa atual para o backend -->
+            <input type="hidden" name="etapa" value="1" />
+
+            <!-- Campo CNPJ: usado para localizar o fornecedor no banco -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">CNPJ cadastrado</label>
+                <input name="cnpj" required placeholder="00.000.000/0001-00"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Botão para avançar para etapa 2 -->
+            <button type="submit"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                Localizar meu cadastro
+            </button>
+        </form>
+
+
+        <!-- ===================== ETAPA 2: DEFINIR NOVA SENHA =====================
+             Exibida quando etapa == 2 (CNPJ validado com sucesso na etapa 1).
+             O CNPJ limpo é passado como campo oculto para o backend redefinir a senha.
+             A validação de igualdade das senhas é feita via JavaScript antes do envio.
+        -->
+        {% elif etapa == 2 %}
+
+        <form method="POST" action="/fornecedor/esqueci-senha" class="space-y-4"
+              onsubmit="return validarSenhas()">
+            <!-- Campos ocultos que identificam a etapa e o CNPJ do fornecedor -->
+            <input type="hidden" name="etapa" value="2" />
+            <input type="hidden" name="cnpj_limpo" value="{{ cnpj_limpo }}" />
+
+            <!-- Campo nova senha: será salva com hash via generate_password_hash -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nova senha</label>
+                <input type="password" id="nova_senha" name="nova_senha" required
+                    placeholder="Mínimo 6 caracteres"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo de confirmação: deve ser igual ao campo nova_senha -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar nova senha</label>
+                <input type="password" id="confirmar_senha" required
+                    placeholder="Repita a nova senha"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Mensagem de erro exibida se as senhas não coincidirem -->
+            <p id="erro-senha" class="text-red-500 text-sm hidden">
+                ⚠️ As senhas não coincidem.
+            </p>
+
+            <!-- Botão de envio: valida as senhas antes de submeter -->
+            <button type="submit"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                Salvar nova senha
+            </button>
+        </form>
+
+        {% endif %}
+        <!-- fim da lógica de etapas -->
+
+
+        <!-- Links de navegação -->
+        <div class="flex justify-between mt-5 text-sm text-gray-400">
+            <!-- Voltar ao login do fornecedor -->
+            <a href="/fornecedor/login" class="hover:text-green-600 hover:underline transition">
+                ← Voltar ao login
+            </a>
+            <!-- Botão Início -->
+            <a href="/" class="hover:text-green-600 hover:underline transition">
+                🏠 Início
+            </a>
+        </div>
+
+    </div>
+    <!-- fim do card principal -->
+
+
+    <!-- ===================== VALIDAÇÃO FRONTEND =====================
+         Verifica se os dois campos de senha são iguais antes de enviar o formulário.
+         Exibe mensagem de erro e bloqueia o envio caso não coincidam.
+    -->
+    <script>
+        function validarSenhas() {
+            const nova      = document.getElementById('nova_senha');
+            const confirmar = document.getElementById('confirmar_senha');
+            const erro      = document.getElementById('erro-senha');
+
+            if (!nova || !confirmar) return true; // etapa 1 não tem esses campos
+
+            if (nova.value !== confirmar.value) {
+                // Senhas diferentes: exibe erro e bloqueia envio
+                erro.classList.remove('hidden');
+                return false;
+            }
+
+            // Senhas iguais: permite envio
+            erro.classList.add('hidden');
+            return true;
+        }
+    </script>
+
+</body>
+</html>

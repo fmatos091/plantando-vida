@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minhas Plantas Aprovadas - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-green-50 min-h-screen">
+
+    <!-- ===================== NAVBAR =====================
+         Barra superior com título da página, link para início e voltar ao painel.
+    -->
+    <nav class="bg-green-700 text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <div class="flex items-center gap-2">
+            <span class="text-xl">✅</span>
+            <span class="font-bold">Minhas Plantas Aprovadas</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <!-- Link para a home -->
+            <a href="/" class="text-green-200 hover:text-white text-sm transition">🏠 Início</a>
+            <!-- Voltar ao dashboard -->
+            <a href="/dashboard" class="text-green-200 hover:text-white text-sm transition">← Painel</a>
+        </div>
+    </nav>
+
+    <div class="max-w-2xl mx-auto px-4 py-8">
+
+        <!-- ===================== CABEÇALHO DA PÁGINA ===================== -->
+        <div class="text-center mb-6">
+            <div class="text-5xl mb-2">🌳</div>
+            <h1 class="text-xl font-bold text-green-800">Plantios Confirmados</h1>
+            <p class="text-sm text-gray-400 mt-1">Estes registros foram aprovados pela equipe Plantando Vida</p>
+        </div>
+
+        <!-- ===================== LISTA DE PLANTIOS APROVADOS =====================
+             Cada card representa um plantio aprovado pelo administrador.
+             Índices da tupla p:
+               p[0] = id
+               p[1] = data_plantio
+               p[2] = especie
+               p[3] = municipio
+               p[4] = bairro
+               p[5] = criado_em
+               p[6] = fornecedor_nome
+        -->
+        {% if plantios %}
+        <div class="flex flex-col gap-4">
+            {% for p in plantios %}
+            <!-- Card de plantio aprovado com badge verde fixo -->
+            <div class="bg-white rounded-xl shadow p-5 border-l-4 border-green-500">
+
+                <!-- Cabeçalho do card: espécie e badge aprovado -->
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <h2 class="text-base font-bold text-green-800">🌳 {{ p[2] }}</h2>
+                        <!-- Data do plantio e fornecedor -->
+                        <p class="text-xs text-gray-400 mt-0.5">
+                            📅 {{ p[1] }} &nbsp;·&nbsp; 🏪 {{ p[6] }}
+                        </p>
+                    </div>
+                    <!-- Badge fixo de aprovado -->
+                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
+                        ✅ Aprovado
+                    </span>
+                </div>
+
+                <!-- Localização do plantio: município e bairro -->
+                <p class="text-sm text-gray-500">📍 {{ p[3] }}, {{ p[4] }}</p>
+
+                <!-- ID do registro e data de criação -->
+                <p class="text-xs text-gray-300 mt-1">#{{ p[0] }} · Registrado em {{ p[5] }}</p>
+
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <!-- Mensagem quando nenhum plantio foi aprovado ainda -->
+        <div class="bg-white rounded-xl shadow p-12 text-center text-gray-400">
+            <div class="text-5xl mb-3">⏳</div>
+            <p class="text-base">Nenhum plantio aprovado ainda.</p>
+            <p class="text-sm mt-1 text-gray-300">Seus registros aparecerão aqui após a aprovação da equipe.</p>
+            <a href="/plantios/pendentes"
+                class="inline-block mt-4 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold px-5 py-2 rounded-xl transition">
+                Ver plantios em análise
+            </a>
+        </div>
+        {% endif %}
+
+    </div>
+
+</body>
+
+</html>

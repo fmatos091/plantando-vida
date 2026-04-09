@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fornecedores - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-green-50 min-h-screen py-10 px-4">
+
+    <!-- ===================== CABEÇALHO DA PÁGINA =====================
+         Título da lista e botão para adicionar novo fornecedor.
+    -->
+    <div class="max-w-3xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-green-700">🌿 Ambiente do Fornecedor</h1>
+            <!-- Botão Adicionar: redireciona para o formulário de cadastro -->
+            <a href="/fornecedor">
+                <button
+                    class="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition text-sm">
+                    + Adicionar
+                </button>
+            </a>
+        </div>
+
+        <!-- ===================== MENSAGENS DE FEEDBACK (FLASH) =====================
+             Exibe confirmações de cadastro, edição ou exclusão enviadas pelo backend.
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        {% if category == "sucesso" %}
+        <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+            ✅ {{ message }}
+        </div>
+        {% elif category == "erro" %}
+        <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+            ⚠️ {{ message }}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+
+        <!-- ===================== LISTA DE FORNECEDORES =====================
+             Itera sobre todos os fornecedores retornados pelo backend.
+             Cada item exibe os dados e botões de Editar e Excluir.
+             Se não houver nenhum cadastro, exibe mensagem informativa.
+        -->
+        {% if fornecedores %}
+        <div class="flex flex-col gap-4">
+            {% for f in fornecedores %}
+            <!-- Card de cada fornecedor — f = (id, razao_social, cnpj, whatsapp, tipo_planta, maps_link) -->
+            <div class="bg-white rounded-xl shadow p-5 flex flex-col gap-2">
+
+                <!-- Linha com razão social e tipo de planta -->
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="text-lg font-semibold text-green-800">{{ f[1] }}</h2>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                            {% if f[4] == 'Ambas' %}🍎🌳 Frutíferas e Nativas
+                            {% elif f[4] == 'Frutíferas' %}🍎 Frutíferas
+                            {% else %}🌳 Nativas{% endif %}
+                        </span>
+                    </div>
+
+                    <!-- Botões de ação: Editar e Excluir -->
+                    <div class="flex gap-2">
+                        <!-- Botão Editar: redireciona para o formulário de edição com o id -->
+                        <a href="/fornecedor/{{ f[0] }}/editar">
+                            <button
+                                class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-lg transition">
+                                ✏️ Editar
+                            </button>
+                        </a>
+                        <!-- Botão Excluir: envia POST para /fornecedor/<id>/excluir com confirmação -->
+                        <form method="POST" action="/fornecedor/{{ f[0] }}/excluir"
+                            onsubmit="return confirm('Deseja excluir este fornecedor?')">
+                            <button type="submit"
+                                class="bg-red-500 hover:bg-red-600 text-white text-xs font-semibold px-3 py-1 rounded-lg transition">
+                                🗑️ Excluir
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Dados complementares: CNPJ, WhatsApp e link do Maps -->
+                <div class="text-sm text-gray-500 flex flex-col gap-1 mt-1">
+                    <span>📄 CNPJ: {{ f[2] }}</span>
+                    <span>📱 WhatsApp: {{ f[3] }}</span>
+                    {% if f[5] %}
+                    <!-- Link clicável para o Google Maps do fornecedor -->
+                    <a href="{{ f[5] }}" target="_blank" class="text-green-600 hover:underline">
+                        📍 Ver localização no Maps
+                    </a>
+                    {% endif %}
+                </div>
+
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <!-- Mensagem exibida quando não há fornecedores cadastrados -->
+        <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+            <div class="text-5xl mb-4">🌱</div>
+            <p>Nenhum fornecedor cadastrado ainda.</p>
+            <a href="/fornecedor" class="text-green-600 hover:underline text-sm mt-2 inline-block">
+                Seja o primeiro!
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Botão Início: redireciona para a home -->
+        <div class="text-center mt-8">
+            <a href="/" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">
+                🏠 Início
+            </a>
+        </div>
+
+    </div>
+
+</body>
+
+</html>

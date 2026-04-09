@@ -102,6 +102,82 @@
   <!-- fim do hero -->
 
 
+  <!-- ===================== SEÇÃO DE CONTADORES ANIMADOS =====================
+       Números ilustrativos que crescem suavemente ao carregar a página.
+       O efeito é criado via JavaScript com incremento progressivo (counter animation).
+       Os valores são simbólicos e têm objetivo visual/motivacional.
+  -->
+  <section class="bg-green-700 py-14 px-6">
+    <div class="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8 text-center text-white">
+
+      <!-- Contador 1: Árvores plantadas -->
+      <div>
+        <div class="text-5xl font-extrabold mb-1">
+          <span id="count-arvores">0</span>
+        </div>
+        <div class="text-green-200 text-sm font-medium tracking-wide uppercase">🌳 Árvores Plantadas</div>
+      </div>
+
+      <!-- Contador 2: Cidades alcançadas -->
+      <div>
+        <div class="text-5xl font-extrabold mb-1">
+          <span id="count-cidades">0</span>
+        </div>
+        <div class="text-green-200 text-sm font-medium tracking-wide uppercase">📍 Cidades</div>
+      </div>
+
+      <!-- Contador 3: Árvores aguardando aprovação -->
+      <div>
+        <div class="text-5xl font-extrabold mb-1">
+          <span id="count-aprovacao">0</span>
+        </div>
+        <div class="text-green-200 text-sm font-medium tracking-wide uppercase">⏳ Em Aprovação</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Script dos contadores: anima os números do zero até o valor final
+       de forma suave usando requestAnimationFrame. Cada contador tem
+       sua própria duração e valor alvo definidos no array abaixo. -->
+  <script>
+    // Configuração de cada contador: elemento, valor final e duração em ms
+    const contadores = [
+      { id: 'count-arvores',   alvo: 12480, duracao: 2000 },
+      { id: 'count-cidades',   alvo: 87,    duracao: 1600 },
+      { id: 'count-aprovacao', alvo: 342,   duracao: 1800 },
+    ];
+
+    // Função que anima um único contador do zero até o valor alvo
+    function animarContador({ id, alvo, duracao }) {
+      const el    = document.getElementById(id);
+      const inicio = performance.now();
+
+      function passo(agora) {
+        // Progresso de 0 a 1 com base no tempo decorrido
+        const progresso = Math.min((agora - inicio) / duracao, 1);
+        // Curva de easing suave (ease-out): desacelera no final
+        const eased = 1 - Math.pow(1 - progresso, 3);
+        el.textContent = Math.floor(eased * alvo).toLocaleString('pt-BR');
+        if (progresso < 1) requestAnimationFrame(passo);
+      }
+
+      requestAnimationFrame(passo);
+    }
+
+    // Inicia todos os contadores quando a seção entra na tela (IntersectionObserver)
+    // Isso evita que a animação termine antes do usuário rolar até ela.
+    const secao = document.querySelector('#count-arvores').closest('section');
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        contadores.forEach(animarContador);
+        observer.disconnect(); // Roda apenas uma vez
+      }
+    }, { threshold: 0.3 });
+
+    observer.observe(secao);
+  </script>
+
   <!-- ===================== SEÇÃO DE MISSÃO =====================
          Três colunas com ícone, título e texto explicando os pilares do projeto.
     -->
@@ -133,7 +209,7 @@
         <div class="flex flex-col items-center">
           <div class="text-5xl mb-4">🌍</div>
           <h3 class="text-xl font-semibold text-green-700 mb-2">Impacto</h3>
-          <p class="text-gray-500 text-sm">Acompanhe o impacto real das suas ações no meio ambiente.</p>
+          <p class="text-gray-500 text-sm">Você ajudando a diminuir o Aquecimento Global.</p>
         </div>
 
       </div>
@@ -190,23 +266,56 @@
     <h2 class="text-3xl font-bold mb-3">Faça parte dessa mudança</h2>
     <p class="text-green-200 mb-8">Crie sua conta gratuitamente e comece a registrar seus plantios hoje.</p>
 
-    <!-- Botão de cadastro -->
-    <a href="/cadastros">
-      <button
-        class="bg-white text-green-700 font-bold px-10 py-3 rounded-full hover:bg-green-100 transition text-lg shadow-lg">
-        🌱 Criar minha conta
-      </button>
-    </a>
+    <!-- Botões de ação lado a lado -->
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+
+      <!-- Botão de cadastro de usuário comum -->
+      <a href="/cadastros">
+        <button
+          class="bg-white text-green-700 font-bold px-10 py-3 rounded-full hover:bg-green-100 transition text-lg shadow-lg">
+          🌱 Criar minha conta
+        </button>
+      </a>
+
+      <!-- Botão para cadastro de fornecedor de mudas: redireciona para /fornecedor -->
+      <a href="/fornecedor">
+        <button
+          class="bg-green-500 hover:bg-green-400 text-white font-bold px-10 py-3 rounded-full transition text-lg shadow-lg border-2 border-white">
+          🌿 Quero ser um Fornecedor
+        </button>
+      </a>
+
+    </div>
 
   </section>
   <!-- fim do CTA -->
 
 
   <!-- ===================== RODAPÉ =====================
-         Informações básicas do projeto no final da página.
+         Informações básicas do projeto e contato no final da página.
     -->
-  <footer class="bg-gray-800 text-gray-400 text-center text-sm py-6">
-    <p>© 2026 Plantando Vida — Todos os direitos reservados.</p>
+  <footer class="bg-gray-800 text-gray-400 text-center text-sm py-8">
+    <p class="mb-2">© 2026 Plantando Vida — Todos os direitos reservados.</p>
+
+    <!-- Contato via email: link clicável que abre o aplicativo de email do usuário -->
+    <p>
+      Contato via email:
+      <a href="mailto:projetoplantandovida@gmail.com"
+        class="text-green-400 hover:text-green-300 hover:underline transition">
+        projetoplantandovida@gmail.com
+      </a>
+    </p>
+
+    <!-- Botão de acesso restrito ao painel administrativo -->
+    <div class="mt-6">
+      <a href="/admin/login">
+        <button
+          class="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs font-semibold px-5 py-2 rounded-full border border-gray-600 transition">
+          🔒 Acesso Restrito
+        </button>
+      </a>
+    </div>
+
   </footer>
   <!-- fim do rodapé -->
 

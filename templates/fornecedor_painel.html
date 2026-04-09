@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Cadastro - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-green-50 min-h-screen py-10 px-4">
+
+    <!-- ===================== NAVBAR =====================
+         Barra superior com nome da empresa e botão de sair.
+         O nome vem da variável Jinja2 fornecedor[1] (razão social).
+    -->
+    <nav
+        class="bg-emerald-800 text-white px-6 py-4 flex justify-between items-center shadow-md mb-8 rounded-xl max-w-lg mx-auto">
+        <div class="flex items-center gap-2">
+            <span class="text-xl">🌿</span>
+            <!-- Nome da empresa logada -->
+            <span class="font-bold text-sm">{{ fornecedor[1] }}</span>
+        </div>
+        <!-- Botão Sair: encerra a sessão do fornecedor e redireciona para /fornecedor/login -->
+        <a href="/fornecedor/logout"
+            class="bg-white text-emerald-800 text-xs font-semibold px-3 py-1 rounded-lg hover:bg-green-100 transition">
+            Sair
+        </a>
+    </nav>
+
+    <!-- ===================== CARD PRINCIPAL =====================
+         Exibe os dados do fornecedor logado e permite editá-los.
+         Todos os campos são preenchidos com os valores atuais do banco.
+         fornecedor = (id, razao_social, cnpj, whatsapp, tipo_planta, maps_link)
+    -->
+    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-lg mx-auto">
+
+        <h2 class="text-center text-2xl font-bold text-green-700 mb-6">
+            📋 Meu Cadastro
+        </h2>
+
+        <!-- ===================== MENSAGENS DE FEEDBACK (FLASH) =====================
+             Exibe confirmações de atualização ou mensagens de erro.
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        {% if category == "sucesso" %}
+        <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+            ✅ {{ message }}
+        </div>
+        {% elif category == "erro" %}
+        <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+            ⚠️ {{ message }}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+
+        <!-- ===================== FORMULÁRIO DE EDIÇÃO =====================
+             method="POST" envia os dados atualizados.
+             action="/fornecedor/painel" aciona a rota que atualiza o banco
+             usando o id gravado na sessão — o fornecedor só altera o próprio registro.
+        -->
+        <form method="POST" action="/fornecedor/painel" class="space-y-4">
+
+            <!-- Campo Razão Social: preenchido com o valor atual -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Razão Social</label>
+                <input name="razao_social" required value="{{ fornecedor[1] }}"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo CNPJ: preenchido com o valor atual -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">CNPJ</label>
+                <input name="cnpj" required value="{{ fornecedor[2] }}"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campo WhatsApp com máscara (00) 00000-0000 aplicada via JS -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
+                <input id="whatsapp" name="whatsapp" required value="{{ fornecedor[3] }}" maxlength="15"
+                    oninput="mascaraWhatsapp(this)"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Campos UF e Cidade com integração à API do IBGE.
+                 Ao carregar a página, se já houver UF salva, carrega as cidades automaticamente
+                 via carregarCidades() e pré-seleciona a cidade salva no banco. -->
+            <div class="flex gap-3">
+
+                <!-- Select UF: pré-selecionado com o valor salvo (fornecedor[8]).
+                     Ao mudar, dispara carregarCidades() para atualizar o select de cidades. -->
+                <div class="w-32">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">UF</label>
+                    <select id="uf" name="uf" required onchange="carregarCidades()"
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
+                        <option value="">-- UF --</option>
+                        {% set uf_atual = fornecedor[8] or '' %}
+                        {% for uf in ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
+                            <option value="{{ uf }}" {{ 'selected' if uf == uf_atual }}>{{ uf }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Select Cidade: populado via JS após seleção da UF.
+                     A cidade salva no banco é pré-selecionada automaticamente pelo JS. -->
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+                    <select id="cidade" name="cidade" required
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white disabled:bg-gray-100 disabled:text-gray-400"
+                        {{ 'disabled' if not fornecedor[8] }}>
+                        <option value="{{ fornecedor[7] or '' }}">{{ fornecedor[7] or 'Selecione a UF primeiro' }}</option>
+                    </select>
+                    <!-- Indicador de carregamento exibido enquanto a API responde -->
+                    <p id="loading-cidades" class="text-xs text-green-600 mt-1 hidden">⏳ Carregando cidades...</p>
+                </div>
+
+            </div>
+
+            <!-- Campo Tipo de Planta: checkboxes pré-marcados conforme o valor salvo no banco.
+                 O Jinja2 verifica se o tipo contém "Frutíferas" ou "Nativas" para pré-selecionar. -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Planta</label>
+                <div class="flex gap-6">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="chk-frutiferas" class="w-4 h-4 accent-green-600" {{ 'checked'
+                            if 'Frutíferas' in fornecedor[4] or fornecedor[4]=='Ambas' }} />
+                        <span class="text-sm text-gray-700">🍎 Frutíferas</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="chk-nativas" class="w-4 h-4 accent-green-600" {{ 'checked'
+                            if 'Nativas' in fornecedor[4] or fornecedor[4]=='Ambas' }} />
+                        <span class="text-sm text-gray-700">🌳 Nativas</span>
+                    </label>
+                </div>
+                <!-- Campo oculto que recebe o valor combinado dos checkboxes via JS -->
+                <input type="hidden" id="tipo_planta" name="tipo_planta" value="{{ fornecedor[4] }}" />
+                <p id="erro-tipo" class="text-red-500 text-xs mt-1 hidden">Selecione ao menos um tipo.</p>
+            </div>
+
+            <!-- Campo Link do Maps: preenchido com o valor atual -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Link do Google Maps</label>
+                <input name="maps_link" value="{{ fornecedor[5] or '' }}" placeholder="https://maps.google.com/..."
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
+            <!-- Botão salvar: valida checkboxes antes de enviar -->
+            <button type="submit" onclick="return prepararEnvio()"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                💾 Salvar alterações
+            </button>
+
+        </form>
+        <!-- fim do formulário de edição -->
+
+        <!-- ===================== EXCLUIR CADASTRO =====================
+             Formulário separado que envia POST para /fornecedor/painel/excluir.
+             O backend usa o id da sessão — o fornecedor só exclui o próprio registro.
+             Confirmação via JavaScript antes de submeter.
+        -->
+        <form method="POST" action="/fornecedor/painel/excluir"
+            onsubmit="return confirm('Tem certeza? Esta ação removerá seu cadastro permanentemente.')" class="mt-3">
+            <button type="submit"
+                class="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-lg transition">
+                🗑️ Excluir meu cadastro
+            </button>
+        </form>
+        <!-- fim da seção de exclusão -->
+
+        <!-- Botão Início: redireciona para a home -->
+        <div class="mt-4 text-center">
+            <a href="/" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">
+                🏠 Início
+            </a>
+        </div>
+
+    </div>
+    <!-- fim do card principal -->
+
+
+    <!-- ===================== JAVASCRIPT =====================
+         Lê os checkboxes, monta o valor combinado no campo oculto
+         e valida que ao menos um tipo foi selecionado antes de salvar.
+    -->
+    <script>
+        // ===================== IBGE API — CARREGAR CIDADES =====================
+        // Busca os municípios do estado selecionado via API gratuita do IBGE.
+        // cidadeSalva: se informado, pré-seleciona a cidade após carregar a lista
+        //              (usado ao abrir a página com dados já salvos no banco).
+        async function carregarCidades(cidadeSalva = null) {
+            const uf      = document.getElementById('uf').value;
+            const select  = document.getElementById('cidade');
+            const loading = document.getElementById('loading-cidades');
+
+            if (!uf) {
+                select.innerHTML = '<option value="">Selecione a UF primeiro</option>';
+                select.disabled  = true;
+                return;
+            }
+
+            select.disabled = true;
+            loading.classList.remove('hidden');
+            select.innerHTML = '<option value="">Carregando...</option>';
+
+            try {
+                // Requisição à API do IBGE — gratuita, sem autenticação
+                const resposta = await fetch(
+                    `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`
+                );
+                const cidades = await resposta.json();
+
+                select.innerHTML = '<option value="">Selecione a cidade</option>';
+                cidades.forEach(c => {
+                    const opt       = document.createElement('option');
+                    opt.value       = c.nome;
+                    opt.textContent = c.nome;
+                    // Pré-seleciona a cidade salva no banco, se houver
+                    if (cidadeSalva && c.nome === cidadeSalva) opt.selected = true;
+                    select.appendChild(opt);
+                });
+
+                select.disabled = false;
+            } catch (erro) {
+                select.innerHTML = '<option value="">Erro ao carregar. Tente novamente.</option>';
+                select.disabled  = false;
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        // Ao abrir a página, se já houver UF salva, carrega as cidades automaticamente
+        // e pré-seleciona a cidade do banco sem precisar o usuário interagir.
+        window.addEventListener('DOMContentLoaded', () => {
+            const uf     = document.getElementById('uf').value;
+            const cidade = "{{ fornecedor[7] or '' }}";
+            if (uf) carregarCidades(cidade);
+        });
+
+        // Aplica máscara (00) 00000-0000 ao campo WhatsApp conforme o usuário digita
+        function mascaraWhatsapp(input) {
+            let v = input.value.replace(/\D/g, '').substring(0, 11);
+            if (v.length >= 7) {
+                v = `(${v.substring(0, 2)}) ${v.substring(2, 7)}-${v.substring(7)}`;
+            } else if (v.length >= 3) {
+                v = `(${v.substring(0, 2)}) ${v.substring(2)}`;
+            } else if (v.length >= 1) {
+                v = `(${v}`;
+            }
+            input.value = v;
+        }
+
+        function prepararEnvio() {
+            const frutifera = document.getElementById('chk-frutiferas').checked;
+            const nativa = document.getElementById('chk-nativas').checked;
+            const erro = document.getElementById('erro-tipo');
+
+            if (!frutifera && !nativa) {
+                // Nenhum tipo selecionado: bloqueia o envio
+                erro.classList.remove('hidden');
+                return false;
+            }
+
+            erro.classList.add('hidden');
+
+            // Define o valor do campo oculto conforme os checkboxes marcados
+            if (frutifera && nativa) document.getElementById('tipo_planta').value = 'Ambas';
+            else if (frutifera) document.getElementById('tipo_planta').value = 'Frutíferas';
+            else document.getElementById('tipo_planta').value = 'Nativas';
+
+            return true;
+        }
+    </script>
+
+</body>
+
+</html>

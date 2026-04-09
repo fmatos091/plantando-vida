@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acesso Restrito - Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização da página -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<!-- body centraliza o conteúdo vertical e horizontalmente na tela -->
+<body class="bg-gray-900 min-h-screen flex items-center justify-center">
+
+    <!-- ===================== CARD DE LOGIN ADMIN =====================
+         Caixa escura centralizada para login do administrador.
+         Visual diferenciado (escuro) para indicar área restrita.
+    -->
+    <div class="bg-gray-800 p-8 rounded-xl shadow-xl w-full max-w-sm border border-gray-700">
+
+        <!-- Ícone e título -->
+        <div class="text-center mb-6">
+            <div class="text-5xl mb-2">🔒</div>
+            <h2 class="text-2xl font-bold text-white">Acesso Restrito</h2>
+            <p class="text-gray-400 text-sm mt-1">Painel Administrativo</p>
+        </div>
+
+        <!-- ===================== MENSAGENS DE FEEDBACK (FLASH) =====================
+             Exibe erro caso as credenciais estejam incorretas.
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                {% if category == "erro" %}
+                    <div class="bg-red-900 text-red-300 text-sm px-4 py-3 rounded-lg mb-4 text-center">
+                        ⚠️ {{ message }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+
+        <!-- ===================== FORMULÁRIO DE LOGIN =====================
+             method="POST" envia login e senha de forma segura.
+             action="/admin/login" aciona a rota no views.py que valida
+             as credenciais fixas (ADMIN_LOGIN e ADMIN_SENHA).
+        -->
+        <form method="POST" action="/admin/login" class="space-y-4">
+
+            <!-- Campo Login: comparado com a constante ADMIN_LOGIN no backend -->
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Login</label>
+                <input name="login" required placeholder="Login de administrador"
+                    class="w-full p-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+
+            <!-- Campo Senha: comparado com a constante ADMIN_SENHA no backend -->
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Senha</label>
+                <input type="password" name="senha" required placeholder="Senha de administrador"
+                    class="w-full p-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+
+            <!-- Botão de acesso -->
+            <button type="submit"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                Entrar
+            </button>
+
+        </form>
+        <!-- fim do formulário -->
+
+        <!-- Link para voltar à home -->
+        <div class="mt-4 text-center">
+            <a href="/" class="text-sm text-gray-500 hover:text-gray-300 hover:underline transition">
+                🏠 Voltar ao Início
+            </a>
+        </div>
+
+    </div>
+    <!-- fim do card de login -->
+
+</body>
+</html>
