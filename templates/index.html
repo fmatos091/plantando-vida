@@ -43,9 +43,25 @@
       transform: scale(1.07);
     }
 
-    /* Sobreposição escura sobre o hero para legibilidade do texto */
+    /* Imagem de fundo do hero: separada em div própria para poder desfocar
+       sem afetar o texto sobreposto. scale(1.05) evita bordas brancas do blur. */
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background-image: url('https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?w=1600&q=80');
+      background-size: cover;
+      background-position: center 30%;
+      filter: blur(3px);
+      transform: scale(1.06);
+    }
+
+    /* Sobreposição sobre a imagem desfocada — gradiente humanizado levemente esverdeado */
     .hero-overlay {
-      background: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.65));
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom,
+          rgba(5, 46, 22, 0.55),
+          rgba(0, 0, 0, 0.70));
     }
   </style>
 </head>
@@ -53,24 +69,33 @@
 <body class="bg-gray-50 font-sans">
 
   <!-- ===================== HERO (BANNER PRINCIPAL) =====================
-         Seção de destaque com imagem de fundo de floresta/natureza.
-         Ocupa a tela inteira e exibe o título, subtítulo e botões de ação.
-         A imagem é carregada via Unsplash (banco de imagens gratuito).
+         Imagem de fundo: criança plantando uma muda (Unsplash, gratuito).
+         A imagem fica numa div separada com filter:blur para desfocar apenas
+         o fundo, mantendo o texto nítido. A sobreposição verde escuro garante
+         contraste e reforça a identidade do projeto.
     -->
-  <section class="relative min-h-screen flex flex-col items-center justify-center text-white text-center px-4"
-    style="background-image: url('https://images.unsplash.com/photo-1542601906897-ecd71b622bd2?w=1600&q=80'); background-size: cover; background-position: center;">
+  <section
+    class="relative min-h-screen flex flex-col items-center justify-center text-white text-center px-4 overflow-hidden">
 
-    <!-- Camada escura sobre a imagem para melhorar o contraste do texto -->
-    <div class="absolute inset-0 hero-overlay"></div>
+    <!-- Camada 1: imagem de fundo desfocada (criança plantando muda) -->
+    <div class="hero-bg"></div>
 
-    <!-- Conteúdo do hero (fica acima da camada escura com z-10) -->
+    <!-- Camada 2: sobreposição escura para contraste do texto -->
+    <div class="hero-overlay"></div>
+
+    <!-- Camada 3: conteúdo — fica acima das duas camadas com z-10 -->
     <div class="relative z-10 fade-in-up max-w-2xl">
 
       <!-- Ícone e nome do projeto -->
-      <div class="text-6xl mb-4">🌱</div>
-      <h1 class="text-5xl font-extrabold mb-4 drop-shadow-lg">Plantando Vida</h1>
-      <p class="text-lg text-green-200 mb-10 drop-shadow">
-        Aqui você contribui com o futuro da Humanidade.
+      <div class="text-6xl mb-4"></div>
+      <h1 class="text-5xl font-extrabold mb-3 drop-shadow-lg">Plantando Vida</h1>
+
+      <!-- Frase emotiva sobre o impacto geracional do projeto -->
+      <p class="text-xl text-green-200 mb-2 drop-shadow font-light">
+        A melhor hora de plantar uma árvore foi há 20 anos.
+      </p>
+      <p class="text-2xl text-green-300 mb-10 drop-shadow font-semibold">
+        A segunda melhor hora é <strong class="text-white">agora</strong>.
       </p>
 
       <!-- Botões de ação: cadastro e login -->
@@ -93,6 +118,12 @@
         </a>
 
       </div>
+
+      <!-- Credencial visual: transmite confiança e propósito -->
+      <p class="mt-8 text-sm text-white tracking-widest uppercase font-semibold">
+        Cada muda conta. Cada criança importa. Cada futuro começa aqui.
+      </p>
+
     </div>
 
     <!-- Seta indicando que há mais conteúdo abaixo -->
@@ -143,14 +174,14 @@
   <script>
     // Configuração de cada contador: elemento, valor final e duração em ms
     const contadores = [
-      { id: 'count-arvores',   alvo: 12480, duracao: 2000 },
-      { id: 'count-cidades',   alvo: 87,    duracao: 1600 },
-      { id: 'count-aprovacao', alvo: 342,   duracao: 1800 },
+      { id: 'count-arvores', alvo: 12480, duracao: 2000 },
+      { id: 'count-cidades', alvo: 87, duracao: 1600 },
+      { id: 'count-aprovacao', alvo: 342, duracao: 1800 },
     ];
 
     // Função que anima um único contador do zero até o valor alvo
     function animarContador({ id, alvo, duracao }) {
-      const el    = document.getElementById(id);
+      const el = document.getElementById(id);
       const inicio = performance.now();
 
       function passo(agora) {
