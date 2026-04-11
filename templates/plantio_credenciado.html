@@ -50,28 +50,53 @@
             {% if fornecedores %}
             <div class="flex flex-col gap-3" id="lista-fornecedores">
                 {% for f in fornecedores %}
-                <!-- Card clicável — f = (id, razao_social, cidade, uf, tipo_planta, whatsapp, maps_link)
-                     data-cnpj: CNPJ do fornecedor, usado para validar o QR Code lido -->
+                <!-- Card clicável — f = (id, razao_social, cnpj, cidade, uf, tipo_planta, whatsapp, maps_link)
+                     f[0]=id  f[1]=razao_social  f[2]=cnpj  f[3]=cidade  f[4]=uf
+                     f[5]=tipo_planta  f[6]=whatsapp  f[7]=maps_link
+                     data-cnpj: usado para validar o QR Code lido na câmera -->
                 <div onclick="selecionarFornecedor({{ f[0] }}, this)"
                     data-cnpj="{{ f[2] }}"
                     class="fornecedor-card bg-gray-50 rounded-xl p-4 flex items-start gap-4 cursor-pointer border-2 border-transparent hover:border-green-400 hover:bg-green-50 transition">
+
                     <!-- Ícone visual de seleção -->
                     <div class="icone-sel text-2xl mt-0.5 text-gray-300">⭕</div>
+
                     <div class="flex-1">
+                        <!-- Nome do fornecedor -->
                         <h3 class="text-base font-semibold text-green-800">{{ f[1] }}</h3>
+
+                        <!-- Localização e tipo de planta -->
                         <p class="text-sm text-gray-500 mt-0.5">
-                            📍 {{ f[2] }}/{{ f[3] }} &nbsp;·&nbsp;
-                            {% if f[4] == 'Ambas' %}🍎🌳 Frutíferas e Nativas
-                            {% elif f[4] == 'Frutíferas' %}🍎 Frutíferas
+                            📍 {{ f[3] }}/{{ f[4] }} &nbsp;·&nbsp;
+                            {% if f[5] == 'Ambas' %}🍎🌳 Frutíferas e Nativas
+                            {% elif f[5] == 'Frutíferas' %}🍎 Frutíferas
                             {% else %}🌳 Nativas{% endif %}
                         </p>
-                        <p class="text-sm text-gray-400">📱 {{ f[5] }}</p>
+
+                        <!-- WhatsApp do fornecedor -->
+                        <p class="text-sm text-gray-400">📱 {{ f[6] }}</p>
+
+                        <!-- Botões de ação: Comprar Planta e Ver no Maps -->
+                        <div class="flex gap-2 flex-wrap mt-3" onclick="event.stopPropagation()">
+
+                            <!-- Botão Comprar Planta: abre modal de compra para o fornecedor clicado -->
+                            <button type="button"
+                                onclick="abrirModalCompra({{ f[0] }}, '{{ f[1] | replace("'", "\\'") }}')"
+                                class="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition shadow-sm">
+                                🛒 Comprar Planta
+                            </button>
+
+                            <!-- Link Maps: exibido apenas quando cadastrado -->
+                            {% if f[7] %}
+                            <a href="{{ f[7] }}" target="_blank"
+                                class="inline-flex items-center gap-1 bg-white hover:bg-gray-100 text-green-700 border border-green-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                                📍 Ver no Maps
+                            </a>
+                            {% endif %}
+
+                        </div>
                     </div>
-                    {% if f[6] %}
-                    <!-- Link Maps: stopPropagation para não acionar seleção do card -->
-                    <a href="{{ f[6] }}" target="_blank" onclick="event.stopPropagation()"
-                        class="text-green-600 hover:underline text-xs mt-1 whitespace-nowrap">Ver no Maps</a>
-                    {% endif %}
+
                 </div>
                 {% endfor %}
             </div>
@@ -82,6 +107,146 @@
             </div>
             {% endif %}
         </div>
+
+        <!-- ===================== MODAL COMPRAR PLANTA =====================
+             Aberto ao clicar em "Comprar Planta" em qualquer card de fornecedor.
+             Fluxo: 1) filtrar/buscar planta → 2) ver dados bancários e pagar →
+                    3) anexar comprovante → 4) Finalizar Compra.
+        -->
+        <div id="modal-compra"
+            class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-start justify-center px-4 py-6 overflow-y-auto">
+            <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl my-auto">
+
+                <!-- Cabeçalho do modal -->
+                <div class="bg-green-700 text-white rounded-t-2xl px-5 py-4 flex justify-between items-center">
+                    <div>
+                        <h3 class="font-bold text-base">🛒 Comprar Planta</h3>
+                        <p id="modal-fornecedor-nome" class="text-green-200 text-xs mt-0.5"></p>
+                    </div>
+                    <button onclick="fecharModalCompra()"
+                        class="text-green-200 hover:text-white text-xl font-bold leading-none">✕</button>
+                </div>
+
+                <form method="POST" action="/compra/finalizar" enctype="multipart/form-data" class="p-5 space-y-4">
+                    <!-- Campos ocultos: fornecedor selecionado + planta escolhida -->
+                    <input type="hidden" name="fornecedor_id" id="compra-fornecedor-id" />
+                    <input type="hidden" name="especie_nome"  id="compra-especie-nome" />
+                    <input type="hidden" name="tipo_planta"   id="compra-tipo-planta" />
+                    <input type="hidden" name="valor"         id="compra-valor" />
+
+                    <!-- ── ETAPA 1: Selecionar planta ── -->
+                    <div class="border border-gray-100 rounded-xl p-4 bg-gray-50">
+                        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
+                            1️⃣ Escolha a planta
+                        </p>
+
+                        <!-- Filtro de tipo -->
+                        <div class="flex gap-4 mb-3">
+                            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+                                <input type="radio" name="filtro_tipo" value=""
+                                    checked onchange="buscarPlantas()"
+                                    class="accent-green-600" /> Todas
+                            </label>
+                            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+                                <input type="radio" name="filtro_tipo" value="Frutífera"
+                                    onchange="buscarPlantas()"
+                                    class="accent-green-600" /> 🍎 Frutífera
+                            </label>
+                            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+                                <input type="radio" name="filtro_tipo" value="Nativa"
+                                    onchange="buscarPlantas()"
+                                    class="accent-green-600" /> 🌳 Nativa
+                            </label>
+                        </div>
+
+                        <!-- Campo de busca por nome -->
+                        <input id="busca-planta" type="text" placeholder="🔍 Buscar pelo nome da planta..."
+                            oninput="buscarPlantas()"
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400 mb-2" />
+
+                        <!-- Lista de resultados AJAX -->
+                        <div id="lista-plantas-modal"
+                            class="max-h-44 overflow-y-auto flex flex-col gap-1.5 mt-1">
+                            <p class="text-xs text-gray-400 text-center py-3">Digite para buscar plantas...</p>
+                        </div>
+
+                        <!-- Planta selecionada (exibida após escolha) -->
+                        <div id="planta-selecionada" class="hidden mt-3 bg-green-50 border border-green-200
+                            rounded-lg px-3 py-2 flex justify-between items-center">
+                            <span id="planta-sel-label" class="text-sm font-semibold text-green-800"></span>
+                            <span id="planta-sel-valor" class="text-sm font-bold text-green-700"></span>
+                        </div>
+                    </div>
+
+                    <!-- ── ETAPA 2: Dados Bancários para pagamento ── -->
+                    {% if dados_bancarios %}
+                    {% set db = dados_bancarios %}
+                    <div class="border border-green-200 rounded-xl p-4 bg-green-50">
+                        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
+                            2️⃣ Realize o Pagamento
+                        </p>
+
+                        <div class="space-y-1 text-sm mb-3">
+                            {% if db[0] %}<p>🏢 <strong>{{ db[0] }}</strong></p>{% endif %}
+                            {% if db[1] %}<p>🏦 Banco: <strong>{{ db[1] }}</strong></p>{% endif %}
+                            {% if db[3] or db[2] %}
+                            <p>📋 Ag: <strong>{{ db[3] or '—' }}</strong>
+                               &nbsp;|&nbsp; Conta: <strong>{{ db[2] or '—' }}</strong></p>
+                            {% endif %}
+                            {% if db[4] %}
+                            <div class="flex items-center gap-2 mt-1">
+                                <p class="text-green-800">🔑 PIX: <strong id="chave-pix-val">{{ db[4] }}</strong></p>
+                                <!-- Botão copiar chave PIX -->
+                                <button type="button" onclick="copiarPix()"
+                                    class="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold
+                                           px-2 py-1 rounded-lg transition" title="Copiar chave PIX">
+                                    📋 Copiar
+                                </button>
+                            </div>
+                            <!-- Feedback de cópia -->
+                            <p id="pix-copiado" class="text-xs text-green-600 hidden">✅ Chave copiada!</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- QR Code PIX se disponível -->
+                        {% if db[5] %}
+                        <div class="text-center mt-2">
+                            <img src="/static/pix/{{ db[5] }}" alt="QR Code PIX"
+                                class="mx-auto w-32 h-32 object-contain rounded-lg shadow-sm" />
+                            <p class="text-xs text-gray-400 mt-1">Escaneie para pagar via PIX</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="border border-yellow-200 bg-yellow-50 rounded-xl p-4 text-sm text-yellow-700">
+                        ⚠️ Dados bancários não configurados pelo administrador.
+                    </div>
+                    {% endif %}
+
+                    <!-- ── ETAPA 3: Comprovante de pagamento ── -->
+                    <div class="border border-gray-100 rounded-xl p-4 bg-gray-50">
+                        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                            3️⃣ Anexar Comprovante
+                        </p>
+                        <input type="file" name="comprovante" accept=".jpg,.jpeg,.png,.pdf"
+                            class="w-full text-sm text-gray-500
+                                   file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0
+                                   file:bg-green-100 file:text-green-700 file:font-medium hover:file:bg-green-200" />
+                        <p class="text-xs text-gray-400 mt-1">JPG, PNG ou PDF — opcional, mas recomendado</p>
+                    </div>
+
+                    <!-- Botão Finalizar Compra -->
+                    <button type="submit" id="btn-finalizar-compra" disabled
+                        class="w-full py-3 rounded-xl font-bold text-base transition
+                               bg-gray-200 text-gray-400 cursor-not-allowed"
+                        onclick="return validarCompra()">
+                        ✅ Finalizar Compra
+                    </button>
+
+                </form>
+            </div>
+        </div>
+        <!-- fim modal compra -->
 
         <!-- ===================== BOTÃO VALIDAR PLANTA =====================
              Desabilitado até o usuário selecionar um fornecedor.
@@ -280,6 +445,124 @@
 
     <!-- ===================== JAVASCRIPT ===================== -->
     <script>
+        // ===================== MODAL COMPRAR PLANTA =====================
+
+        // Abre o modal de compra para o fornecedor clicado.
+        // Preenche o campo oculto fornecedor_id e exibe o nome no cabeçalho.
+        function abrirModalCompra(fornecedorId, fornecedorNome) {
+            document.getElementById('compra-fornecedor-id').value = fornecedorId;
+            document.getElementById('modal-fornecedor-nome').textContent = fornecedorNome;
+            document.getElementById('modal-compra').classList.remove('hidden');
+            // Carrega as primeiras plantas ao abrir
+            buscarPlantas();
+        }
+
+        function fecharModalCompra() {
+            document.getElementById('modal-compra').classList.add('hidden');
+            // Limpa seleção anterior
+            document.getElementById('compra-especie-nome').value = '';
+            document.getElementById('compra-tipo-planta').value  = '';
+            document.getElementById('compra-valor').value        = '';
+            document.getElementById('planta-selecionada').classList.add('hidden');
+            document.getElementById('btn-finalizar-compra').disabled  = true;
+            document.getElementById('btn-finalizar-compra').className =
+                'w-full py-3 rounded-xl font-bold text-base transition bg-gray-200 text-gray-400 cursor-not-allowed';
+            document.getElementById('busca-planta').value = '';
+        }
+
+        // Busca plantas via AJAX com filtro de tipo e nome.
+        // Debounce leve: aguarda 250ms após última tecla para não sobrecarregar.
+        let _buscaTimer = null;
+        function buscarPlantas() {
+            clearTimeout(_buscaTimer);
+            _buscaTimer = setTimeout(_executarBusca, 250);
+        }
+
+        async function _executarBusca() {
+            const tipoEl  = document.querySelector('input[name="filtro_tipo"]:checked');
+            const tipo    = tipoEl ? tipoEl.value : '';
+            const busca   = document.getElementById('busca-planta').value.trim();
+            const lista   = document.getElementById('lista-plantas-modal');
+
+            lista.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">⏳ Buscando...</p>';
+
+            try {
+                const url  = `/api/plantas?tipo=${encodeURIComponent(tipo)}&busca=${encodeURIComponent(busca)}`;
+                const resp = await fetch(url);
+                const data = await resp.json();
+
+                if (!data.plantas.length) {
+                    lista.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">Nenhuma planta encontrada.</p>';
+                    return;
+                }
+
+                lista.innerHTML = '';
+                data.plantas.forEach(p => {
+                    const badge = p.tipo === 'Frutífera'
+                        ? '<span class="text-orange-600 text-xs">🍎 Frutífera</span>'
+                        : '<span class="text-green-600 text-xs">🌳 Nativa</span>';
+                    const div = document.createElement('div');
+                    div.className = 'planta-item flex justify-between items-center bg-white border ' +
+                        'border-gray-200 rounded-lg px-3 py-2 cursor-pointer hover:border-green-400 ' +
+                        'hover:bg-green-50 transition text-sm';
+                    div.innerHTML = `<span>${p.nome} ${badge}</span>
+                        <span class="font-semibold text-green-700 whitespace-nowrap ml-2">R$ ${p.valor.toFixed(2)}</span>`;
+                    div.onclick = () => selecionarPlanta(p.nome, p.tipo, p.valor, div);
+                    lista.appendChild(div);
+                });
+            } catch (e) {
+                lista.innerHTML = '<p class="text-xs text-red-400 text-center py-3">Erro ao buscar plantas.</p>';
+            }
+        }
+
+        // Marca visualmente a planta escolhida e preenche os campos ocultos do form.
+        function selecionarPlanta(nome, tipo, valor, elClicado) {
+            // Remove destaque de outros itens
+            document.querySelectorAll('.planta-item').forEach(el => {
+                el.classList.remove('border-green-500', 'bg-green-100');
+                el.classList.add('border-gray-200');
+            });
+            elClicado.classList.add('border-green-500', 'bg-green-100');
+            elClicado.classList.remove('border-gray-200');
+
+            // Preenche os campos ocultos
+            document.getElementById('compra-especie-nome').value = nome;
+            document.getElementById('compra-tipo-planta').value  = tipo;
+            document.getElementById('compra-valor').value        = valor;
+
+            // Exibe o resumo da seleção
+            document.getElementById('planta-sel-label').textContent = `${tipo === 'Frutífera' ? '🍎' : '🌳'} ${nome}`;
+            document.getElementById('planta-sel-valor').textContent = `R$ ${valor.toFixed(2)}`;
+            document.getElementById('planta-selecionada').classList.remove('hidden');
+
+            // Ativa o botão Finalizar Compra
+            const btn = document.getElementById('btn-finalizar-compra');
+            btn.disabled  = false;
+            btn.className = 'w-full py-3 rounded-xl font-bold text-base transition ' +
+                'bg-green-600 hover:bg-green-700 text-white cursor-pointer';
+        }
+
+        // Copia a chave PIX para o clipboard e exibe confirmação temporária.
+        function copiarPix() {
+            const chave = document.getElementById('chave-pix-val').textContent.trim();
+            navigator.clipboard.writeText(chave).then(() => {
+                const msg = document.getElementById('pix-copiado');
+                msg.classList.remove('hidden');
+                setTimeout(() => msg.classList.add('hidden'), 2500);
+            });
+        }
+
+        // Valida que uma planta foi selecionada antes de enviar o formulário.
+        function validarCompra() {
+            const especie = document.getElementById('compra-especie-nome').value;
+            if (!especie) {
+                alert('Selecione uma planta antes de finalizar a compra.');
+                return false;
+            }
+            return true;
+        }
+
+        // ===================== LEITOR QR CODE =====================
         // Variável global para controlar a instância do leitor QR
         let html5QrCode = null;
 

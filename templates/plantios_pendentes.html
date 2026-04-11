@@ -113,7 +113,6 @@
         </div>
 
         {% else %}
-        <!-- Mensagem quando o usuário ainda não registrou nenhum plantio -->
         <div class="bg-white rounded-xl shadow p-12 text-center text-gray-400">
             <div class="text-5xl mb-3">🌱</div>
             <p class="text-base">Nenhum plantio registrado ainda.</p>
@@ -123,6 +122,62 @@
             </a>
         </div>
         {% endif %}
+
+        <!-- ===================== SEÇÃO MINHAS COMPRAS =====================
+             Exibe o status de cada compra realizada pelo usuário.
+             Atualiza junto com o auto-refresh de 60 segundos da página.
+             c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
+             c[4]=status  c[5]=criado_em  c[6]=fornecedor_nome  c[7]=comprovante
+        -->
+        {% if compras %}
+        <div class="mt-8">
+            <h2 class="text-base font-bold text-gray-700 mb-3">🛒 Minhas Compras</h2>
+            <div class="flex flex-col gap-4">
+                {% for c in compras %}
+                <div class="bg-white rounded-xl shadow p-5 border-l-4
+                    {{ 'border-yellow-400' if c[4] == 'em_analise' else ('border-green-500' if c[4] == 'aprovado' else 'border-red-400') }}">
+
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 class="text-sm font-bold text-green-800">
+                                {{ '🍎' if c[2] == 'Frutífera' else '🌳' }} {{ c[1] }}
+                            </h3>
+                            <p class="text-xs text-gray-400 mt-0.5">
+                                🏪 {{ c[6] }} &nbsp;·&nbsp; 📅 {{ c[5] }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <span class="text-sm font-bold text-green-700">R$ {{ "%.2f"|format(c[3]) }}</span>
+                            {% if c[4] == 'em_analise' %}
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                                🕐 Aguardando validação
+                            </span>
+                            {% elif c[4] == 'aprovado' %}
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                ✅ Pagamento aprovado
+                            </span>
+                            {% else %}
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                                ❌ Pagamento não confirmado
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Aviso quando pagamento aprovado -->
+                    {% if c[4] == 'aprovado' %}
+                    <p class="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2 mt-1">
+                        🌱 Sua muda está disponível para retirada no fornecedor!
+                    </p>
+                    {% endif %}
+
+                    <p class="text-xs text-gray-300 mt-2">#{{ c[0] }} · {{ c[2] }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        <!-- fim minhas compras -->
 
     </div>
 

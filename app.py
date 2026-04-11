@@ -119,6 +119,47 @@ def init_db():
     )
     """)
 
+    # Tabela de espécies de plantas cadastradas pelo admin
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS especies_plantas (
+        id        {pk},
+        nome      TEXT NOT NULL,
+        tipo      TEXT DEFAULT 'Nativa',
+        valor     REAL DEFAULT 50.0,
+        criado_em TEXT DEFAULT ({ts})
+    )
+    """)
+
+    # Tabela de dados bancários da entidade responsável pelo projeto (registro único)
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS dados_bancarios (
+        id               {pk},
+        nome_empresarial TEXT,
+        banco            TEXT,
+        conta            TEXT,
+        agencia          TEXT,
+        chave_pix        TEXT,
+        qrcode_pix       TEXT
+    )
+    """)
+
+    # Tabela de compras de mudas: registra intenção de compra antes do plantio.
+    # comprovante: nome do arquivo de pagamento salvo em static/uploads/.
+    # status evolui: em_analise → aprovado | reprovado (ação do admin).
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS compras (
+        id            {pk},
+        usuario_id    INTEGER NOT NULL,
+        fornecedor_id INTEGER,
+        especie_nome  TEXT    NOT NULL,
+        tipo_planta   TEXT    NOT NULL,
+        valor         REAL    DEFAULT 0.0,
+        comprovante   TEXT,
+        status        TEXT    DEFAULT 'em_analise',
+        criado_em     TEXT    DEFAULT ({ts})
+    )
+    """)
+
     # ---- Migrações seguras para bancos já existentes ----
     # Adiciona colunas que podem não existir em instalações anteriores.
     # SQLite: try/except (não suporta IF NOT EXISTS no ADD COLUMN antes da v3.37)

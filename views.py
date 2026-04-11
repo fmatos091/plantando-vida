@@ -8,13 +8,14 @@ import qrcode
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
-from flask import render_template, request, redirect, session, flash
+from flask import render_template, request, redirect, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 # Pasta de destino dos uploads de fotos de plantio
 UPLOAD_FOLDER  = os.path.join(os.path.dirname(__file__), "static", "uploads")
 QRCODE_FOLDER  = os.path.join(os.path.dirname(__file__), "static", "qrcodes")
+PIX_FOLDER     = os.path.join(os.path.dirname(__file__), "static", "pix")
 EXTENSOES_PERMITIDAS = {"jpg", "jpeg", "png"}
 
 from app import app
@@ -329,15 +330,18 @@ def plantio_credenciado():
         flash("Plantio registrado com sucesso! Aguardando aprovação.", "sucesso")
         return redirect("/dashboard")
 
-    # GET: busca todos os fornecedores para listar na página
+    # GET: busca fornecedores ativos e dados bancários para o modal de compra
     conn   = get_db()
     cursor = conn.cursor()
-    # Filtra apenas fornecedores ativos (ativo = 1) para não exibir inativados pelo admin
-    cursor.execute("SELECT id, razao_social, cidade, uf, tipo_planta, whatsapp, maps_link FROM fornecedores WHERE ativo = 1 ORDER BY uf, cidade")
+    cursor.execute("SELECT id, razao_social, cnpj, cidade, uf, tipo_planta, whatsapp, maps_link FROM fornecedores WHERE ativo = 1 ORDER BY uf, cidade")
     fornecedores = cursor.fetchall()
+
+    # Dados bancários exibidos no modal de compra para o usuário efetuar o pagamento
+    cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios LIMIT 1")
+    dados_bancarios = cursor.fetchone()
     conn.close()
 
-    return render_template("plantio_credenciado.html", fornecedores=fornecedores)
+    return render_template("plantio_credenciado.html", fornecedores=fornecedores, dados_bancarios=dados_bancarios)
 
 
 # ===================== ROTA MEUS PLANTIOS (PENDENTES / TODOS) =====================
@@ -351,8 +355,7 @@ def plantios_pendentes():
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Busca apenas plantios em análise ou reprovados do usuário.
-    # Plantios aprovados são excluídos desta view — aparecem somente em /plantios/aprovados.
+    # Busca plantios em análise ou reprovados do usuário (aprovados ficam em /plantios/aprovados)
     cursor.execute("""
         SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio, pg.bairro,
                pg.status, pg.justificativa, pg.criado_em,
@@ -363,9 +366,24 @@ def plantios_pendentes():
         ORDER BY pg.criado_em DESC
     """, (session["usuario_id"],))
     plantios = cursor.fetchall()
+
+    # Busca compras do usuário para exibir status de pagamento na mesma tela
+    # c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
+    # c[4]=status  c[5]=criado_em  c[6]=fornecedor_nome  c[7]=comprovante
+    cursor.execute("""
+        SELECT c.id, c.especie_nome, c.tipo_planta, c.valor,
+               c.status, c.criado_em,
+               COALESCE(f.razao_social, 'Fornecedor não informado') AS fornecedor_nome,
+               c.comprovante
+        FROM compras c
+        LEFT JOIN fornecedores f ON f.id = c.fornecedor_id
+        WHERE c.usuario_id = ?
+        ORDER BY c.criado_em DESC
+    """, (session["usuario_id"],))
+    compras = cursor.fetchall()
     conn.close()
 
-    return render_template("plantios_pendentes.html", plantios=plantios)
+    return render_template("plantios_pendentes.html", plantios=plantios, compras=compras)
 
 
 # ===================== ROTA PLANTIOS APROVADOS =====================
@@ -1095,7 +1113,6 @@ def admin_painel():
     usuarios = cursor.fetchall()
 
     # ---- Consulta Plantios com dados do usuário e fornecedor (JOIN) ----
-    # Busca todos os plantios independente do filtro de texto, ordenados por data
     cursor.execute("""
         SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio,
                pg.status, pg.justificativa, pg.criado_em,
@@ -1107,12 +1124,39 @@ def admin_painel():
     """)
     plantios = cursor.fetchall()
 
+    # ---- Consulta Compras de Mudas (todas, para o admin gerenciar) ----
+    # c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
+    # c[4]=comprovante  c[5]=status  c[6]=criado_em
+    # c[7]=usuario_nome  c[8]=usuario_email  c[9]=fornecedor_nome
+    cursor.execute("""
+        SELECT c.id, c.especie_nome, c.tipo_planta, c.valor,
+               c.comprovante, c.status, c.criado_em,
+               u.nome, u.email,
+               COALESCE(f.razao_social, 'Não informado') AS fornecedor_nome
+        FROM compras c
+        JOIN usuarios u ON u.id = c.usuario_id
+        LEFT JOIN fornecedores f ON f.id = c.fornecedor_id
+        ORDER BY c.criado_em DESC
+    """)
+    compras = cursor.fetchall()
+
+    # ---- Consulta Espécies de Plantas ----
+    cursor.execute("SELECT id, nome, tipo, valor FROM especies_plantas ORDER BY nome")
+    especies = cursor.fetchall()
+
+    # ---- Consulta Dados Bancários (registro único) ----
+    cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios LIMIT 1")
+    dados_bancarios = cursor.fetchone()
+
     conn.close()
 
     return render_template("admin_painel.html",
                            fornecedores=fornecedores,
                            usuarios=usuarios,
                            plantios=plantios,
+                           compras=compras,
+                           especies=especies,
+                           dados_bancarios=dados_bancarios,
                            busca=busca,
                            tipo=tipo)
 
@@ -1296,6 +1340,437 @@ def perfil_solicitar_senha():
         flash("Usuário não encontrado.", "erro")
 
     return redirect("/meu-perfil")
+
+
+# ===================== ROTA ADMIN: CADASTRAR ESPÉCIE DE PLANTA =====================
+# Cria um novo registro na tabela especies_plantas.
+# Acesso restrito ao administrador (session["admin"]).
+@app.route("/admin/especie/cadastrar", methods=["POST"])
+def admin_cadastrar_especie():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    nome      = request.form.get("nome", "").strip()
+    tipo      = request.form.get("tipo", "Nativa")
+    valor_str = request.form.get("valor", "50").replace(",", ".")
+
+    if not nome:
+        flash("Informe o nome da planta.", "erro")
+        return redirect("/admin/painel?tipo=especies")
+
+    try:
+        valor = float(valor_str)
+    except ValueError:
+        valor = 50.0
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO especies_plantas (nome, tipo, valor) VALUES (?, ?, ?)",
+        (nome, tipo, valor)
+    )
+    conn.commit()
+    conn.close()
+
+    flash(f"Espécie '{nome}' cadastrada com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=especies")
+
+
+# ===================== ROTA ADMIN: EDITAR ESPÉCIE =====================
+@app.route("/admin/especie/<int:eid>/editar", methods=["POST"])
+def admin_editar_especie(eid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    nome      = request.form.get("nome", "").strip()
+    tipo      = request.form.get("tipo", "Nativa")
+    valor_str = request.form.get("valor", "50").replace(",", ".")
+
+    try:
+        valor = float(valor_str)
+    except ValueError:
+        valor = 50.0
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE especies_plantas SET nome = ?, tipo = ?, valor = ? WHERE id = ?",
+        (nome, tipo, valor, eid)
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Espécie atualizada com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=especies")
+
+
+# ===================== ROTA ADMIN: EXCLUIR ESPÉCIE =====================
+@app.route("/admin/especie/<int:eid>/excluir", methods=["POST"])
+def admin_excluir_especie(eid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM especies_plantas WHERE id = ?", (eid,))
+    conn.commit()
+    conn.close()
+
+    flash("Espécie removida.", "sucesso")
+    return redirect("/admin/painel?tipo=especies")
+
+
+# ===================== ROTA ADMIN: IMPORTAR ESPÉCIES VIA EXCEL =====================
+# Lê um arquivo .xlsx com colunas: Nome da Planta | Tipo | Valor
+# Ignora a primeira linha (cabeçalho) e duplicatas já existentes no banco.
+@app.route("/admin/importar-especies", methods=["POST"])
+def admin_importar_especies():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    arquivo = request.files.get("arquivo_xls")
+    if not arquivo or arquivo.filename == "":
+        flash("Selecione um arquivo Excel (.xlsx).", "erro")
+        return redirect("/admin/painel?tipo=especies")
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(arquivo, read_only=True)
+        ws = wb.active
+
+        conn   = get_db()
+        cursor = conn.cursor()
+        importados = 0
+
+        for i, row in enumerate(ws.iter_rows(values_only=True)):
+            if i == 0:
+                continue  # Pula o cabeçalho
+
+            # Coluna A: Nome (obrigatório)
+            nome = str(row[0]).strip() if row[0] else ""
+            if not nome or nome.lower() == "none":
+                continue
+
+            # Coluna B: Tipo (opcional, padrão Nativa)
+            tipo = str(row[1]).strip() if len(row) > 1 and row[1] else "Nativa"
+            if tipo not in ("Frutífera", "Nativa"):
+                tipo = "Nativa"
+
+            # Coluna C: Valor (opcional, padrão 50.0)
+            try:
+                valor = float(str(row[2]).replace(",", ".")) if len(row) > 2 and row[2] else 50.0
+            except (ValueError, AttributeError):
+                valor = 50.0
+
+            # Evita duplicatas pelo nome
+            cursor.execute("SELECT id FROM especies_plantas WHERE nome = ?", (nome,))
+            if not cursor.fetchone():
+                cursor.execute(
+                    "INSERT INTO especies_plantas (nome, tipo, valor) VALUES (?, ?, ?)",
+                    (nome, tipo, valor)
+                )
+                importados += 1
+
+        conn.commit()
+        conn.close()
+        flash(f"{importados} espécie(s) importada(s) com sucesso.", "sucesso")
+
+    except Exception as e:
+        flash(f"Erro ao importar arquivo: {str(e)}", "erro")
+
+    return redirect("/admin/painel?tipo=especies")
+
+
+# ===================== ROTA ADMIN: SALVAR DADOS BANCÁRIOS =====================
+# Upsert: atualiza o registro existente ou cria um novo (registro único).
+# O QR Code PIX é salvo em static/pix/ se enviado.
+@app.route("/admin/dados-bancarios/salvar", methods=["POST"])
+def admin_salvar_dados_bancarios():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    nome_empresarial = request.form.get("nome_empresarial", "").strip()
+    banco            = request.form.get("banco", "").strip()
+    conta            = request.form.get("conta", "").strip()
+    agencia          = request.form.get("agencia", "").strip()
+    chave_pix        = request.form.get("chave_pix", "").strip()
+
+    # Upload do QR Code PIX — salvo como pix_qrcode.{ext} em static/pix/
+    os.makedirs(PIX_FOLDER, exist_ok=True)
+    qrcode_novo = None
+    arquivo_qr  = request.files.get("qrcode_pix")
+    if arquivo_qr and arquivo_qr.filename:
+        ext = arquivo_qr.filename.rsplit(".", 1)[-1].lower()
+        if ext in {"jpg", "jpeg", "png"}:
+            nome_arquivo = f"pix_qrcode.{ext}"
+            arquivo_qr.save(os.path.join(PIX_FOLDER, nome_arquivo))
+            qrcode_novo = nome_arquivo
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, qrcode_pix FROM dados_bancarios LIMIT 1")
+    existente = cursor.fetchone()
+
+    # Mantém o QR Code anterior se nenhum novo foi enviado
+    qrcode_final = qrcode_novo or (existente[1] if existente else None)
+
+    if existente:
+        cursor.execute("""
+            UPDATE dados_bancarios
+            SET nome_empresarial=?, banco=?, conta=?, agencia=?, chave_pix=?, qrcode_pix=?
+            WHERE id=?
+        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final, existente[0]))
+    else:
+        cursor.execute("""
+            INSERT INTO dados_bancarios (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final))
+
+    conn.commit()
+    conn.close()
+
+    flash("Dados bancários salvos com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=dados_bancarios")
+
+
+# ===================== API: BUSCA DE ESPÉCIES (AJAX) =====================
+# Retorna JSON com espécies filtradas por tipo e/ou busca por nome.
+# Usada pelo modal de compra em /plantio/credenciado via fetch().
+@app.route("/api/plantas")
+def api_plantas():
+    if "usuario_id" not in session:
+        return jsonify({"plantas": []})
+
+    tipo  = request.args.get("tipo", "").strip()
+    busca = request.args.get("busca", "").strip()
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Monta a query dinamicamente conforme os filtros recebidos
+    if tipo and busca:
+        cursor.execute(
+            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE tipo = ? AND nome LIKE ? ORDER BY nome",
+            (tipo, f"%{busca}%")
+        )
+    elif tipo:
+        cursor.execute(
+            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE tipo = ? ORDER BY nome",
+            (tipo,)
+        )
+    elif busca:
+        cursor.execute(
+            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE nome LIKE ? ORDER BY nome",
+            (f"%{busca}%",)
+        )
+    else:
+        # Sem filtros: retorna as primeiras 30 para não sobrecarregar
+        cursor.execute("SELECT id, nome, tipo, valor FROM especies_plantas ORDER BY nome LIMIT 30")
+
+    plantas = [{"id": r[0], "nome": r[1], "tipo": r[2], "valor": r[3]} for r in cursor.fetchall()]
+    conn.close()
+    return jsonify({"plantas": plantas})
+
+
+# ===================== ROTA FINALIZAR COMPRA =====================
+# Salva a compra na tabela compras e envia email de confirmação ao usuário.
+# Acesso restrito a usuários logados.
+@app.route("/compra/finalizar", methods=["POST"])
+def compra_finalizar():
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    fornecedor_id = request.form.get("fornecedor_id") or None
+    especie_nome  = request.form.get("especie_nome", "").strip()
+    tipo_planta   = request.form.get("tipo_planta", "").strip()
+    valor_str     = request.form.get("valor", "0").replace(",", ".")
+
+    if not especie_nome or not tipo_planta:
+        flash("Selecione uma planta antes de finalizar a compra.", "erro")
+        return redirect("/plantio/credenciado")
+
+    try:
+        valor = float(valor_str)
+    except ValueError:
+        valor = 0.0
+
+    # Salva o comprovante de pagamento em static/uploads/
+    comprovante = salvar_foto("comprovante")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO compras (usuario_id, fornecedor_id, especie_nome, tipo_planta, valor, comprovante, status)
+        VALUES (?, ?, ?, ?, ?, ?, 'em_analise')
+    """, (session["usuario_id"], fornecedor_id, especie_nome, tipo_planta, valor, comprovante))
+    conn.commit()
+
+    # Busca nome e email do usuário para envio do email de confirmação
+    cursor.execute("SELECT nome, email FROM usuarios WHERE id = ?", (session["usuario_id"],))
+    usuario = cursor.fetchone()
+    conn.close()
+
+    # Envia email de confirmação ao usuário
+    if usuario:
+        nome_usuario, email_usuario = usuario
+        corpo_html = f"""
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;background:#f0fdf4;
+                    border-radius:12px;padding:32px;border:1px solid #bbf7d0">
+            <div style="text-align:center;margin-bottom:24px">
+                <span style="font-size:48px">🌱</span>
+                <h1 style="color:#15803d;font-size:20px;margin:12px 0 4px">Compra Recebida!</h1>
+                <p style="color:#4b7a58;font-size:14px;margin:0">
+                    Olá, {nome_usuario}! Recebemos sua solicitação de compra.
+                </p>
+            </div>
+            <div style="background:#ffffff;border-radius:8px;padding:16px;
+                        border-left:4px solid #16a34a;margin-bottom:20px">
+                <p style="margin:0 0 6px;font-size:13px;color:#6b7280">Detalhes da compra:</p>
+                <p style="margin:4px 0;font-size:14px;color:#111827">
+                    🌿 <strong>Espécie:</strong> {especie_nome}
+                </p>
+                <p style="margin:4px 0;font-size:14px;color:#111827">
+                    {'🍎' if tipo_planta == 'Frutífera' else '🌳'} <strong>Tipo:</strong> {tipo_planta}
+                </p>
+                <p style="margin:4px 0;font-size:14px;color:#111827">
+                    💰 <strong>Valor:</strong> R$ {valor:.2f}
+                </p>
+            </div>
+            <div style="background:#fefce8;border-radius:8px;padding:14px;
+                        border-left:4px solid #ca8a04;margin-bottom:20px">
+                <p style="margin:0;font-size:14px;color:#854d0e;font-weight:bold">
+                    ⏳ Aguarde a validação do seu pagamento.
+                </p>
+                <p style="margin:6px 0 0;font-size:13px;color:#92400e">
+                    Nossa equipe irá conferir o comprovante e confirmar sua compra em breve.
+                    Você será notificado por email assim que o pagamento for validado.
+                </p>
+            </div>
+            <div style="text-align:center;margin-top:20px">
+                <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/plantios/pendentes"
+                   style="background:#16a34a;color:#ffffff;padding:10px 24px;border-radius:8px;
+                          text-decoration:none;font-weight:bold;font-size:14px">
+                    Acompanhar minha compra
+                </a>
+            </div>
+            <p style="font-size:11px;color:#9ca3af;text-align:center;margin-top:24px">
+                Plantando Vida — juntos por um mundo mais verde 🌱
+            </p>
+        </div>
+        """
+        enviar_email(email_usuario, "🌱 Compra recebida — Aguardando validação | Plantando Vida", corpo_html)
+
+    flash("Compra realizada! Aguarde a validação do pagamento.", "sucesso")
+    return redirect("/plantios/pendentes")
+
+
+# ===================== ROTA ADMIN: APROVAR COMPRA =====================
+@app.route("/admin/compra/<int:cid>/aprovar", methods=["POST"])
+def admin_aprovar_compra(cid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Busca dados para o email antes de atualizar
+    cursor.execute("""
+        SELECT c.especie_nome, c.tipo_planta, c.valor, u.nome, u.email
+        FROM compras c JOIN usuarios u ON u.id = c.usuario_id
+        WHERE c.id = ?
+    """, (cid,))
+    dados = cursor.fetchone()
+
+    cursor.execute("UPDATE compras SET status = 'aprovado' WHERE id = ?", (cid,))
+    conn.commit()
+    conn.close()
+
+    # Notifica o usuário por email
+    if dados:
+        especie, tipo, valor, nome_usuario, email_usuario = dados
+        corpo_html = f"""
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;background:#f0fdf4;
+                    border-radius:12px;padding:32px;border:1px solid #bbf7d0">
+            <div style="text-align:center;margin-bottom:20px">
+                <span style="font-size:48px">✅</span>
+                <h1 style="color:#15803d;font-size:20px;margin:12px 0 4px">Pagamento Aprovado!</h1>
+                <p style="color:#4b7a58;font-size:14px">Olá, {nome_usuario}! Seu pagamento foi validado.</p>
+            </div>
+            <div style="background:#fff;border-radius:8px;padding:16px;border-left:4px solid #16a34a;margin-bottom:16px">
+                <p style="margin:4px 0;font-size:14px;color:#111827">🌿 <strong>{especie}</strong> — {tipo}</p>
+                <p style="margin:4px 0;font-size:14px;color:#111827">💰 R$ {valor:.2f}</p>
+            </div>
+            <p style="font-size:13px;color:#4b5563;text-align:center">
+                Sua muda já pode ser retirada no fornecedor credenciado. Bom plantio! 🌱
+            </p>
+        </div>
+        """
+        enviar_email(email_usuario, "✅ Pagamento aprovado — Plantando Vida", corpo_html)
+
+    flash("Compra aprovada.", "sucesso")
+    return redirect("/admin/painel?tipo=plantios")
+
+
+# ===================== ROTA ADMIN: REPROVAR COMPRA =====================
+@app.route("/admin/compra/<int:cid>/reprovar", methods=["POST"])
+def admin_reprovar_compra(cid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT c.especie_nome, c.tipo_planta, c.valor, u.nome, u.email
+        FROM compras c JOIN usuarios u ON u.id = c.usuario_id
+        WHERE c.id = ?
+    """, (cid,))
+    dados = cursor.fetchone()
+
+    cursor.execute("UPDATE compras SET status = 'reprovado' WHERE id = ?", (cid,))
+    conn.commit()
+    conn.close()
+
+    if dados:
+        especie, tipo, valor, nome_usuario, email_usuario = dados
+        corpo_html = f"""
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;background:#fff7f7;
+                    border-radius:12px;padding:32px;border:1px solid #fecaca">
+            <div style="text-align:center;margin-bottom:20px">
+                <span style="font-size:48px">❌</span>
+                <h1 style="color:#b91c1c;font-size:20px;margin:12px 0 4px">Pagamento Não Confirmado</h1>
+                <p style="color:#7f5252;font-size:14px">Olá, {nome_usuario}. Não foi possível confirmar seu pagamento.</p>
+            </div>
+            <div style="background:#fff;border-radius:8px;padding:16px;border-left:4px solid #ef4444;margin-bottom:16px">
+                <p style="margin:4px 0;font-size:14px;color:#111827">🌿 <strong>{especie}</strong> — {tipo}</p>
+                <p style="margin:4px 0;font-size:14px;color:#111827">💰 R$ {valor:.2f}</p>
+            </div>
+            <p style="font-size:13px;color:#4b5563;text-align:center">
+                Entre em contato conosco para mais informações ou tente novamente.
+            </p>
+        </div>
+        """
+        enviar_email(email_usuario, "❌ Pagamento não confirmado — Plantando Vida", corpo_html)
+
+    flash("Compra reprovada.", "sucesso")
+    return redirect("/admin/painel?tipo=plantios")
+
+
+# ===================== ROTA ADMIN: DEIXAR COMPRA EM ANÁLISE =====================
+@app.route("/admin/compra/<int:cid>/analise", methods=["POST"])
+def admin_analise_compra(cid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE compras SET status = 'em_analise' WHERE id = ?", (cid,))
+    conn.commit()
+    conn.close()
+
+    flash("Compra retornada para análise.", "sucesso")
+    return redirect("/admin/painel?tipo=plantios")
 
 
 # ===================== ROTA LOGOUT ADMINISTRADOR =====================

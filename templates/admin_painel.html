@@ -82,12 +82,28 @@
                     👤 Cadastros ({{ usuarios|length }})
                 </button>
             </a>
-            <!-- Aba Plantios Pendentes -->
+            <!-- Aba Plantios -->
             <a href="/admin/painel?tipo=plantios&busca={{ busca }}">
                 <button
                     class="px-5 py-2 rounded-lg font-semibold text-sm transition
                     {{ 'bg-green-600 text-white' if tipo == 'plantios' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
                     🌱 Plantios ({{ plantios|length }})
+                </button>
+            </a>
+            <!-- Aba Espécies de Plantas -->
+            <a href="/admin/painel?tipo=especies">
+                <button
+                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                    {{ 'bg-green-600 text-white' if tipo == 'especies' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
+                    🌿 Espécies ({{ especies|length }})
+                </button>
+            </a>
+            <!-- Aba Dados Bancários -->
+            <a href="/admin/painel?tipo=dados_bancarios">
+                <button
+                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                    {{ 'bg-green-600 text-white' if tipo == 'dados_bancarios' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
+                    🏦 Dados Bancários
                 </button>
             </a>
         </div>
@@ -443,14 +459,428 @@
         </div>
 
         {% else %}
-        <!-- Mensagem quando não há plantios cadastrados -->
         <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
             <div class="text-4xl mb-3">🌱</div>
             <p>Nenhum plantio registrado ainda.</p>
         </div>
         {% endif %}
 
+        <!-- ===================== SEÇÃO COMPRAS DE MUDAS =====================
+             Lista todas as compras finalizadas pelos usuários com botões de ação.
+             c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
+             c[4]=comprovante  c[5]=status  c[6]=criado_em
+             c[7]=usuario_nome  c[8]=usuario_email  c[9]=fornecedor_nome
+        -->
+        <div class="mt-8">
+            <h3 class="text-base font-bold text-gray-700 mb-4 flex items-center gap-2">
+                🛒 Compras de Mudas
+                <span class="bg-gray-200 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">
+                    {{ compras|length }}
+                </span>
+            </h3>
+
+            {% if compras %}
+            <div class="flex flex-col gap-4">
+                {% for c in compras %}
+                <div class="bg-white rounded-xl shadow p-5 border-l-4
+                    {{ 'border-yellow-400' if c[5] == 'em_analise' else ('border-green-500' if c[5] == 'aprovado' else 'border-red-400') }}">
+
+                    <div class="flex flex-wrap justify-between items-start gap-3 mb-3">
+                        <div>
+                            <!-- Espécie, tipo e valor -->
+                            <h4 class="font-bold text-green-800 text-sm">
+                                {{ '🍎' if c[2] == 'Frutífera' else '🌳' }} {{ c[1] }}
+                                <span class="text-xs font-normal text-gray-500">— {{ c[2] }}</span>
+                            </h4>
+                            <p class="text-xs text-gray-500 mt-0.5">
+                                👤 {{ c[7] }} &nbsp;·&nbsp; ✉️ {{ c[8] }}
+                            </p>
+                            <p class="text-xs text-gray-400 mt-0.5">
+                                🏪 {{ c[9] }} &nbsp;·&nbsp; 📅 {{ c[6] }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <span class="text-sm font-bold text-green-700">R$ {{ "%.2f"|format(c[3]) }}</span>
+                            <!-- Badge de status -->
+                            {% if c[5] == 'em_analise' %}
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                                🕐 Em Análise
+                            </span>
+                            {% elif c[5] == 'aprovado' %}
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                ✅ Aprovado
+                            </span>
+                            {% else %}
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                                ❌ Reprovado
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Comprovante: link para visualizar se existir -->
+                    {% if c[4] %}
+                    <p class="text-xs text-blue-600 mb-3">
+                        📎 <a href="/static/uploads/{{ c[4] }}" target="_blank"
+                            class="underline hover:text-blue-800">Ver comprovante</a>
+                    </p>
+                    {% else %}
+                    <p class="text-xs text-gray-300 mb-3">📎 Sem comprovante anexado</p>
+                    {% endif %}
+
+                    <!-- Botões de ação admin -->
+                    <div class="flex gap-2 flex-wrap">
+                        {% if c[5] != 'aprovado' %}
+                        <form method="POST" action="/admin/compra/{{ c[0] }}/aprovar">
+                            <button type="submit"
+                                class="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                                ✅ Aprovar Compra
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if c[5] != 'reprovado' %}
+                        <form method="POST" action="/admin/compra/{{ c[0] }}/reprovar">
+                            <button type="submit"
+                                class="bg-red-500 hover:bg-red-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                                ❌ Reprovar Compra
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if c[5] != 'em_analise' %}
+                        <form method="POST" action="/admin/compra/{{ c[0] }}/analise">
+                            <button type="submit"
+                                class="bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                                🕐 Deixar em Análise
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="bg-white rounded-xl shadow p-8 text-center text-gray-400">
+                <div class="text-3xl mb-2">🛒</div>
+                <p class="text-sm">Nenhuma compra realizada ainda.</p>
+            </div>
+            {% endif %}
+        </div>
+        <!-- fim seção compras -->
+
         {% endif %}
+
+
+        <!-- ===================== ABA ESPÉCIES DE PLANTAS =====================
+             Listagem + cadastro individual + importação via Excel (.xlsx).
+             Colunas do Excel esperadas: Nome da Planta | Tipo | Valor
+             Índices da tupla e: e[0]=id  e[1]=nome  e[2]=tipo  e[3]=valor
+        -->
+        {% if tipo == 'especies' %}
+
+        <!-- Mensagens de flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <div class="mb-4 px-4 py-3 rounded-lg text-sm text-center
+            {{ 'bg-green-100 text-green-700' if category == 'sucesso' else 'bg-red-100 text-red-700' }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endwith %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Coluna esquerda: formulário de cadastro + importação Excel -->
+            <div class="lg:col-span-1 flex flex-col gap-4">
+
+                <!-- Card cadastro manual -->
+                <div class="bg-white rounded-xl shadow p-5">
+                    <h3 class="font-bold text-green-700 mb-4">➕ Cadastrar Espécie</h3>
+                    <form method="POST" action="/admin/especie/cadastrar" class="space-y-3">
+
+                        <!-- Nome da planta -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Nome da Planta</label>
+                            <input type="text" name="nome" required placeholder="Ex: Ipê Amarelo"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- Tipo: Frutífera ou Nativa -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                    <input type="radio" name="tipo" value="Frutífera" class="accent-green-600" />
+                                    🍎 Frutífera
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                    <input type="radio" name="tipo" value="Nativa" checked class="accent-green-600" />
+                                    🌳 Nativa
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Valor com R$ 50,00 pré-preenchido -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Valor (R$)</label>
+                            <input type="number" name="valor" value="50.00" step="0.01" min="0"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <button type="submit"
+                            class="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 rounded-lg transition">
+                            💾 Cadastrar
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Card importação via Excel -->
+                <div class="bg-white rounded-xl shadow p-5">
+                    <h3 class="font-bold text-blue-700 mb-1">📥 Importar via Excel</h3>
+                    <p class="text-xs text-gray-400 mb-3">
+                        Arquivo .xlsx com colunas:<br>
+                        <strong>A:</strong> Nome da Planta &nbsp;|&nbsp;
+                        <strong>B:</strong> Tipo &nbsp;|&nbsp;
+                        <strong>C:</strong> Valor
+                    </p>
+                    <form method="POST" action="/admin/importar-especies" enctype="multipart/form-data" class="space-y-3">
+                        <input type="file" name="arquivo_xls" accept=".xlsx" required
+                            class="w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0
+                                   file:bg-blue-100 file:text-blue-700 file:font-medium hover:file:bg-blue-200" />
+                        <button type="submit"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition">
+                            📤 Importar Planilha
+                        </button>
+                    </form>
+                </div>
+
+            </div>
+
+            <!-- Coluna direita: lista de espécies cadastradas -->
+            <div class="lg:col-span-2">
+
+                {% if especies %}
+                <!-- Filtro por tipo: atua via JS sem recarregar a página -->
+                <div class="flex items-center gap-3 mb-4">
+                    <label class="text-sm font-medium text-gray-600 whitespace-nowrap">Exibir por tipo:</label>
+                    <select id="filtro-tipo-especie" onchange="filtrarEspecies()"
+                        class="flex-1 p-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+                        <option value="">🌿 Todas as espécies</option>
+                        <option value="Frutífera">🍎 Frutíferas</option>
+                        <option value="Nativa">🌳 Nativas</option>
+                    </select>
+                    <!-- Contador de resultados visíveis -->
+                    <span id="contador-especies" class="text-xs text-gray-400 whitespace-nowrap">
+                        {{ especies|length }} espécie(s)
+                    </span>
+                </div>
+
+                <div class="flex flex-col gap-3" id="lista-especies">
+                    {% for e in especies %}
+                    <!-- Card de espécie — data-tipo usado pelo filtro JS para exibir/ocultar -->
+                    <div class="especie-card bg-white rounded-xl shadow p-4" data-tipo="{{ e[2] }}">
+
+                        <!-- Linha de exibição -->
+                        <div class="flex items-center justify-between gap-3" id="linha-{{ e[0] }}">
+                            <div class="flex-1">
+                                <span class="font-semibold text-green-800 text-sm">{{ e[1] }}</span>
+                                <span class="ml-2 text-xs px-2 py-0.5 rounded-full
+                                    {{ 'bg-orange-100 text-orange-700' if e[2] == 'Frutífera' else 'bg-green-100 text-green-700' }}">
+                                    {{ '🍎 Frutífera' if e[2] == 'Frutífera' else '🌳 Nativa' }}
+                                </span>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-700">R$ {{ "%.2f"|format(e[3]) }}</span>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="toggleEditarEspecie({{ e[0] }})"
+                                    class="bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                                    ✏️ Editar
+                                </button>
+                                <form method="POST" action="/admin/especie/{{ e[0] }}/excluir"
+                                    onsubmit="return confirm('Remover {{ e[1] }}?')">
+                                    <button type="submit"
+                                        class="bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                                        🗑️
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Formulário de edição inline (oculto por padrão) -->
+                        <form method="POST" action="/admin/especie/{{ e[0] }}/editar"
+                            class="hidden mt-3 pt-3 border-t border-gray-100 space-y-2" id="editar-esp-{{ e[0] }}">
+                            <div class="flex gap-2 flex-wrap">
+                                <input type="text" name="nome" value="{{ e[1] }}" required
+                                    class="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                <input type="number" name="valor" value="{{ e[3] }}" step="0.01" min="0"
+                                    class="w-28 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+                            <div class="flex gap-4">
+                                <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                    <input type="radio" name="tipo" value="Frutífera" class="accent-green-600"
+                                        {{ 'checked' if e[2] == 'Frutífera' }} /> 🍎 Frutífera
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                    <input type="radio" name="tipo" value="Nativa" class="accent-green-600"
+                                        {{ 'checked' if e[2] == 'Nativa' }} /> 🌳 Nativa
+                                </label>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="submit"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition">
+                                    💾 Salvar
+                                </button>
+                                <button type="button" onclick="toggleEditarEspecie({{ e[0] }})"
+                                    class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold px-4 py-1.5 rounded-lg transition">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </form>
+
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-white rounded-xl shadow p-12 text-center text-gray-400">
+                    <div class="text-4xl mb-3">🌿</div>
+                    <p>Nenhuma espécie cadastrada ainda.</p>
+                    <p class="text-xs mt-1">Cadastre individualmente ou importe uma planilha Excel.</p>
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+        {% endif %}
+        <!-- fim da aba espécies -->
+
+
+        <!-- ===================== ABA DADOS BANCÁRIOS =====================
+             Registro único da entidade responsável pelo projeto.
+             dados_bancarios = (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix)
+             db[0]=nome_empresarial  db[1]=banco  db[2]=conta
+             db[3]=agencia  db[4]=chave_pix  db[5]=qrcode_pix
+        -->
+        {% if tipo == 'dados_bancarios' %}
+        {% set db = dados_bancarios %}
+
+        <!-- Mensagens de flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <div class="mb-4 px-4 py-3 rounded-lg text-sm text-center
+            {{ 'bg-green-100 text-green-700' if category == 'sucesso' else 'bg-red-100 text-red-700' }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endwith %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Formulário de dados bancários -->
+            <div class="bg-white rounded-xl shadow p-6">
+                <h3 class="font-bold text-gray-800 mb-5">🏦 Dados Bancários da Entidade</h3>
+                <form method="POST" action="/admin/dados-bancarios/salvar"
+                    enctype="multipart/form-data" class="space-y-4">
+
+                    <!-- Nome Empresarial -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">Nome Empresarial da Conta</label>
+                        <input type="text" name="nome_empresarial" value="{{ db[0] if db else '' }}"
+                            placeholder="Razão social da conta bancária"
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    </div>
+
+                    <!-- Banco -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">Banco</label>
+                        <input type="text" name="banco" value="{{ db[1] if db else '' }}"
+                            placeholder="Ex: Nubank, Bradesco, Itaú..."
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    </div>
+
+                    <!-- Agência e Conta lado a lado -->
+                    <div class="flex gap-3">
+                        <div class="w-32">
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Agência</label>
+                            <input type="text" name="agencia" value="{{ db[3] if db else '' }}"
+                                placeholder="0001"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Conta Corrente</label>
+                            <input type="text" name="conta" value="{{ db[2] if db else '' }}"
+                                placeholder="00000-0"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+                    </div>
+
+                    <!-- Chave PIX -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">Chave PIX</label>
+                        <input type="text" name="chave_pix" value="{{ db[4] if db else '' }}"
+                            placeholder="CNPJ, email, telefone ou chave aleatória"
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    </div>
+
+                    <!-- Upload QR Code PIX -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">QR Code da Chave PIX</label>
+                        <input type="file" name="qrcode_pix" accept=".jpg,.jpeg,.png"
+                            class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded
+                                   file:border-0 file:bg-green-100 file:text-green-700 file:font-medium hover:file:bg-green-200" />
+                        {% if db and db[5] %}
+                        <p class="text-xs text-gray-400 mt-1">✅ QR Code já cadastrado — envie novo para substituir.</p>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit"
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+                        💾 Salvar Dados Bancários
+                    </button>
+                </form>
+            </div>
+
+            <!-- Prévia dos dados salvos + QR Code PIX -->
+            <div class="flex flex-col gap-4">
+
+                {% if db %}
+                <!-- Card de prévia dos dados bancários -->
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+                    <h4 class="font-semibold text-gray-700 mb-3 text-sm">📋 Dados Salvos</h4>
+                    <div class="space-y-2 text-sm">
+                        <p><span class="text-gray-400">Empresa:</span>
+                            <strong class="text-gray-800">{{ db[0] or '—' }}</strong></p>
+                        <p><span class="text-gray-400">Banco:</span>
+                            <strong class="text-gray-800">{{ db[1] or '—' }}</strong></p>
+                        <p><span class="text-gray-400">Agência:</span>
+                            <strong class="text-gray-800">{{ db[3] or '—' }}</strong> &nbsp;
+                           <span class="text-gray-400">Conta:</span>
+                            <strong class="text-gray-800">{{ db[2] or '—' }}</strong></p>
+                        <p><span class="text-gray-400">Chave PIX:</span>
+                            <strong class="text-gray-800 break-all">{{ db[4] or '—' }}</strong></p>
+                    </div>
+                </div>
+
+                <!-- QR Code PIX: exibe a imagem se cadastrada -->
+                {% if db[5] %}
+                <div class="bg-white border border-green-200 rounded-xl p-5 text-center">
+                    <p class="text-xs text-gray-500 mb-3">QR Code para pagamento via PIX</p>
+                    <img src="/static/pix/{{ db[5] }}" alt="QR Code PIX"
+                         class="mx-auto w-44 h-44 object-contain rounded-lg shadow" />
+                </div>
+                {% endif %}
+
+                {% else %}
+                <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+                    <div class="text-4xl mb-3">🏦</div>
+                    <p class="text-sm">Nenhum dado bancário cadastrado ainda.</p>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+        {% endif %}
+        <!-- fim da aba dados bancários -->
+
+
         <!-- fim das abas -->
 
     </div>
@@ -466,6 +896,33 @@
         function toggleEditar(id) {
             const form = document.getElementById('editar-' + id);
             if (form) form.classList.toggle('hidden');
+        }
+
+        // Alterna a visibilidade do formulário de edição inline de espécie
+        function toggleEditarEspecie(id) {
+            const form = document.getElementById('editar-esp-' + id);
+            if (form) form.classList.toggle('hidden');
+        }
+
+        // Filtra os cards de espécie pelo tipo selecionado no dropdown.
+        // Atualiza o contador de resultados visíveis em tempo real.
+        function filtrarEspecies() {
+            const filtro    = document.getElementById('filtro-tipo-especie').value;
+            const cards     = document.querySelectorAll('.especie-card');
+            const contador  = document.getElementById('contador-especies');
+            let visiveis    = 0;
+
+            cards.forEach(card => {
+                const tipo = card.dataset.tipo;
+                // Exibe todos se filtro vazio, ou apenas os que batem com o tipo
+                const mostrar = !filtro || tipo === filtro;
+                card.style.display = mostrar ? '' : 'none';
+                if (mostrar) visiveis++;
+            });
+
+            // Atualiza o texto do contador
+            const label = filtro ? filtro + 's' : 'espécie(s)';
+            contador.textContent = visiveis + ' ' + label;
         }
 
         // Exibe o modal de reprovação do plantio com o id informado
