@@ -8,8 +8,10 @@ database.db
 
 # Ambiente virtual Python (caso seja criado futuramente)
 venv/
-.env/
 env/
+
+# Variáveis de ambiente com credenciais — nunca commitar
+.env
 
 # Configurações de editores
 .vscode/

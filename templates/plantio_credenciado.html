@@ -50,8 +50,10 @@
             {% if fornecedores %}
             <div class="flex flex-col gap-3" id="lista-fornecedores">
                 {% for f in fornecedores %}
-                <!-- Card clicável — f = (id, razao_social, cidade, uf, tipo_planta, whatsapp, maps_link) -->
+                <!-- Card clicável — f = (id, razao_social, cidade, uf, tipo_planta, whatsapp, maps_link)
+                     data-cnpj: CNPJ do fornecedor, usado para validar o QR Code lido -->
                 <div onclick="selecionarFornecedor({{ f[0] }}, this)"
+                    data-cnpj="{{ f[2] }}"
                     class="fornecedor-card bg-gray-50 rounded-xl p-4 flex items-start gap-4 cursor-pointer border-2 border-transparent hover:border-green-400 hover:bg-green-50 transition">
                     <!-- Ícone visual de seleção -->
                     <div class="icone-sel text-2xl mt-0.5 text-gray-300">⭕</div>
@@ -116,6 +118,11 @@
                     ✖ Cancelar
                 </button>
             </div>
+        </div>
+
+        <!-- Mensagem de erro exibida quando o QR Code não pertence ao fornecedor selecionado -->
+        <div id="erro-qr" class="hidden bg-red-100 border border-red-300 text-red-700 text-sm px-4 py-3 rounded-xl mb-4 text-center">
+            ⚠️ QR Code inválido! O código lido não pertence ao fornecedor selecionado. Tente novamente.
         </div>
 
 
@@ -276,6 +283,10 @@
         // Variável global para controlar a instância do leitor QR
         let html5QrCode = null;
 
+        // CNPJ (apenas dígitos) do fornecedor selecionado — preenchido ao clicar no card.
+        // Usado para validar o QR Code lido: o conteúdo do QR deve bater com este valor.
+        let cnpjSelecionado = '';
+
         // -----------------------------------------------------------------
         // selecionarFornecedor(): marca visualmente o card escolhido,
         // grava o id no campo oculto e ativa o botão "Validar Planta".
@@ -297,6 +308,13 @@
 
             // Grava o id do fornecedor no campo oculto do formulário
             document.getElementById('fornecedor_id').value = id;
+
+            // Armazena o CNPJ do fornecedor (apenas dígitos) para validação posterior
+            const cnpjBruto = cardClicado.dataset.cnpj || '';
+            cnpjSelecionado = cnpjBruto.replace(/\D/g, '');
+
+            // Oculta mensagem de erro de QR anterior (se houver)
+            document.getElementById('erro-qr').classList.add('hidden');
 
             // Ativa o botão "Validar Planta"
             const btn = document.getElementById('btn-validar');
@@ -376,9 +394,28 @@
 
         // -----------------------------------------------------------------
         // liberarEtapa2(): chamado após leitura bem-sucedida do QR Code.
-        // Salva o conteúdo lido, exibe o formulário e atualiza o botão.
+        // Valida que o CNPJ do QR bate com o fornecedor selecionado.
+        // Se válido: exibe o formulário de dados e trava o botão.
+        // Se inválido: exibe mensagem de erro e permite nova tentativa.
         // -----------------------------------------------------------------
         function liberarEtapa2(qrTexto) {
+            // O QR Code deve conter apenas os 14 dígitos do CNPJ
+            const cnpjQr = qrTexto.replace(/\D/g, '');
+
+            // Valida se o CNPJ lido pertence ao fornecedor selecionado
+            if (cnpjQr !== cnpjSelecionado) {
+                // QR Code inválido — exibe erro e permite nova tentativa
+                document.getElementById('erro-qr').classList.remove('hidden');
+                // Reativa o botão para que o usuário possa escanear novamente
+                const btn = document.getElementById('btn-validar');
+                btn.disabled = false;
+                btn.className = 'w-full py-3 rounded-xl font-bold text-lg transition mb-6 bg-green-600 hover:bg-green-700 text-white cursor-pointer';
+                return;
+            }
+
+            // CNPJ válido — oculta qualquer mensagem de erro anterior
+            document.getElementById('erro-qr').classList.add('hidden');
+
             // Salva o conteúdo do QR Code no campo oculto do formulário
             document.getElementById('qr_data').value = qrTexto;
 

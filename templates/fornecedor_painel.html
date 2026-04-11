@@ -149,6 +149,14 @@
                     class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
 
+            <!-- Campo Email: usado para envio do QR Code de credenciamento -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email para contato</label>
+                <input type="email" name="email" value="{{ fornecedor[10] or '' }}"
+                    placeholder="contato@empresa.com.br"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
             <!-- Botão salvar: valida checkboxes antes de enviar -->
             <button type="submit" onclick="return prepararEnvio()"
                 class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
@@ -157,6 +165,40 @@
 
         </form>
         <!-- fim do formulário de edição -->
+
+        <!-- ===================== QR CODE DE CREDENCIAMENTO =====================
+             Exibe o QR Code gerado a partir do CNPJ do fornecedor.
+             O arquivo é servido de /static/qrcodes/ e pode ser enviado por email.
+        -->
+        {% if qr_arquivo %}
+        <div class="mt-6 bg-green-50 border border-green-200 rounded-xl p-5 text-center">
+            <h3 class="text-green-700 font-bold text-base mb-1">📱 Seu QR Code de Credenciamento</h3>
+            <p class="text-xs text-gray-500 mb-3">
+                Apresente este QR Code para validar plantios registrados com seu credenciamento.
+            </p>
+
+            <!-- Imagem do QR Code gerado -->
+            <img src="{{ url_for('static', filename='qrcodes/' + qr_arquivo) }}"
+                alt="QR Code de Credenciamento" class="mx-auto w-44 h-44 rounded-lg shadow" />
+
+            <!-- Botão enviar QR por email — só aparece se o fornecedor tiver email cadastrado -->
+            {% if fornecedor[10] %}
+            <form method="POST" action="/fornecedor/painel/qrcode/email" class="mt-3">
+                <button type="submit"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">
+                    📧 Enviar por Email
+                </button>
+                <p class="text-xs text-gray-400 mt-1">Será enviado para: {{ fornecedor[10] }}</p>
+            </form>
+            {% else %}
+            <!-- Aviso quando o email ainda não foi cadastrado -->
+            <p class="text-xs text-amber-600 mt-3">
+                ⚠️ Cadastre um email acima para poder receber o QR Code por email.
+            </p>
+            {% endif %}
+        </div>
+        {% endif %}
+        <!-- fim da seção QR Code -->
 
         <!-- ===================== EXCLUIR CADASTRO =====================
              Formulário separado que envia POST para /fornecedor/painel/excluir.

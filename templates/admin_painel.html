@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
     <meta charset="UTF-8">
@@ -67,21 +68,24 @@
         <div class="flex gap-2 mb-6 flex-wrap">
             <!-- Aba Fornecedores -->
             <a href="/admin/painel?tipo=fornecedores&busca={{ busca }}">
-                <button class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                <button
+                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
                     {{ 'bg-green-600 text-white' if tipo == 'fornecedores' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
                     🌿 Fornecedores ({{ fornecedores|length }})
                 </button>
             </a>
             <!-- Aba Cadastros de Usuários -->
             <a href="/admin/painel?tipo=usuarios&busca={{ busca }}">
-                <button class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                <button
+                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
                     {{ 'bg-green-600 text-white' if tipo == 'usuarios' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
                     👤 Cadastros ({{ usuarios|length }})
                 </button>
             </a>
             <!-- Aba Plantios Pendentes -->
             <a href="/admin/painel?tipo=plantios&busca={{ busca }}">
-                <button class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                <button
+                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
                     {{ 'bg-green-600 text-white' if tipo == 'plantios' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
                     🌱 Plantios ({{ plantios|length }})
                 </button>
@@ -91,34 +95,184 @@
 
         <!-- ===================== ABA FORNECEDORES =====================
              Exibida quando tipo == "fornecedores".
-             Lista todos os fornecedores com razão social, CNPJ, cidade, UF, WhatsApp e tipo de planta.
+             Permite ao admin visualizar, editar, inativar e excluir fornecedores.
+             Índices da tupla f:
+               f[0] = id          f[5] = cidade
+               f[1] = razao_social  f[6] = uf
+               f[2] = cnpj        f[7] = ativo (1=ativo, 0=inativo)
+               f[3] = whatsapp    f[8] = maps_link
+               f[4] = tipo_planta  f[9] = email
         -->
         {% if tipo == 'fornecedores' %}
 
+        <!-- Mensagens de flash (salvar, excluir, inativar) -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        {% if category == "erro" %}
+        <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">⚠️ {{ message }}</div>
+        {% elif category == "sucesso" %}
+        <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">✅ {{ message }}</div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+
         {% if fornecedores %}
-        <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-4">
             {% for f in fornecedores %}
-            <!-- Card de cada fornecedor — f = (id, razao_social, cnpj, whatsapp, tipo_planta, cidade, uf) -->
-            <div class="bg-white rounded-xl shadow p-5 flex flex-col gap-1">
+            <!-- Card do fornecedor — visual acinzentado quando inativo -->
+            <div class="rounded-xl shadow p-5 flex flex-col gap-2
+                {{ 'bg-gray-100 border border-gray-300 opacity-70' if f[7] == 0 else 'bg-white' }}">
+
+                <!-- Cabeçalho: nome, tipo, status e id -->
                 <div class="flex justify-between items-start">
-                    <div>
-                        <!-- Razão Social e tipo de planta -->
-                        <h2 class="text-base font-semibold text-green-800">{{ f[1] }}</h2>
-                        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                            {% if f[4] == 'Ambas' %}🍎🌳 Frutíferas e Nativas
-                            {% elif f[4] == 'Frutíferas' %}🍎 Frutíferas
-                            {% else %}🌳 Nativas{% endif %}
-                        </span>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h2 class="text-base font-semibold text-green-800">{{ f[1] }}</h2>
+                            <!-- Badge de status ativo/inativo -->
+                            {% if f[7] == 0 %}
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">🔴
+                                Inativo</span>
+                            {% else %}
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">🟢
+                                Ativo</span>
+                            {% endif %}
+                        </div>
+                        <!-- Tipo de planta e dados básicos -->
+                        <div class="text-sm text-gray-500 flex flex-wrap gap-3 mt-1">
+                            <span>📄 {{ f[2] }}</span>
+                            <span>📱 {{ f[3] }}</span>
+                            {% if f[5] %}<span>📍 {{ f[5] }}{% if f[6] %}/{{ f[6] }}{% endif %}</span>{% endif %}
+                            <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                {% if f[4] == 'Ambas' %}🍎🌳 Frutíferas e Nativas
+                                {% elif f[4] == 'Frutíferas' %}🍎 Frutíferas
+                                {% else %}🌳 Nativas{% endif %}
+                            </span>
+                        </div>
                     </div>
-                    <!-- ID do registro -->
-                    <span class="text-xs text-gray-400">#{{ f[0] }}</span>
+                    <span class="text-xs text-gray-400 ml-2">#{{ f[0] }}</span>
                 </div>
-                <!-- Dados complementares -->
-                <div class="text-sm text-gray-500 flex flex-wrap gap-4 mt-1">
-                    <span>📄 {{ f[2] }}</span>
-                    <span>📱 {{ f[3] }}</span>
-                    {% if f[5] %}<span>📍 {{ f[5] }}{% if f[6] %} — {{ f[6] }}{% endif %}</span>{% endif %}
+
+                <!-- Botões de ação: Editar, Inativar/Ativar, Excluir -->
+                <div class="flex gap-2 flex-wrap mt-1">
+
+                    <!-- Botão Editar: abre formulário inline -->
+                    <button type="button" onclick="toggleEditar({{ f[0] }})"
+                        class="bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                        ✏️ Editar
+                    </button>
+
+                    <!-- Botão Inativar ou Ativar (alterna conforme estado atual) -->
+                    <form method="POST" action="/admin/fornecedor/{{ f[0] }}/inativar" class="inline">
+                        {% if f[7] == 0 %}
+                        <button type="submit"
+                            class="bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                            ✅ Reativar
+                        </button>
+                        {% else %}
+                        <button type="submit"
+                            class="bg-yellow-100 hover:bg-yellow-200 text-yellow-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                            🔕 Inativar
+                        </button>
+                        {% endif %}
+                    </form>
+
+                    <!-- Botão Excluir: com confirmação JS antes de submeter -->
+                    <form method="POST" action="/admin/fornecedor/{{ f[0] }}/excluir" class="inline"
+                        onsubmit="return confirm('Excluir permanentemente o fornecedor {{ f[1] }}? Esta ação não pode ser desfeita.')">
+                        <button type="submit"
+                            class="bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                            🗑️ Excluir
+                        </button>
+                    </form>
+
                 </div>
+
+                <!-- Formulário de edição inline — oculto até clicar em "Editar" -->
+                <div id="editar-{{ f[0] }}" class="hidden mt-3 border-t border-gray-200 pt-4">
+                    <form method="POST" action="/admin/fornecedor/{{ f[0] }}/salvar">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                            <!-- Razão Social -->
+                            <div class="sm:col-span-2">
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Razão Social</label>
+                                <input type="text" name="razao_social" value="{{ f[1] }}" required
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- CNPJ -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">CNPJ</label>
+                                <input type="text" name="cnpj" value="{{ f[2] }}" required
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- WhatsApp -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">WhatsApp</label>
+                                <input type="text" name="whatsapp" value="{{ f[3] }}" required
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- Cidade -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Cidade</label>
+                                <input type="text" name="cidade" value="{{ f[5] or '' }}"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- UF -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">UF</label>
+                                <input type="text" name="uf" value="{{ f[6] or '' }}" maxlength="2"
+                                    oninput="this.value = this.value.toUpperCase()"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- Tipo de Planta -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Tipo de Planta</label>
+                                <select name="tipo_planta"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                    <option value="Nativas" {{ 'selected' if f[4]=='Nativas' }}>🌳 Nativas</option>
+                                    <option value="Frutíferas" {{ 'selected' if f[4]=='Frutíferas' }}>🍎 Frutíferas
+                                    </option>
+                                    <option value="Ambas" {{ 'selected' if f[4]=='Ambas' }}>🍎🌳 Ambas</option>
+                                </select>
+                            </div>
+
+                            <!-- Link Maps -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Link Google Maps</label>
+                                <input type="text" name="maps_link" value="{{ f[8] or '' }}"
+                                    placeholder="https://maps.google.com/..."
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- Email do fornecedor — usado para envio automático do QR Code -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                                <input type="email" name="email" value="{{ f[9] or '' }}"
+                                    placeholder="contato@empresa.com.br"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                        </div>
+
+                        <!-- Botões do formulário de edição -->
+                        <div class="flex gap-2 mt-4">
+                            <button type="submit"
+                                class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+                                💾 Salvar Alterações
+                            </button>
+                            <button type="button" onclick="toggleEditar({{ f[0] }})"
+                                class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg transition">
+                                Cancelar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <!-- fim do formulário de edição inline -->
+
             </div>
             {% endfor %}
         </div>
@@ -211,15 +365,18 @@
 
                     <!-- Badge de status colorido -->
                     {% if p[4] == 'em_analise' %}
-                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 whitespace-nowrap">
+                    <span
+                        class="text-xs font-semibold px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 whitespace-nowrap">
                         🕐 Em Análise
                     </span>
                     {% elif p[4] == 'aprovado' %}
-                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
+                    <span
+                        class="text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
                         ✅ Aprovado
                     </span>
                     {% elif p[4] == 'reprovado' %}
-                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700 whitespace-nowrap">
+                    <span
+                        class="text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700 whitespace-nowrap">
                         ❌ Reprovado
                     </span>
                     {% endif %}
@@ -255,8 +412,7 @@
                 <!-- Modal inline de reprovação — oculto até o botão ser clicado.
                      id único por plantio para evitar conflito entre cards.
                 -->
-                <div id="modal-reprovar-{{ p[0] }}"
-                    class="hidden mt-4 bg-red-50 border border-red-200 rounded-xl p-4">
+                <div id="modal-reprovar-{{ p[0] }}" class="hidden mt-4 bg-red-50 border border-red-200 rounded-xl p-4">
                     <p class="text-sm font-semibold text-red-700 mb-2">Informe o motivo da reprovação:</p>
                     <form method="POST" action="/admin/plantio/{{ p[0] }}/reprovar">
                         <!-- Textarea com limite de 100 caracteres conforme regra de negócio -->
@@ -300,11 +456,18 @@
     </div>
 
 
-    <!-- ===================== JAVASCRIPT: MODAL DE REPROVAÇÃO =====================
-         Funções para abrir e fechar o modal de justificativa de reprovação.
-         Cada card tem seu próprio modal com id único (modal-reprovar-<id>).
+    <!-- ===================== JAVASCRIPT =====================
+         toggleEditar(): abre/fecha o formulário de edição inline de cada fornecedor.
+         abrirModalReprovar() / fecharModalReprovar(): controla o modal de justificativa.
+         Cada elemento usa um id único baseado no id do registro para evitar conflitos.
     -->
     <script>
+        // Alterna a visibilidade do formulário de edição do fornecedor com o id informado
+        function toggleEditar(id) {
+            const form = document.getElementById('editar-' + id);
+            if (form) form.classList.toggle('hidden');
+        }
+
         // Exibe o modal de reprovação do plantio com o id informado
         function abrirModalReprovar(id) {
             const modal = document.getElementById('modal-reprovar-' + id);
@@ -319,4 +482,5 @@
     </script>
 
 </body>
+
 </html>

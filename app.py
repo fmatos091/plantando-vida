@@ -1,10 +1,14 @@
 import os
 from flask import Flask, render_template
 
+# Carrega variáveis do arquivo .env em desenvolvimento local.
+# Em produção (Railway) as variáveis já estão no ambiente — load_dotenv não sobrescreve.
+from dotenv import load_dotenv
+load_dotenv()
+
 app = Flask(__name__)
 
-# Secret key: em produção usa a variável de ambiente SECRET_KEY do Railway.
-# Em desenvolvimento local usa o valor padrão abaixo.
+# Secret key: lida do ambiente (.env local ou variável do Railway em produção).
 app.secret_key = os.environ.get("SECRET_KEY", "sua_chave_super_secreta")
 
 
@@ -21,116 +25,126 @@ if __name__ == "__main__":
     app.run(debug=debug)
 
 
-#Criando meu Banco de dados
-import sqlite3
+# ===================== BANCO DE DADOS =====================
+# Usa PostgreSQL em produção (Railway, via DATABASE_URL) e SQLite localmente.
+# A função get_db() de db.py abstrai a diferença de conexão e de placeholders.
+from db import get_db, is_postgres
 
 def init_db():
-    conn = sqlite3.connect("database.db")
+    conn   = get_db()
     cursor = conn.cursor()
 
+    # Define os tipos de chave primária e timestamp conforme o banco ativo.
+    # SQLite: INTEGER PRIMARY KEY AUTOINCREMENT + datetime('now','localtime')
+    # PostgreSQL: SERIAL PRIMARY KEY + CURRENT_TIMESTAMP
+    if is_postgres():
+        pk = "SERIAL PRIMARY KEY"
+        ts = "CURRENT_TIMESTAMP"
+    else:
+        pk = "INTEGER PRIMARY KEY AUTOINCREMENT"
+        ts = "datetime('now','localtime')"
+
     # Tabela principal de usuários do sistema
-    cursor.execute("""
+    cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        senha TEXT NOT NULL
+        id              {pk},
+        nome            TEXT NOT NULL,
+        email           TEXT NOT NULL UNIQUE,
+        senha           TEXT NOT NULL,
+        cpf             TEXT,
+        telefone        TEXT,
+        data_nascimento TEXT
     )
     """)
 
-    # Tabela de fornecedores de mudas.
-    # Armazena empresas que desejam fornecer mudas nativas ou frutíferas ao projeto.
-    cursor.execute("""
+    # Tabela de fornecedores de mudas
+    cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS fornecedores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id           {pk},
         razao_social TEXT NOT NULL,
-        cnpj TEXT NOT NULL UNIQUE,
-        whatsapp TEXT NOT NULL,
-        tipo_planta TEXT NOT NULL,
-        maps_link TEXT,
-        senha TEXT,
-        cidade TEXT,
-        uf TEXT
+        cnpj         TEXT NOT NULL UNIQUE,
+        whatsapp     TEXT NOT NULL,
+        tipo_planta  TEXT NOT NULL,
+        maps_link    TEXT,
+        senha        TEXT,
+        cidade       TEXT,
+        uf           TEXT,
+        ativo        INTEGER DEFAULT 1
     )
     """)
 
-    # Adiciona colunas novas caso a tabela já exista sem elas (migração segura).
-    # SQLite ignora o erro se a coluna já existir.
-    for coluna in ["senha TEXT", "cidade TEXT", "uf TEXT"]:
-        try:
-            cursor.execute(f"ALTER TABLE fornecedores ADD COLUMN {coluna}")
-        except:
-            pass
-
-    # Migração segura: adiciona colunas de status, fornecedor e justificativa
-    # em plantas_go caso a tabela já exista sem elas.
-    for coluna in ["status TEXT DEFAULT 'em_analise'", "fornecedor_id INTEGER", "justificativa TEXT"]:
-        try:
-            cursor.execute(f"ALTER TABLE plantas_go ADD COLUMN {coluna}")
-        except:
-            pass
-
-    # Tabela de plantios: registra cada aquisição de planta feita por um usuário
-    # em um fornecedor credenciado. Status inicia como "pendente" até ser validado.
-    cursor.execute("""
+    # Tabela de plantios: registra cada aquisição vinculando usuário e fornecedor
+    cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS plantios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario_id INTEGER NOT NULL,
+        id            {pk},
+        usuario_id    INTEGER NOT NULL,
         fornecedor_id INTEGER NOT NULL,
-        tipo TEXT NOT NULL,
-        status TEXT DEFAULT 'pendente',
-        data TEXT DEFAULT (datetime('now','localtime'))
+        tipo          TEXT NOT NULL,
+        status        TEXT DEFAULT 'pendente',
+        data          TEXT DEFAULT ({ts})
     )
     """)
 
-    # Tabela plantas_go: armazena o registro completo de cada plantio realizado por um usuário.
-    # Inclui dados de localização (município, bairro, latitude, longitude),
-    # espécie plantada, e até 3 ciclos de acompanhamento com data e foto (caminho do arquivo).
-    # responsavel_id referencia o id da tabela usuarios (cadastros).
-    # As fotos são salvas em static/uploads/ e a coluna armazena apenas o nome do arquivo.
-    cursor.execute("""
+    # Tabela plantas_go: registro completo de cada plantio com localização e acompanhamentos
+    cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS plantas_go (
-        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-
-        -- Dados do plantio
-        data_plantio        DATE    NOT NULL,
-        responsavel_id      INTEGER NOT NULL REFERENCES usuarios(id),
-        especie             TEXT    NOT NULL,
-        municipio           TEXT    NOT NULL,
-        bairro              TEXT    NOT NULL,
-
-        -- Coordenadas geográficas (ex: -24.153268448091833, -49.81942797159125)
-        latitude            REAL,
-        longitude           REAL,
-
-        -- Acompanhamento 1: data da visita e foto registrada
-        acompanhamento_1    DATE,
-        foto_1              TEXT,
-
-        -- Acompanhamento 2: data da visita e foto registrada
-        acompanhamento_2    DATE,
-        foto_2              TEXT,
-
-        -- Acompanhamento 3: data da visita e foto registrada
-        acompanhamento_3    DATE,
-        foto_3              TEXT,
-
-        -- Data de criação do registro (preenchida automaticamente)
-        criado_em           TEXT DEFAULT (datetime('now','localtime'))
+        id               {pk},
+        data_plantio     DATE    NOT NULL,
+        responsavel_id   INTEGER NOT NULL,
+        especie          TEXT    NOT NULL,
+        municipio        TEXT    NOT NULL,
+        bairro           TEXT    NOT NULL,
+        latitude         REAL,
+        longitude        REAL,
+        acompanhamento_1 DATE,
+        foto_1           TEXT,
+        acompanhamento_2 DATE,
+        foto_2           TEXT,
+        acompanhamento_3 DATE,
+        foto_3           TEXT,
+        status           TEXT    DEFAULT 'em_analise',
+        fornecedor_id    INTEGER,
+        justificativa    TEXT,
+        criado_em        TEXT    DEFAULT ({ts})
     )
     """)
 
-    # Tabela de tokens para redefinição de senha.
-    # Cada token é gerado quando o usuário solicita "Esqueci minha senha"
-    # e expira após o uso (coluna 'usado') ou por tempo (pode ser estendido futuramente).
-    cursor.execute("""
+    # Tabela de tokens para redefinição de senha
+    cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS reset_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id    {pk},
         email TEXT NOT NULL,
         token TEXT NOT NULL UNIQUE,
         usado INTEGER DEFAULT 0
     )
     """)
+
+    # ---- Migrações seguras para bancos já existentes ----
+    # Adiciona colunas que podem não existir em instalações anteriores.
+    # SQLite: try/except (não suporta IF NOT EXISTS no ADD COLUMN antes da v3.37)
+    # PostgreSQL: suporta ADD COLUMN IF NOT EXISTS nativamente
+    migracoes = {
+        "fornecedores": ["senha TEXT", "cidade TEXT", "uf TEXT", "ativo INTEGER DEFAULT 1", "email TEXT"],
+        "usuarios":     ["cpf TEXT", "telefone TEXT", "data_nascimento TEXT"],
+        "plantas_go":   [
+            "status TEXT DEFAULT 'em_analise'",
+            "fornecedor_id INTEGER",
+            "justificativa TEXT",
+        ],
+    }
+
+    for tabela, colunas in migracoes.items():
+        for coluna in colunas:
+            try:
+                if is_postgres():
+                    # PostgreSQL suporta ADD COLUMN IF NOT EXISTS nativamente (v9.6+)
+                    cursor.execute(
+                        f"ALTER TABLE {tabela} ADD COLUMN IF NOT EXISTS {coluna}"
+                    )
+                else:
+                    cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
+            except Exception:
+                pass  # Coluna já existe — ignorar
 
     conn.commit()
     conn.close()

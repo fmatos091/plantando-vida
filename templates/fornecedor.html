@@ -179,7 +179,15 @@
                 </p>
             </div>
 
-            <!-- Campo 7: Senha de acesso ao painel do fornecedor.
+            <!-- Campo 7: Email do fornecedor — usado para receber o QR Code de credenciamento -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" name="email" placeholder="contato@empresa.com.br"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                <p class="text-xs text-gray-400 mt-1">Opcional — usado para receber seu QR Code de credenciamento.</p>
+            </div>
+
+            <!-- Campo 8: Senha de acesso ao painel do fornecedor.
                  Salva com hash no banco via generate_password_hash (views.py). -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Crie sua senha de acesso</label>
