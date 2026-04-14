@@ -550,6 +550,81 @@ def plantios_aprovados():
     return render_template("plantios_aprovados.html", plantios=plantios)
 
 
+# ===================== ROTA ADMIN: SALVAR DADOS DO USUÁRIO =====================
+# Atualiza todos os campos editáveis do usuário (nome, email, CPF, telefone,
+# data de nascimento). Acesso restrito ao administrador.
+@app.route("/admin/usuario/<int:usuario_id>/salvar", methods=["POST"])
+def admin_usuario_salvar(usuario_id):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    nome            = request.form.get("nome", "").strip()
+    email           = request.form.get("email", "").strip().lower()
+    cpf             = request.form.get("cpf", "").strip()
+    telefone        = request.form.get("telefone", "").strip()
+    data_nascimento = request.form.get("data_nascimento", "").strip()
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Verifica se o novo email já pertence a outro usuário
+    cursor.execute("SELECT id FROM usuarios WHERE email = ? AND id != ?", (email, usuario_id))
+    if cursor.fetchone():
+        conn.close()
+        flash("Este email já está em uso por outro cadastro.", "erro")
+        return redirect("/admin/painel?tipo=usuarios")
+
+    # Atualiza os dados do usuário pelo id
+    cursor.execute("""
+        UPDATE usuarios
+        SET nome=?, email=?, cpf=?, telefone=?, data_nascimento=?
+        WHERE id=?
+    """, (nome, email, cpf, telefone, data_nascimento, usuario_id))
+    conn.commit()
+    conn.close()
+
+    flash(f"Dados do usuário #{usuario_id} atualizados com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=usuarios")
+
+
+# ===================== ROTA ADMIN: LIMPAR SENHA DO USUÁRIO =====================
+# Define a senha como string vazia, impedindo o login do usuário até que ele
+# redefina sua senha pelo fluxo "Esqueci minha senha".
+@app.route("/admin/usuario/<int:usuario_id>/limpar-senha", methods=["POST"])
+def admin_usuario_limpar_senha(usuario_id):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Senha vazia impossibilita o login via check_password_hash para qualquer input
+    cursor.execute("UPDATE usuarios SET senha=? WHERE id=?", ("", usuario_id))
+    conn.commit()
+    conn.close()
+
+    flash(f"Senha do usuário #{usuario_id} foi limpa. O usuário precisará redefini-la.", "sucesso")
+    return redirect("/admin/painel?tipo=usuarios")
+
+
+# ===================== ROTA ADMIN: EXCLUIR USUÁRIO =====================
+# Remove permanentemente o usuário do banco de dados.
+# Acesso restrito ao administrador.
+@app.route("/admin/usuario/<int:usuario_id>/excluir", methods=["POST"])
+def admin_usuario_excluir(usuario_id):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM usuarios WHERE id=?", (usuario_id,))
+    conn.commit()
+    conn.close()
+
+    flash(f"Usuário #{usuario_id} excluído com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=usuarios")
+
+
 # ===================== ROTA ADMIN: APROVAR PLANTIO =====================
 # Altera o status do plantio para 'aprovado' e envia email de notificação ao usuário.
 # Acesso restrito ao administrador (session["admin"]).
@@ -1237,14 +1312,15 @@ def admin_painel():
         """)
     fornecedores = cursor.fetchall()
 
-    # ---- Consulta Usuários/Cadastros com filtro por nome ou email ----
+    # ---- Consulta Usuários: todos os campos para permitir edição pelo admin ----
+    # u[0]=id  u[1]=nome  u[2]=email  u[3]=cpf  u[4]=telefone  u[5]=data_nascimento
     if busca:
         cursor.execute("""
-            SELECT id, nome, email FROM usuarios
-            WHERE nome LIKE ? OR email LIKE ?
-        """, (f"%{busca}%", f"%{busca}%"))
+            SELECT id, nome, email, cpf, telefone, data_nascimento FROM usuarios
+            WHERE nome LIKE ? OR email LIKE ? OR cpf LIKE ?
+        """, (f"%{busca}%", f"%{busca}%", f"%{busca}%"))
     else:
-        cursor.execute("SELECT id, nome, email FROM usuarios")
+        cursor.execute("SELECT id, nome, email, cpf, telefone, data_nascimento FROM usuarios ORDER BY nome")
     usuarios = cursor.fetchall()
 
     # ---- Consulta Plantios com dados do usuário e fornecedor (JOIN) ----

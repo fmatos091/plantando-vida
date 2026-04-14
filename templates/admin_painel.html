@@ -304,21 +304,116 @@
 
         <!-- ===================== ABA CADASTROS (USUÁRIOS) =====================
              Exibida quando tipo == "usuarios".
-             Lista todos os usuários cadastrados com id, nome e email.
+             Cada card mostra os dados do usuário e permite:
+               - Editar e salvar todos os campos (form inline expansível)
+               - Limpar a senha (usuário precisará redefinir via "esqueci senha")
+               - Excluir o cadastro (com confirmação via JS)
+             Índices: u[0]=id  u[1]=nome  u[2]=email  u[3]=cpf
+                      u[4]=telefone  u[5]=data_nascimento
         -->
         {% elif tipo == 'usuarios' %}
 
         {% if usuarios %}
-        <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-4">
             {% for u in usuarios %}
-            <!-- Card de cada usuário — u = (id, nome, email) -->
-            <div class="bg-white rounded-xl shadow p-5 flex justify-between items-center">
-                <div>
-                    <h2 class="text-base font-semibold text-gray-800">{{ u[1] }}</h2>
-                    <p class="text-sm text-gray-500">{{ u[2] }}</p>
+            <div class="bg-white rounded-xl shadow overflow-hidden">
+
+                <!-- ── Cabeçalho do card: dados resumidos e botão de expandir ── -->
+                <div class="p-5 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition"
+                     onclick="toggleEdicao({{ u[0] }})">
+                    <div>
+                        <h2 class="text-base font-semibold text-gray-800">{{ u[1] }}</h2>
+                        <p class="text-sm text-gray-500">{{ u[2] }} &nbsp;·&nbsp; CPF: {{ u[3] or '—' }}</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-400">#{{ u[0] }}</span>
+                        <!-- Seta que rotaciona ao expandir -->
+                        <span id="seta-{{ u[0] }}" class="text-gray-400 text-sm transition-transform">▼</span>
+                    </div>
                 </div>
-                <!-- ID do registro -->
-                <span class="text-xs text-gray-400">#{{ u[0] }}</span>
+
+                <!-- ── Painel de edição: oculto por padrão, expande ao clicar no card ── -->
+                <div id="edicao-{{ u[0] }}" class="hidden border-t border-gray-100 px-5 pb-5 pt-4 bg-gray-50">
+
+                    <!-- Formulário de edição de dados -->
+                    <form method="POST" action="/admin/usuario/{{ u[0] }}/salvar" class="space-y-3">
+
+                        <!-- Grade 2 colunas para campos menores -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                            <!-- Nome completo -->
+                            <div class="sm:col-span-2">
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Nome completo</label>
+                                <input name="nome" required value="{{ u[1] }}"
+                                    class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            </div>
+
+                            <!-- Email -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                                <input type="email" name="email" required value="{{ u[2] }}"
+                                    class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            </div>
+
+                            <!-- CPF com máscara JS -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">CPF</label>
+                                <input name="cpf" value="{{ u[3] or '' }}"
+                                    placeholder="000.000.000-00" inputmode="numeric" maxlength="14"
+                                    data-cpf-mask
+                                    class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            </div>
+
+                            <!-- Telefone com máscara JS -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Telefone</label>
+                                <input name="telefone" value="{{ u[4] or '' }}"
+                                    placeholder="(00) 00000-0000" inputmode="numeric" maxlength="15"
+                                    data-tel-mask
+                                    class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            </div>
+
+                            <!-- Data de nascimento -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Data de nascimento</label>
+                                <input type="date" name="data_nascimento" value="{{ u[5] or '' }}"
+                                    class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            </div>
+
+                        </div>
+
+                        <!-- Botão salvar -->
+                        <button type="submit"
+                            class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">
+                            💾 Salvar alterações
+                        </button>
+
+                    </form>
+
+                    <!-- Divisor entre ações destrutivas e edição -->
+                    <div class="border-t border-gray-200 mt-4 pt-4 flex flex-wrap gap-2">
+
+                        <!-- Limpar senha: impede login até o usuário redefinir via "esqueci senha" -->
+                        <form method="POST" action="/admin/usuario/{{ u[0] }}/limpar-senha"
+                              onsubmit="return confirm('Limpar a senha de {{ u[1] }}? O usuário precisará redefini-la.')">
+                            <button type="submit"
+                                class="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-sm font-semibold px-4 py-2 rounded-lg transition border border-yellow-300">
+                                🔑 Limpar senha
+                            </button>
+                        </form>
+
+                        <!-- Excluir usuário: confirmação obrigatória via JS -->
+                        <form method="POST" action="/admin/usuario/{{ u[0] }}/excluir"
+                              onsubmit="return confirm('Excluir permanentemente o cadastro de {{ u[1] }}? Esta ação não pode ser desfeita.')">
+                            <button type="submit"
+                                class="bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold px-4 py-2 rounded-lg transition border border-red-300">
+                                🗑️ Excluir usuário
+                            </button>
+                        </form>
+
+                    </div>
+                </div>
+
             </div>
             {% endfor %}
         </div>
@@ -924,6 +1019,43 @@
             const label = filtro ? filtro + 's' : 'espécie(s)';
             contador.textContent = visiveis + ' ' + label;
         }
+
+        // ── Alterna o painel de edição do usuário (expandir / recolher card) ──
+        // Também rotaciona a seta indicadora de estado.
+        function toggleEdicao(id) {
+            const painel = document.getElementById('edicao-' + id);
+            const seta   = document.getElementById('seta-' + id);
+            if (!painel) return;
+
+            const expandindo = painel.classList.toggle('hidden');
+            // Rotaciona a seta: ▼ recolhido → ▲ expandido
+            if (seta) seta.style.transform = expandindo ? '' : 'rotate(180deg)';
+        }
+
+        // ── Máscara de CPF nos campos de edição de usuário ──
+        // Aplica a todos os inputs com atributo data-cpf-mask.
+        document.querySelectorAll('[data-cpf-mask]').forEach(function (campo) {
+            campo.addEventListener('input', function () {
+                let v = this.value.replace(/\D/g, '').slice(0, 11);
+                if (v.length > 9)      v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+                else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/,        '$1.$2.$3');
+                else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/,               '$1.$2');
+                this.value = v;
+            });
+        });
+
+        // ── Máscara de Telefone nos campos de edição de usuário ──
+        // Aplica a todos os inputs com atributo data-tel-mask.
+        document.querySelectorAll('[data-tel-mask]').forEach(function (campo) {
+            campo.addEventListener('input', function () {
+                let v = this.value.replace(/\D/g, '').slice(0, 11);
+                if (v.length > 10)     v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+                else if (v.length > 6) v = v.replace(/(\d{2})(\d{4,5})(\d{0,4})/, '($1) $2-$3');
+                else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+                else if (v.length > 0) v = v.replace(/(\d{0,2})/, '($1');
+                this.value = v;
+            });
+        });
 
         // Exibe o modal de reprovação do plantio com o id informado
         function abrirModalReprovar(id) {
