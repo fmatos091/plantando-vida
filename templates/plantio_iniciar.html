@@ -178,6 +178,24 @@
 
           <!-- Campos de localização do plantio (municipio/bairro) -->
           <div id="campos-localizacao" class="hidden space-y-3 mb-4">
+
+            <!-- Botão GPS: aparece primeiro para preencher Município e Bairro automaticamente -->
+            <button type="button" onclick="capturarGPS()"
+              class="w-full bg-green-50 hover:bg-green-100 text-green-800 text-sm font-semibold
+                     py-3 px-4 rounded-xl transition flex items-center justify-center gap-2
+                     border border-green-200 shadow-sm">
+              📍 Capturar localização GPS
+            </button>
+            <!-- Status do GPS: mostra cidade encontrada ou mensagem de erro -->
+            <p id="status-gps" class="text-xs text-gray-400 text-center"></p>
+
+            <!-- Divider entre GPS e campos manuais -->
+            <div class="flex items-center gap-2">
+              <div class="flex-1 h-px bg-gray-200"></div>
+              <span class="text-xs text-gray-400">ou preencha manualmente</span>
+              <div class="flex-1 h-px bg-gray-200"></div>
+            </div>
+
             <div>
               <label class="text-xs font-semibold text-gray-600 block mb-1">Município</label>
               <input type="text" id="input-municipio" placeholder="Ex: São Paulo"
@@ -190,13 +208,6 @@
                 class="w-full p-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                 oninput="sincronizarLocalizacao()">
             </div>
-            <!-- Botão para capturar GPS automaticamente -->
-            <button type="button" onclick="capturarGPS()"
-              class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold
-                     py-2 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-gray-200">
-              📍 Capturar localização GPS
-            </button>
-            <p id="status-gps" class="text-xs text-gray-400 text-center"></p>
           </div>
 
           <div class="flex gap-3">
@@ -538,24 +549,83 @@
       document.getElementById('btn-proximo-2').disabled = !(mun && bai);
     }
 
-    // Captura as coordenadas GPS do dispositivo via API de Geolocalização
+    // Captura GPS e preenche Município/Bairro via reverse geocoding (Nominatim/OpenStreetMap).
+    // Fluxo: navigator.geolocation → Nominatim API → preenche campos → habilita Próximo.
     function capturarGPS() {
       const statusEl = document.getElementById('status-gps');
+      const btnGPS   = document.querySelector('[onclick="capturarGPS()"]');
+
       if (!navigator.geolocation) {
         statusEl.textContent = 'GPS não disponível neste dispositivo.';
+        statusEl.className   = 'text-xs text-red-500 text-center';
         return;
       }
-      statusEl.textContent = 'Obtendo localização...';
+
+      // Feedback visual durante a captura
+      statusEl.textContent = '🔄 Obtendo localização...';
+      statusEl.className   = 'text-xs text-gray-400 text-center';
+      if (btnGPS) { btnGPS.disabled = true; btnGPS.textContent = '🔄 Aguarde...'; }
+
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          document.getElementById('campo-latitude').value  = pos.coords.latitude.toFixed(6);
-          document.getElementById('campo-longitude').value = pos.coords.longitude.toFixed(6);
-          statusEl.textContent = `📍 GPS capturado: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
-          statusEl.classList.add('text-green-600');
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+
+          // Salva coordenadas nos campos ocultos do formulário
+          document.getElementById('campo-latitude').value  = lat.toFixed(6);
+          document.getElementById('campo-longitude').value = lon.toFixed(6);
+
+          statusEl.textContent = '📡 Buscando cidade pelo GPS...';
+
+          try {
+            // Nominatim (OpenStreetMap) — reverse geocoding gratuito
+            // User-Agent obrigatório pela política de uso da API
+            const url  = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`;
+            const resp = await fetch(url, {
+              headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'PlantandoVida/1.0' }
+            });
+            const data = await resp.json();
+
+            const addr  = data.address || {};
+            // Nominatim retorna a cidade em campos variados conforme o nível administrativo
+            const cidade = addr.city || addr.town || addr.municipality ||
+                           addr.county || addr.state_district || '';
+            const bairro = addr.suburb || addr.neighbourhood ||
+                           addr.quarter || addr.village || '';
+
+            // Preenche os inputs visíveis
+            document.getElementById('input-municipio').value = cidade;
+            document.getElementById('input-bairro').value    = bairro;
+
+            // Sincroniza com os campos ocultos e habilita o botão Próximo
+            sincronizarLocalizacao();
+
+            statusEl.textContent = cidade
+              ? `✅ Localização encontrada: ${cidade}${bairro ? ' — ' + bairro : ''}`
+              : `📍 GPS capturado (${lat.toFixed(4)}, ${lon.toFixed(4)}) — preencha a cidade manualmente`;
+            statusEl.className = 'text-xs text-green-600 text-center font-semibold';
+
+          } catch (_) {
+            // Falha no geocoding: salva coordenadas e informa o usuário
+            statusEl.textContent = `📍 GPS capturado (${lat.toFixed(4)}, ${lon.toFixed(4)}) — preencha a cidade manualmente`;
+            statusEl.className   = 'text-xs text-yellow-600 text-center';
+          }
+
+          // Restaura o botão
+          if (btnGPS) {
+            btnGPS.disabled    = false;
+            btnGPS.textContent = '📍 Capturar localização GPS';
+          }
         },
         () => {
-          statusEl.textContent = 'Não foi possível obter a localização. Continue sem GPS.';
-        }
+          statusEl.textContent = '⚠️ Não foi possível obter a localização. Preencha manualmente.';
+          statusEl.className   = 'text-xs text-red-500 text-center';
+          if (btnGPS) {
+            btnGPS.disabled    = false;
+            btnGPS.textContent = '📍 Capturar localização GPS';
+          }
+        },
+        { timeout: 10000, enableHighAccuracy: true }
       );
     }
 
