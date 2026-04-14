@@ -119,7 +119,7 @@
                 <button
                     class="px-5 py-2 rounded-lg font-semibold text-sm transition
                     {{ 'bg-green-600 text-white' if tipo == 'fechamento' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    💰 Fechamento ({{ fechamento_pendente|length }})
+                    💰 Fechamento Fornecedor ({{ fechamento_pendente|length }})
                 </button>
             </a>
         </div>
@@ -479,6 +479,10 @@
                 <!-- Cabeçalho: espécie, usuário e badge de status -->
                 <div class="flex justify-between items-start mb-3">
                     <div>
+                        <!-- Número do pedido de plantio em destaque -->
+                        <p class="text-xs font-bold text-gray-400 mb-0.5 tracking-wider">
+                            Nº Pedido <span class="text-green-700">#{{ "%06d"|format(p[0]) }}</span>
+                        </p>
                         <h2 class="text-base font-semibold text-green-800">🌳 {{ p[2] }}</h2>
                         <!-- Usuário responsável e fornecedor -->
                         <p class="text-xs text-gray-500 mt-0.5">
@@ -598,6 +602,10 @@
 
                     <div class="flex flex-wrap justify-between items-start gap-3 mb-3">
                         <div>
+                            <!-- Número do pedido de compra em destaque -->
+                            <p class="text-xs font-bold text-gray-400 mb-0.5 tracking-wider">
+                                Nº Pedido <span class="text-green-700">#{{ "%06d"|format(c[0]) }}</span>
+                            </p>
                             <!-- Espécie, tipo e valor -->
                             <h4 class="font-bold text-green-800 text-sm">
                                 {{ '🍎' if c[2] == 'Frutífera' else '🌳' }} {{ c[1] }}
