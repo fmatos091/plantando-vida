@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plantar Agora — Plantando Vida</title>
+  <!-- Tailwind CSS via CDN para estilização da página -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- html5-qrcode: biblioteca para leitura de QR Code via câmera do dispositivo -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+
+<body class="bg-green-50 min-h-screen">
+
+  <!-- ===================== NAVBAR =====================
+       Barra superior com título e link para voltar à lista de plantios.
+  -->
+  <nav class="bg-green-700 text-white px-6 py-4 flex justify-between items-center shadow-md">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">🌱</span>
+      <span class="font-bold text-sm">Registrar Plantio</span>
+    </div>
+    <a href="/plantios/pendentes"
+       class="text-green-200 hover:text-white text-sm transition">← Voltar</a>
+  </nav>
+
+  <div class="max-w-lg mx-auto px-4 py-8">
+
+    <!-- ===================== CABEÇALHO COM DADOS DA PLANTA =====================
+         Exibe espécie, tipo e fornecedor da muda que está sendo plantada.
+         compra[0]=id  compra[1]=especie_nome  compra[2]=tipo_planta  compra[3]=valor
+         compra[4]=fornecedor_nome  compra[5]=cidade  compra[6]=uf
+    -->
+    <div class="bg-white rounded-2xl shadow p-5 mb-6 border-l-4 border-green-500">
+      <div class="flex items-start gap-3">
+        <span class="text-3xl">🌿</span>
+        <div>
+          <h1 class="text-base font-extrabold text-green-800">{{ compra[1] }}</h1>
+          <p class="text-xs text-gray-500 mt-0.5">
+            {{ '🍎 Frutífera' if compra[2] == 'Frutífera' else '🌳 Nativa' }}
+            &nbsp;·&nbsp; 🏪 {{ compra[4] }}
+            {% if compra[5] %}&nbsp;·&nbsp; 📍 {{ compra[5] }}/{{ compra[6] }}{% endif %}
+          </p>
+          <p class="text-xs text-gray-400 mt-0.5">Pedido #{{ "%06d"|format(compra[0]) }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== INDICADOR DE PROGRESSO =====================
+         Barra visual com as 5 etapas. A etapa ativa é destacada em verde escuro.
+         Controlada via JS: ao avançar, o indicador atualiza automaticamente.
+    -->
+    <div class="flex items-center justify-between mb-8 px-2">
+      {% for i in range(1, 6) %}
+      <div class="flex flex-col items-center gap-1">
+        <div id="circulo-{{ i }}"
+             class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                    {{ 'bg-green-700 text-white shadow-md' if i == 1 else 'bg-gray-200 text-gray-500' }}">
+          {{ i }}
+        </div>
+        <span id="label-{{ i }}" class="text-xs text-center leading-tight max-w-[52px]
+              {{ 'text-green-700 font-semibold' if i == 1 else 'text-gray-400' }}">
+          {% if i == 1 %}Confirmação{% elif i == 2 %}Segurança{% elif i == 3 %}Foto Cova{% elif i == 4 %}Foto Plantio{% else %}Finalizar{% endif %}
+        </span>
+      </div>
+      {% if i < 5 %}
+      <div id="linha-{{ i }}" class="flex-1 h-0.5 mx-1 transition-all
+           {{ 'bg-green-500' if i == 0 else 'bg-gray-300' }}"></div>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <!-- ===================== FORMULÁRIO PRINCIPAL =====================
+         Envia todos os dados das 5 etapas de uma só vez no POST final.
+         Campos de foto são enviados como multipart/form-data.
+    -->
+    <form id="form-plantio" method="POST" action="/plantio/concluir"
+          enctype="multipart/form-data">
+
+      <!-- Campos ocultos preenchidos pelas etapas anteriores -->
+      <input type="hidden" name="compra_id"  value="{{ compra[0] }}">
+      <input type="hidden" name="especie"    value="{{ compra[1] }}">
+      <input type="hidden" name="tipo"       value="{{ compra[2] }}">
+      <input type="hidden" id="campo-municipio" name="municipio" value="">
+      <input type="hidden" id="campo-bairro"    name="bairro"    value="">
+      <input type="hidden" id="campo-latitude"  name="latitude"  value="">
+      <input type="hidden" id="campo-longitude" name="longitude" value="">
+      <!-- qr_scan: resultado do escaneamento do QR Code da etapa 1 (confirmação de origem) -->
+      <input type="hidden" id="campo-qr-scan"   name="qr_scan"   value="">
+
+      <!-- ============================================================
+           ETAPA 1 — CONFIRMAÇÃO DE ORIGEM
+           O usuário escaneia o QR Code do voucher ou do fornecedor para
+           confirmar a origem da muda antes de realizar o plantio.
+      ============================================================ -->
+      <div id="etapa-1" class="etapa">
+        <div class="bg-white rounded-2xl shadow p-6">
+          <h2 class="text-base font-bold text-green-800 mb-1">
+            Etapa 1 — Confirmação de Origem
+          </h2>
+          <p class="text-xs text-gray-500 mb-5">
+            Escaneie o QR Code do seu voucher ou do fornecedor para confirmar a origem da muda.
+          </p>
+
+          <!-- Área do leitor de QR Code -->
+          <div id="area-qr-1" class="mb-4 hidden">
+            <div id="leitor-qr-1" class="w-full rounded-xl overflow-hidden border border-gray-200"></div>
+            <p id="status-qr-1" class="text-center text-xs text-gray-500 mt-2">Iniciando câmera...</p>
+            <button type="button" onclick="cancelarQR1()"
+              class="mt-2 w-full py-2 rounded-lg bg-red-50 text-red-600 text-sm font-semibold hover:bg-red-100 transition">
+              ✖ Cancelar câmera
+            </button>
+          </div>
+
+          <!-- Resultado do escaneamento -->
+          <div id="resultado-qr-1" class="hidden mb-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+            <p class="text-xs font-semibold text-green-700 mb-1">QR Code lido com sucesso!</p>
+            <p id="texto-qr-1" class="text-xs text-green-600 break-all"></p>
+          </div>
+
+          <!-- Botão para abrir câmera -->
+          <button type="button" id="btn-abrir-qr-1" onclick="abrirQR1()"
+            class="w-full bg-green-100 hover:bg-green-200 text-green-800 text-sm font-semibold
+                   py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-green-200 mb-3">
+            📷 Escanear QR Code
+          </button>
+
+          <!-- Opção de pular etapa caso não tenha acesso ao QR -->
+          <p class="text-xs text-gray-400 text-center mb-5">
+            Não tem o QR Code em mãos?
+            <button type="button" onclick="pularEtapa1()" class="text-green-600 underline font-semibold">
+              Pular esta etapa
+            </button>
+          </p>
+
+          <button type="button" id="btn-proximo-1" onclick="avancar(1)"
+            class="w-full bg-green-700 hover:bg-green-800 text-white text-sm font-bold
+                   py-3 px-4 rounded-xl transition disabled:opacity-40"
+            disabled>
+            Próximo →
+          </button>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           ETAPA 2 — LOCAL SEGURO E APROPRIADO
+           O usuário confirma que o local escolhido é seguro para plantar.
+           Resposta "Não" bloqueia o avanço e exibe orientação.
+      ============================================================ -->
+      <div id="etapa-2" class="etapa hidden">
+        <div class="bg-white rounded-2xl shadow p-6">
+          <h2 class="text-base font-bold text-green-800 mb-1">
+            Etapa 2 — Local Seguro e Apropriado?
+          </h2>
+          <p class="text-xs text-gray-500 mb-5">
+            Verifique se o local escolhido é seguro, tem espaço suficiente e não há riscos para a muda.
+          </p>
+
+          <!-- Dropdown de confirmação de segurança do local -->
+          <select id="select-local-seguro"
+            onchange="verificarLocalSeguro()"
+            class="w-full p-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400 mb-4">
+            <option value="">— Selecione —</option>
+            <option value="sim">✅ Sim, o local é seguro e apropriado</option>
+            <option value="nao">❌ Não, preciso escolher outro local</option>
+          </select>
+
+          <!-- Alerta bloqueante exibido quando resposta é "Não" -->
+          <div id="alerta-local-nao" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-4 mb-4">
+            <p class="text-sm font-bold text-red-700 mb-1">Local inadequado</p>
+            <p class="text-xs text-red-600">
+              Por favor, escolha um local adequado antes de continuar. A muda precisa de:
+              espaço mínimo de 3m de distância de construções, iluminação natural e solo permeável.
+            </p>
+          </div>
+
+          <!-- Campos de localização do plantio (municipio/bairro) -->
+          <div id="campos-localizacao" class="hidden space-y-3 mb-4">
+            <div>
+              <label class="text-xs font-semibold text-gray-600 block mb-1">Município</label>
+              <input type="text" id="input-municipio" placeholder="Ex: São Paulo"
+                class="w-full p-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                oninput="sincronizarLocalizacao()">
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600 block mb-1">Bairro</label>
+              <input type="text" id="input-bairro" placeholder="Ex: Centro"
+                class="w-full p-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                oninput="sincronizarLocalizacao()">
+            </div>
+            <!-- Botão para capturar GPS automaticamente -->
+            <button type="button" onclick="capturarGPS()"
+              class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold
+                     py-2 px-4 rounded-xl transition flex items-center justify-center gap-2 border border-gray-200">
+              📍 Capturar localização GPS
+            </button>
+            <p id="status-gps" class="text-xs text-gray-400 text-center"></p>
+          </div>
+
+          <div class="flex gap-3">
+            <button type="button" onclick="voltar(2)"
+              class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold
+                     py-3 px-4 rounded-xl transition">
+              ← Voltar
+            </button>
+            <button type="button" id="btn-proximo-2" onclick="avancar(2)"
+              class="flex-1 bg-green-700 hover:bg-green-800 text-white text-sm font-bold
+                     py-3 px-4 rounded-xl transition disabled:opacity-40"
+              disabled>
+              Próximo →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           ETAPA 3 — FOTO DA PLANTA AO LADO DA COVA
+           Registro fotográfico da muda ao lado do buraco (berço) antes
+           de ser plantada. Campo obrigatório.
+      ============================================================ -->
+      <div id="etapa-3" class="etapa hidden">
+        <div class="bg-white rounded-2xl shadow p-6">
+          <h2 class="text-base font-bold text-green-800 mb-1">
+            Etapa 3 — Foto da Planta ao lado da Cova
+          </h2>
+          <p class="text-xs text-gray-500 mb-5">
+            Tire uma foto mostrando a muda ao lado do buraco (berço) onde será plantada.
+          </p>
+
+          <!-- Input de arquivo para foto da cova -->
+          <div class="mb-4">
+            <label for="foto-plantio-input"
+              class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed
+                     border-green-300 rounded-xl cursor-pointer bg-green-50 hover:bg-green-100 transition">
+              <div id="preview-3" class="w-full h-full flex flex-col items-center justify-center">
+                <span class="text-4xl mb-2">📸</span>
+                <span class="text-sm text-green-700 font-semibold">Tirar / Escolher Foto</span>
+                <span class="text-xs text-gray-400 mt-1">JPG ou PNG</span>
+              </div>
+              <img id="img-preview-3" class="hidden w-full h-full object-cover rounded-xl" alt="Preview">
+            </label>
+            <!-- Aceita câmera em mobile (capture="environment") e galeria em desktop -->
+            <input type="file" id="foto-plantio-input" name="foto_plantio"
+              accept="image/jpeg,image/png" capture="environment"
+              class="hidden"
+              onchange="previewFoto(this, 'img-preview-3', 'preview-3', 'btn-proximo-3')">
+          </div>
+
+          <div class="flex gap-3">
+            <button type="button" onclick="voltar(3)"
+              class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold
+                     py-3 px-4 rounded-xl transition">
+              ← Voltar
+            </button>
+            <button type="button" id="btn-proximo-3" onclick="avancar(3)"
+              class="flex-1 bg-green-700 hover:bg-green-800 text-white text-sm font-bold
+                     py-3 px-4 rounded-xl transition disabled:opacity-40"
+              disabled>
+              Próximo →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           ETAPA 4 — FOTO DA PLANTA NA COVA REGADA (ACOMPANHAMENTO 1)
+           Registro fotográfico da muda já plantada na cova e regada com
+           água. Esta foto é salva como acompanhamento_1 em plantas_go.
+      ============================================================ -->
+      <div id="etapa-4" class="etapa hidden">
+        <div class="bg-white rounded-2xl shadow p-6">
+          <h2 class="text-base font-bold text-green-800 mb-1">
+            Etapa 4 — Foto da Planta na Cova e Regada
+          </h2>
+          <p class="text-xs text-gray-500 mb-1">
+            Plante a muda na cova e regue com água.
+          </p>
+          <p class="text-xs text-blue-600 font-semibold mb-5">
+            Esta foto é o seu Acompanhamento 1 e registra o dia do plantio.
+          </p>
+
+          <!-- Input de arquivo para foto do acompanhamento 1 -->
+          <div class="mb-4">
+            <label for="foto-acomp1-input"
+              class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed
+                     border-blue-300 rounded-xl cursor-pointer bg-blue-50 hover:bg-blue-100 transition">
+              <div id="preview-4" class="w-full h-full flex flex-col items-center justify-center">
+                <span class="text-4xl mb-2">💧</span>
+                <span class="text-sm text-blue-700 font-semibold">Tirar / Escolher Foto</span>
+                <span class="text-xs text-gray-400 mt-1">Planta na cova, com água</span>
+              </div>
+              <img id="img-preview-4" class="hidden w-full h-full object-cover rounded-xl" alt="Preview">
+            </label>
+            <input type="file" id="foto-acomp1-input" name="foto_acomp1"
+              accept="image/jpeg,image/png" capture="environment"
+              class="hidden"
+              onchange="previewFoto(this, 'img-preview-4', 'preview-4', 'btn-proximo-4')">
+          </div>
+
+          <div class="flex gap-3">
+            <button type="button" onclick="voltar(4)"
+              class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold
+                     py-3 px-4 rounded-xl transition">
+              ← Voltar
+            </button>
+            <button type="button" id="btn-proximo-4" onclick="avancar(4)"
+              class="flex-1 bg-green-700 hover:bg-green-800 text-white text-sm font-bold
+                     py-3 px-4 rounded-xl transition disabled:opacity-40"
+              disabled>
+              Próximo →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           ETAPA 5 — FINALIZAR PLANTIO
+           Resumo de todas as etapas concluídas e botão de submissão final.
+           Após o envio, o registro aparece em /plantios/pendentes com
+           o botão "Registrar Acompanhamentos de Plantio".
+      ============================================================ -->
+      <div id="etapa-5" class="etapa hidden">
+        <div class="bg-white rounded-2xl shadow p-6">
+          <h2 class="text-base font-bold text-green-800 mb-1">
+            Etapa 5 — Finalizar Plantio
+          </h2>
+          <p class="text-xs text-gray-500 mb-5">
+            Tudo certo! Confirme o plantio para registrar oficialmente sua muda no sistema.
+          </p>
+
+          <!-- Resumo das etapas concluídas -->
+          <div class="space-y-2 mb-6">
+            <div class="flex items-center gap-3 bg-green-50 rounded-xl px-4 py-3">
+              <span class="text-green-600 text-lg">✅</span>
+              <p class="text-sm text-green-800 font-semibold">Origem confirmada</p>
+            </div>
+            <div class="flex items-center gap-3 bg-green-50 rounded-xl px-4 py-3">
+              <span class="text-green-600 text-lg">✅</span>
+              <p class="text-sm text-green-800 font-semibold">Local seguro e apropriado</p>
+            </div>
+            <div class="flex items-center gap-3 bg-green-50 rounded-xl px-4 py-3">
+              <span class="text-green-600 text-lg">✅</span>
+              <p class="text-sm text-green-800 font-semibold">Foto ao lado da cova registrada</p>
+            </div>
+            <div class="flex items-center gap-3 bg-green-50 rounded-xl px-4 py-3">
+              <span class="text-green-600 text-lg">✅</span>
+              <p class="text-sm text-green-800 font-semibold">Foto na cova com água (Acomp. 1)</p>
+            </div>
+          </div>
+
+          <!-- Localização preenchida na etapa 2 — exibida como confirmação -->
+          <div class="bg-gray-50 rounded-xl px-4 py-3 mb-6 border border-gray-200">
+            <p class="text-xs text-gray-500 mb-1">Local do plantio</p>
+            <p class="text-sm font-semibold text-gray-800" id="resumo-localizacao">—</p>
+          </div>
+
+          <div class="flex gap-3">
+            <button type="button" onclick="voltar(5)"
+              class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold
+                     py-3 px-4 rounded-xl transition">
+              ← Voltar
+            </button>
+            <!-- Botão de submissão final — envia o formulário multipart -->
+            <button type="submit" id="btn-finalizar"
+              class="flex-1 bg-green-700 hover:bg-green-800 text-white text-sm font-bold
+                     py-3 px-4 rounded-xl transition shadow-lg flex items-center justify-center gap-2">
+              🌱 Registrar Plantio
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </form>
+    <!-- fim form-plantio -->
+
+  </div>
+  <!-- fim container -->
+
+
+  <!-- ===================== JAVASCRIPT ===================== -->
+  <script>
+    // ---- Estado global do fluxo ----
+    let etapaAtual = 1;          // Etapa visível no momento
+    let qr1Instancia = null;     // Instância do leitor de QR Code da Etapa 1
+    let qr1Escaneado = false;    // True após leitura bem-sucedida do QR
+
+    // ---- Navegação entre etapas ----
+
+    // Avança para a próxima etapa e atualiza o indicador de progresso
+    function avancar(etapa) {
+      ocultarEtapa(etapa);
+      mostrarEtapa(etapa + 1);
+      etapaAtual = etapa + 1;
+      atualizarIndicador(etapaAtual);
+
+      // Ao chegar na etapa 5, atualiza o resumo de localização
+      if (etapaAtual === 5) {
+        const mun = document.getElementById('campo-municipio').value;
+        const bai = document.getElementById('campo-bairro').value;
+        document.getElementById('resumo-localizacao').textContent =
+          (mun && bai) ? `${mun} — ${bai}` : mun || bai || 'Não informado';
+      }
+    }
+
+    // Retorna para a etapa anterior
+    function voltar(etapa) {
+      ocultarEtapa(etapa);
+      mostrarEtapa(etapa - 1);
+      etapaAtual = etapa - 1;
+      atualizarIndicador(etapaAtual);
+    }
+
+    // Exibe o card de uma etapa
+    function mostrarEtapa(n) {
+      document.getElementById('etapa-' + n).classList.remove('hidden');
+    }
+
+    // Oculta o card de uma etapa
+    function ocultarEtapa(n) {
+      document.getElementById('etapa-' + n).classList.add('hidden');
+    }
+
+    // Atualiza os círculos e rótulos do indicador de progresso
+    function atualizarIndicador(etapa) {
+      for (let i = 1; i <= 5; i++) {
+        const circulo = document.getElementById('circulo-' + i);
+        const label   = document.getElementById('label-' + i);
+        if (i < etapa) {
+          // Etapas concluídas: verde sólido com check
+          circulo.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all bg-green-500 text-white shadow';
+          circulo.textContent = '✓';
+        } else if (i === etapa) {
+          // Etapa atual: verde escuro em destaque
+          circulo.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all bg-green-700 text-white shadow-md';
+          circulo.textContent = i;
+          label.className = 'text-xs text-center leading-tight max-w-[52px] text-green-700 font-semibold';
+        } else {
+          // Etapas futuras: cinza
+          circulo.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all bg-gray-200 text-gray-500';
+          circulo.textContent = i;
+          label.className = 'text-xs text-center leading-tight max-w-[52px] text-gray-400';
+        }
+      }
+      // Atualiza as linhas de conexão entre os círculos
+      for (let i = 1; i <= 4; i++) {
+        const linha = document.getElementById('linha-' + i);
+        linha.className = 'flex-1 h-0.5 mx-1 transition-all ' + (i < etapa ? 'bg-green-500' : 'bg-gray-300');
+      }
+    }
+
+    // ---- Etapa 1: QR Code ----
+
+    // Abre o leitor de QR Code usando a câmera traseira do dispositivo
+    function abrirQR1() {
+      document.getElementById('area-qr-1').classList.remove('hidden');
+      document.getElementById('btn-abrir-qr-1').classList.add('hidden');
+
+      qr1Instancia = new Html5Qrcode('leitor-qr-1');
+      qr1Instancia.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (texto) => {
+          // QR Code lido com sucesso: preenche campo oculto e exibe resultado
+          document.getElementById('campo-qr-scan').value = texto;
+          document.getElementById('texto-qr-1').textContent = texto.substring(0, 120);
+          document.getElementById('resultado-qr-1').classList.remove('hidden');
+          document.getElementById('status-qr-1').textContent = 'Leitura concluída!';
+          qr1Escaneado = true;
+          document.getElementById('btn-proximo-1').disabled = false;
+          pararQR1();
+        },
+        () => { /* frame sem QR — ignora */ }
+      ).catch(() => {
+        document.getElementById('status-qr-1').textContent = 'Erro ao acessar câmera.';
+      });
+    }
+
+    // Para o leitor e oculta a área da câmera
+    function pararQR1() {
+      if (qr1Instancia) {
+        qr1Instancia.stop().catch(() => {}).finally(() => {
+          qr1Instancia = null;
+          document.getElementById('area-qr-1').classList.add('hidden');
+        });
+      }
+    }
+
+    // Cancela sem guardar resultado
+    function cancelarQR1() {
+      pararQR1();
+      document.getElementById('btn-abrir-qr-1').classList.remove('hidden');
+    }
+
+    // Permite pular a etapa 1 sem escanear QR
+    function pularEtapa1() {
+      document.getElementById('campo-qr-scan').value = 'pulado';
+      document.getElementById('btn-proximo-1').disabled = false;
+      // Feedback visual de que a etapa foi pulada
+      document.getElementById('btn-abrir-qr-1').textContent = '✓ Etapa pulada';
+      document.getElementById('btn-abrir-qr-1').classList.add('opacity-50');
+      document.getElementById('btn-abrir-qr-1').disabled = true;
+    }
+
+    // ---- Etapa 2: Segurança do Local ----
+
+    // Avalia a resposta do dropdown e habilita/bloqueia o avanço
+    function verificarLocalSeguro() {
+      const val = document.getElementById('select-local-seguro').value;
+      const alertaNao = document.getElementById('alerta-local-nao');
+      const camposLoc = document.getElementById('campos-localizacao');
+      const btnProx   = document.getElementById('btn-proximo-2');
+
+      if (val === 'sim') {
+        alertaNao.classList.add('hidden');
+        camposLoc.classList.remove('hidden');
+        // Revalida o botão baseado nos campos de localização
+        sincronizarLocalizacao();
+      } else if (val === 'nao') {
+        alertaNao.classList.remove('hidden');
+        camposLoc.classList.add('hidden');
+        btnProx.disabled = true;
+      } else {
+        alertaNao.classList.add('hidden');
+        camposLoc.classList.add('hidden');
+        btnProx.disabled = true;
+      }
+    }
+
+    // Sincroniza os campos de municipio/bairro com os inputs ocultos do formulário
+    // e habilita o botão Próximo quando ambos estão preenchidos
+    function sincronizarLocalizacao() {
+      const mun = document.getElementById('input-municipio').value.trim();
+      const bai = document.getElementById('input-bairro').value.trim();
+      document.getElementById('campo-municipio').value = mun;
+      document.getElementById('campo-bairro').value    = bai;
+      document.getElementById('btn-proximo-2').disabled = !(mun && bai);
+    }
+
+    // Captura as coordenadas GPS do dispositivo via API de Geolocalização
+    function capturarGPS() {
+      const statusEl = document.getElementById('status-gps');
+      if (!navigator.geolocation) {
+        statusEl.textContent = 'GPS não disponível neste dispositivo.';
+        return;
+      }
+      statusEl.textContent = 'Obtendo localização...';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          document.getElementById('campo-latitude').value  = pos.coords.latitude.toFixed(6);
+          document.getElementById('campo-longitude').value = pos.coords.longitude.toFixed(6);
+          statusEl.textContent = `📍 GPS capturado: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+          statusEl.classList.add('text-green-600');
+        },
+        () => {
+          statusEl.textContent = 'Não foi possível obter a localização. Continue sem GPS.';
+        }
+      );
+    }
+
+    // ---- Fotos (Etapas 3 e 4) ----
+
+    // Exibe preview da foto selecionada e habilita o botão Próximo
+    function previewFoto(input, imgId, previewId, btnId) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img     = document.getElementById(imgId);
+        const preview = document.getElementById(previewId);
+        img.src = e.target.result;
+        img.classList.remove('hidden');
+        preview.classList.add('hidden');
+        document.getElementById(btnId).disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ---- Inicialização ----
+    // Garante que apenas a etapa 1 está visível ao carregar a página
+    document.addEventListener('DOMContentLoaded', () => {
+      atualizarIndicador(1);
+    });
+  </script>
+
+</body>
+</html>

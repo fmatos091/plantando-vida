@@ -167,14 +167,17 @@ def init_db():
     migracoes = {
         "fornecedores": ["senha TEXT", "cidade TEXT", "uf TEXT", "ativo INTEGER DEFAULT 1", "email TEXT"],
         "usuarios":     ["cpf TEXT", "telefone TEXT", "data_nascimento TEXT"],
+        # status/fornecedor_id/justificativa: gestão de aprovação de plantios pelo admin.
+        # foto_plantio: foto tirada pelo usuário ao lado da cova antes de plantar (Etapa 3 do fluxo).
         "plantas_go":   [
             "status TEXT DEFAULT 'em_analise'",
             "fornecedor_id INTEGER",
             "justificativa TEXT",
+            "foto_plantio TEXT",
         ],
         # data_validacao: preenchida pelo fornecedor ao escanear o voucher de retirada.
-        # Quando preenchida, status da compra muda para 'retirado'.
-        "compras": ["data_validacao TEXT"],
+        # plantio_id: referência ao registro de plantas_go criado após o plantio definitivo.
+        "compras": ["data_validacao TEXT", "plantio_id INTEGER"],
     }
 
     for tabela, colunas in migracoes.items():

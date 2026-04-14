@@ -513,12 +513,12 @@ def plantios_pendentes():
 
     # Busca compras do usuário para exibir status de pagamento na mesma tela
     # c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
-    # c[4]=status  c[5]=criado_em  c[6]=fornecedor_nome  c[7]=comprovante
+    # c[4]=status  c[5]=criado_em  c[6]=fornecedor_nome  c[7]=comprovante  c[8]=plantio_id
     cursor.execute("""
         SELECT c.id, c.especie_nome, c.tipo_planta, c.valor,
                c.status, c.criado_em,
                COALESCE(f.razao_social, 'Fornecedor não informado') AS fornecedor_nome,
-               c.comprovante
+               c.comprovante, c.plantio_id
         FROM compras c
         LEFT JOIN fornecedores f ON f.id = c.fornecedor_id
         WHERE c.usuario_id = ?
@@ -2137,6 +2137,143 @@ def admin_analise_compra(cid):
 
     flash("Compra retornada para análise.", "sucesso")
     return redirect("/admin/painel?tipo=plantios")
+
+
+# ===================== ROTA INICIAR PLANTIO (5 ETAPAS) =====================
+# Exibe a página com o fluxo guiado de 5 etapas para registrar o plantio definitivo.
+# Acesso restrito ao dono da compra com status 'retirado' e sem plantio já vinculado.
+@app.route("/plantio/iniciar/<int:compra_id>")
+def plantio_iniciar(compra_id):
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Valida que a compra pertence ao usuário logado, está com status 'retirado'
+    # e ainda não possui um plantio registrado (plantio_id nulo).
+    cursor.execute("""
+        SELECT c.id, c.especie_nome, c.tipo_planta, c.valor,
+               COALESCE(f.razao_social, 'Fornecedor não informado'),
+               f.cidade, f.uf, c.plantio_id
+        FROM compras c
+        LEFT JOIN fornecedores f ON f.id = c.fornecedor_id
+        WHERE c.id = ? AND c.usuario_id = ? AND c.status = 'retirado'
+    """, (compra_id, session["usuario_id"]))
+    compra = cursor.fetchone()
+    conn.close()
+
+    # Se não encontrou a compra ou já tem plantio vinculado, redireciona
+    if not compra:
+        flash("Compra não encontrada ou ainda não retirada.", "erro")
+        return redirect("/plantios/pendentes")
+
+    if compra[7]:
+        flash("Este plantio já foi registrado.", "sucesso")
+        return redirect("/plantios/pendentes")
+
+    return render_template("plantio_iniciar.html", compra=compra)
+
+
+# ===================== ROTA CONCLUIR PLANTIO (POST DO FORMULÁRIO 5 ETAPAS) =====================
+# Recebe os dados e fotos do formulário de 5 etapas, cria o registro em plantas_go
+# e vincula o plantio à compra via compras.plantio_id.
+@app.route("/plantio/concluir", methods=["POST"])
+def plantio_concluir():
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    compra_id   = request.form.get("compra_id", "").strip()
+    especie     = request.form.get("especie", "").strip()
+    tipo        = request.form.get("tipo", "").strip()
+    municipio   = request.form.get("municipio", "").strip()
+    bairro      = request.form.get("bairro", "").strip()
+    latitude    = request.form.get("latitude", "").strip() or None
+    longitude   = request.form.get("longitude", "").strip() or None
+    qr_scan     = request.form.get("qr_scan", "").strip()
+
+    # Validações básicas dos campos obrigatórios
+    if not compra_id or not especie or not municipio or not bairro:
+        flash("Preencha todos os campos obrigatórios.", "erro")
+        return redirect("/plantios/pendentes")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Reconfirma que a compra pertence ao usuário e ainda está sem plantio vinculado
+    cursor.execute("""
+        SELECT id, fornecedor_id FROM compras
+        WHERE id = ? AND usuario_id = ? AND status = 'retirado' AND plantio_id IS NULL
+    """, (int(compra_id), session["usuario_id"]))
+    compra = cursor.fetchone()
+
+    if not compra:
+        conn.close()
+        flash("Operação inválida. A compra não foi encontrada ou já possui plantio.", "erro")
+        return redirect("/plantios/pendentes")
+
+    fornecedor_id = compra[1]
+
+    # Salva foto ao lado da cova (Etapa 3) — foto_plantio
+    foto_plantio = None
+    if "foto_plantio" in request.files:
+        arq = request.files["foto_plantio"]
+        if arq and arq.filename:
+            ext = arq.filename.rsplit(".", 1)[-1].lower()
+            if ext in EXTENSOES_PERMITIDAS:
+                nome = secure_filename(f"plantio_{session['usuario_id']}_{compra_id}_cova.{ext}")
+                arq.save(os.path.join(UPLOAD_FOLDER, nome))
+                foto_plantio = nome
+
+    # Salva foto com a planta na cova e regada (Etapa 4) — acompanhamento_1
+    foto_1 = None
+    if "foto_acomp1" in request.files:
+        arq = request.files["foto_acomp1"]
+        if arq and arq.filename:
+            ext = arq.filename.rsplit(".", 1)[-1].lower()
+            if ext in EXTENSOES_PERMITIDAS:
+                nome = secure_filename(f"plantio_{session['usuario_id']}_{compra_id}_acomp1.{ext}")
+                arq.save(os.path.join(UPLOAD_FOLDER, nome))
+                foto_1 = nome
+
+    from datetime import date
+    data_hoje = date.today().isoformat()
+
+    # Insere o registro definitivo do plantio em plantas_go
+    cursor.execute("""
+        INSERT INTO plantas_go (
+            data_plantio, responsavel_id, especie, municipio, bairro,
+            latitude, longitude,
+            foto_plantio, foto_1, acompanhamento_1,
+            fornecedor_id, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        data_hoje, session["usuario_id"], especie, municipio, bairro,
+        latitude, longitude,
+        foto_plantio, foto_1, data_hoje if foto_1 else None,
+        fornecedor_id, "em_analise"
+    ))
+
+    # Recupera o id do plantio recém-criado para vincular à compra
+    cursor.execute("""
+        SELECT id FROM plantas_go
+        WHERE responsavel_id = ? ORDER BY id DESC LIMIT 1
+    """, (session["usuario_id"],))
+    plantio = cursor.fetchone()
+    plantio_id = plantio[0] if plantio else None
+
+    # Vincula o plantio à compra para indicar que o ciclo de plantio foi iniciado
+    if plantio_id:
+        cursor.execute(
+            "UPDATE compras SET plantio_id = ? WHERE id = ?",
+            (plantio_id, int(compra_id))
+        )
+
+    conn.commit()
+    conn.close()
+
+    flash("Plantio registrado com sucesso! Acompanhe o desenvolvimento da sua muda.", "sucesso")
+    return redirect("/plantios/pendentes")
 
 
 # ===================== ROTA LOGOUT ADMINISTRADOR =====================
