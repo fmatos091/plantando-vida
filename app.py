@@ -160,10 +160,8 @@ def init_db():
     )
     """)
 
-    # Tabela de faturamentos mensais por fornecedor.
-    # Cada registro representa um fechamento (baixa) de um mês para um fornecedor.
+    # Tabela de faturamentos mensais por fornecedor (parte do fornecedor).
     # numero_baixa: código do período no formato MMAAAA (ex: "042026" = Abril/2026).
-    # faturamento_id é gravado em cada compra quando incluída neste fechamento.
     cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS faturamentos (
         id               {pk},
@@ -173,6 +171,38 @@ def init_db():
         quantidade       INTEGER NOT NULL DEFAULT 0,
         valor_bruto      REAL    NOT NULL DEFAULT 0.0,
         perc_fornecedor  REAL    NOT NULL DEFAULT 100.0,
+        valor_liquido    REAL    NOT NULL DEFAULT 0.0,
+        data_faturamento TEXT    DEFAULT ({ts})
+    )
+    """)
+
+    # Tabela de faturamentos mensais da Entidade Favorecida.
+    # Mesma estrutura de faturamentos, mas aplica perc_entidade de cada vigência.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS faturamentos_entidade (
+        id               {pk},
+        fornecedor_id    INTEGER NOT NULL,
+        mes_ref          TEXT    NOT NULL,
+        numero_baixa     TEXT    NOT NULL,
+        quantidade       INTEGER NOT NULL DEFAULT 0,
+        valor_bruto      REAL    NOT NULL DEFAULT 0.0,
+        perc_entidade    REAL    NOT NULL DEFAULT 0.0,
+        valor_liquido    REAL    NOT NULL DEFAULT 0.0,
+        data_faturamento TEXT    DEFAULT ({ts})
+    )
+    """)
+
+    # Tabela de faturamentos mensais da Administração.
+    # Mesma estrutura de faturamentos, mas aplica perc_admin de cada vigência.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS faturamentos_admin (
+        id               {pk},
+        fornecedor_id    INTEGER NOT NULL,
+        mes_ref          TEXT    NOT NULL,
+        numero_baixa     TEXT    NOT NULL,
+        quantidade       INTEGER NOT NULL DEFAULT 0,
+        valor_bruto      REAL    NOT NULL DEFAULT 0.0,
+        perc_admin       REAL    NOT NULL DEFAULT 0.0,
         valor_liquido    REAL    NOT NULL DEFAULT 0.0,
         data_faturamento TEXT    DEFAULT ({ts})
     )
@@ -210,8 +240,16 @@ def init_db():
         ],
         # data_validacao: preenchida pelo fornecedor ao escanear o voucher de retirada.
         # plantio_id: referência ao registro de plantas_go criado após o plantio definitivo.
-        # faturamento_id: preenchido ao gerar o fechamento mensal — indica que a compra foi faturada.
-        "compras": ["data_validacao TEXT", "plantio_id INTEGER", "faturamento_id INTEGER"],
+        # faturamento_id: id do fechamento do fornecedor que incluiu esta compra.
+        # faturamento_entidade_id: id do fechamento da entidade favorecida.
+        # faturamento_admin_id: id do fechamento da administração.
+        "compras": [
+            "data_validacao TEXT",
+            "plantio_id INTEGER",
+            "faturamento_id INTEGER",
+            "faturamento_entidade_id INTEGER",
+            "faturamento_admin_id INTEGER",
+        ],
     }
 
     for tabela, colunas in migracoes.items():
