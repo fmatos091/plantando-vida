@@ -1,5 +1,6 @@
 from db import get_db
 import secrets
+import random
 import os
 import re
 import uuid
@@ -48,6 +49,36 @@ def enviar_email(destinatario, assunto, corpo_html):
         return True
     except Exception:
         return False
+
+
+# ===================== HELPER: ENVIAR TOKEN DE CADASTRO =====================
+# Gera um código de 6 dígitos, salva na sessão e envia por email.
+# Retorna o token gerado para que o chamador possa exibi-lo em flash
+# caso o envio de email falhe (dev sem EMAIL_SENHA configurado).
+def _enviar_token_cadastro(email_dest, nome):
+    # Gera token numérico de 6 dígitos
+    token = "".join(random.choices("0123456789", k=6))
+
+    # Armazena token na sessão Flask (não expira até o servidor reiniciar)
+    session["cadastro_token"] = token
+
+    corpo_html = f"""
+    <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
+      <h2 style="color:#166534;">🌱 Plantando Vida — Verificação de Cadastro</h2>
+      <p>Olá, <strong>{nome}</strong>!</p>
+      <p>Use o código abaixo para concluir seu cadastro na plataforma:</p>
+      <div style="font-size:42px;font-weight:bold;letter-spacing:14px;color:#166534;
+                  text-align:center;padding:24px;background:#f0fdf4;border-radius:12px;
+                  margin:20px 0;">
+        {token}
+      </div>
+      <p style="font-size:12px;color:#6b7280;">
+        Este código é válido para uso imediato e não deve ser compartilhado com ninguém.
+      </p>
+    </div>
+    """
+    enviar_email(email_dest, "Código de verificação — Plantando Vida", corpo_html)
+    return token
 
 
 # ===================== HELPER: GERAR QR CODE =====================
@@ -146,39 +177,136 @@ def home():
 
 
 # ===================== ROTA DE CADASTRO =====================
-# GET:  exibe o formulário de cadastro.
-# POST: recebe os dados, salva o usuário no banco com senha hasheada
-#       e redireciona para /login após sucesso.
+# Fluxo de 3 etapas para garantir unicidade de CPF e verificação por email:
+#
+# Etapa 1 "dados"  → recebe nome/email/CPF/telefone/data_nasc,
+#                    verifica unicidade no banco e envia token de 6 dígitos.
+# Etapa 2 "token"  → usuário informa o token recebido por email.
+# Etapa 3 "senha"  → usuário define e confirma a senha; conta é criada.
+#
+# Os dados temporários ficam na sessão até a criação ser concluída.
 @app.route("/cadastros", methods=["GET", "POST"])
 def cadastro():
-    if request.method == "POST":
-        nome            = request.form["nome"]
-        email           = request.form["email"]
-        senha           = generate_password_hash(request.form["senha"])
-        # Campos complementares do perfil
-        cpf             = request.form.get("cpf", "").strip()
-        telefone        = request.form.get("telefone", "").strip()
-        data_nascimento = request.form.get("data_nascimento", "").strip()
+    # ── GET: exibe o formulário na etapa correta ──
+    if request.method == "GET":
+        etapa   = request.args.get("etapa", "dados")
+        pending = session.get("pending_cadastro", {})
+        return render_template("cadastros.html", etapa=etapa, pending=pending)
+
+    # ── POST: processa a etapa informada pelo campo oculto "etapa" ──
+    etapa = request.form.get("etapa", "dados")
+
+    # ── Etapa 1: valida unicidade e envia token ──
+    if etapa == "dados":
+        nome            = request.form["nome"].strip()
+        email           = request.form["email"].strip().lower()
+        cpf             = request.form["cpf"].strip()
+        telefone        = request.form["telefone"].strip()
+        data_nascimento = request.form["data_nascimento"].strip()
+
+        # Normaliza CPF (somente dígitos) para comparação neutra de formatação
+        cpf_numeros = re.sub(r"\D", "", cpf)
 
         conn   = get_db()
         cursor = conn.cursor()
 
+        # Verifica se CPF já está cadastrado (independente de máscara)
+        cursor.execute(
+            "SELECT id FROM usuarios WHERE REPLACE(REPLACE(cpf,'.',''),'-','') = ?",
+            (cpf_numeros,)
+        )
+        if cursor.fetchone():
+            conn.close()
+            flash("CPF já cadastrado. Entre em contato se isso for um engano.", "erro")
+            return redirect("/cadastros")
+
+        # Verifica se email já está cadastrado
+        cursor.execute("SELECT id FROM usuarios WHERE email = ?", (email,))
+        if cursor.fetchone():
+            conn.close()
+            flash("Este email já está cadastrado. Tente outro ou faça login.", "erro")
+            return redirect("/cadastros")
+        conn.close()
+
+        # Salva dados temporários na sessão e gera + envia token
+        session["pending_cadastro"] = {
+            "nome": nome, "email": email, "cpf": cpf,
+            "telefone": telefone, "data_nascimento": data_nascimento
+        }
+        session["cadastro_verificado"] = False
+
+        token = _enviar_token_cadastro(email, nome)
+
+        # Em desenvolvimento (sem email configurado) exibe o token via flash
+        if not os.environ.get("EMAIL_SENHA"):
+            flash(f"[DEV] Token de teste: {token}", "sucesso")
+        else:
+            flash(f"Código enviado para {email}. Verifique sua caixa de entrada.", "sucesso")
+
+        return redirect("/cadastros?etapa=token")
+
+    # ── Etapa 2: valida o token informado pelo usuário ──
+    elif etapa == "token":
+        token_informado = request.form.get("token", "").strip()
+        token_esperado  = session.get("cadastro_token", "")
+
+        if not token_esperado or token_informado != token_esperado:
+            flash("Código inválido. Verifique o email e tente novamente.", "erro")
+            return redirect("/cadastros?etapa=token")
+
+        # Marca sessão como verificada e avança para criação de senha
+        session["cadastro_verificado"] = True
+        return redirect("/cadastros?etapa=senha")
+
+    # ── Etapa 3: cria a conta com a senha definida pelo usuário ──
+    elif etapa == "senha":
+        # Garante que o usuário passou pela verificação de token
+        if not session.get("cadastro_verificado"):
+            flash("Sessão expirada. Inicie o cadastro novamente.", "erro")
+            return redirect("/cadastros")
+
+        senha    = request.form.get("senha", "")
+        confirma = request.form.get("confirma_senha", "")
+
+        # Valida correspondência das senhas antes de gravar
+        if senha != confirma:
+            flash("As senhas não coincidem. Tente novamente.", "erro")
+            return redirect("/cadastros?etapa=senha")
+
+        pending = session.get("pending_cadastro")
+        if not pending:
+            flash("Sessão expirada. Inicie o cadastro novamente.", "erro")
+            return redirect("/cadastros")
+
+        # Grava o novo usuário com senha hasheada
+        conn   = get_db()
+        cursor = conn.cursor()
         try:
             cursor.execute(
                 "INSERT INTO usuarios (nome, email, senha, cpf, telefone, data_nascimento) VALUES (?, ?, ?, ?, ?, ?)",
-                (nome, email, senha, cpf, telefone, data_nascimento)
+                (
+                    pending["nome"], pending["email"],
+                    generate_password_hash(senha),
+                    pending["cpf"], pending["telefone"], pending["data_nascimento"]
+                )
             )
             conn.commit()
-        except:
-            # Email já cadastrado — retorna mensagem de erro via flash
-            flash("Este email já está cadastrado. Tente outro.", "erro")
+        except Exception:
+            flash("Erro ao criar conta. O email pode já estar cadastrado.", "erro")
             return redirect("/cadastros")
         finally:
             conn.close()
 
+        # Limpa os dados temporários da sessão após criação bem-sucedida
+        session.pop("pending_cadastro", None)
+        session.pop("cadastro_token", None)
+        session.pop("cadastro_verificado", None)
+
+        flash("Conta criada com sucesso! Faça login para continuar.", "sucesso")
         return redirect("/login")
 
-    return render_template("cadastros.html")
+    # Etapa desconhecida — volta ao início
+    return redirect("/cadastros")
 
 
 # ===================== ROTA DE LOGIN =====================

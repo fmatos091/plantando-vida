@@ -2,106 +2,397 @@
 <html lang="pt-br">
 
 <head>
-    <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cadastro - Plantando Vida</title>
-    <!-- Tailwind CSS via CDN para estilização da página -->
-    <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Configurações básicas: codificação UTF-8, responsividade e título da aba -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro - Plantando Vida</title>
+  <!-- Tailwind CSS via CDN para estilização da página -->
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-
-<!-- body centraliza o conteúdo vertical e horizontalmente na tela -->
 
 <body class="bg-green-50 min-h-screen flex items-center justify-center py-10">
 
-    <!-- ===================== CARD DE CADASTRO =====================
-         Caixa branca centralizada com sombra e bordas arredondadas.
-         Largura máxima de md (448px) para não esticar em telas grandes.
-    -->
-    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+  <!-- ===================== CARD PRINCIPAL =====================
+       Caixa branca centralizada com sombra e bordas arredondadas.
+       O conteúdo interno muda de acordo com a etapa atual:
+         etapa "dados"  → formulário com dados pessoais
+         etapa "token"  → campo para inserir o código recebido por email
+         etapa "senha"  → definição e confirmação de senha
+  -->
+  <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
 
-        <!-- Título do card -->
-        <h2 class="text-center text-2xl font-bold text-green-700 mb-6">
-            🌱 Faça seu Cadastro
-        </h2>
+    <!-- Título e indicador visual de etapa -->
+    <div class="text-center mb-6">
+      <div class="text-4xl mb-2">🌱</div>
+      <h2 class="text-2xl font-bold text-green-700">Faça seu Cadastro</h2>
 
-        <!-- ===================== FORMULÁRIO DE CADASTRO =====================
-             method="POST" envia os dados de forma segura (não aparece na URL).
-             action="/cadastros" indica a rota do Flask que vai processar os dados.
-             A rota /cadastros em views.py recebe os campos, salva no banco
-             e redireciona para /login após o cadastro com sucesso.
-        -->
-        <form method="POST" action="/cadastros" class="space-y-4">
+      <!-- Indicador de progresso: 3 círculos coloridos conforme a etapa -->
+      <div class="flex items-center justify-center gap-2 mt-4">
 
-            <!-- Campo nome completo: lido no backend via request.form["nome"] -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nome completo</label>
-                <input name="nome" required placeholder="Seu nome completo"
-                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
-            </div>
-
-            <!-- Campo data de nascimento: lido no backend via request.form["data_nascimento"] -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Data de nascimento</label>
-                <input type="date" name="data_nascimento" required
-                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
-            </div>
-
-            <!-- Campo CPF: lido no backend via request.form["cpf"] -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">CPF</label>
-                <input name="cpf" required placeholder="000.000.000-00"
-                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
-            </div>
-
-            <!-- Campo email: lido no backend via request.form["email"].
-                 Deve ser único no banco — cadastros duplicados retornam erro. -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" name="email" required placeholder="seu@email.com"
-                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
-            </div>
-
-            <!-- Campo telefone: lido no backend via request.form["telefone"] -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-                <input name="telefone" required placeholder="(00) 00000-0000"
-                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
-            </div>
-
-            <!-- Campo senha: type="password" oculta os caracteres digitados.
-                 A senha é salva no banco com hash via generate_password_hash (views.py). -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
-                <input type="password" name="senha" required placeholder="Crie uma senha"
-                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
-            </div>
-
-            <!-- Botão de envio: dispara o POST para /cadastros com os dados do formulário -->
-            <button type="submit"
-                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
-                🌱 Me cadastrar
-            </button>
-
-        </form>
-        <!-- fim do formulário -->
-
-        <!-- Link de redirecionamento para login,
-             caso o usuário já possua uma conta -->
-        <p class="text-center text-sm text-gray-500 mt-4">
-            Já tem conta?
-            <a href="/login" class="text-green-600 hover:underline">Entrar</a>
-        </p>
-
-        <!-- Botão Início: redireciona para a home (index.html) -->
-        <div class="mt-3 text-center">
-            <a href="/" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">
-                🏠 Início
-            </a>
+        <!-- Etapa 1: Dados -->
+        <div class="flex items-center gap-1">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+            {{ 'bg-green-600 text-white' if etapa in ['dados', 'token', 'senha'] else 'bg-gray-200 text-gray-500' }}">
+            1
+          </div>
+          <span class="text-xs text-gray-500 hidden sm:inline">Dados</span>
         </div>
 
+        <div class="w-6 h-0.5 {{ 'bg-green-500' if etapa in ['token', 'senha'] else 'bg-gray-300' }}"></div>
+
+        <!-- Etapa 2: Verificação -->
+        <div class="flex items-center gap-1">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+            {{ 'bg-green-600 text-white' if etapa in ['token', 'senha'] else 'bg-gray-200 text-gray-500' }}">
+            2
+          </div>
+          <span class="text-xs text-gray-500 hidden sm:inline">Verificação</span>
+        </div>
+
+        <div class="w-6 h-0.5 {{ 'bg-green-500' if etapa == 'senha' else 'bg-gray-300' }}"></div>
+
+        <!-- Etapa 3: Senha -->
+        <div class="flex items-center gap-1">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+            {{ 'bg-green-600 text-white' if etapa == 'senha' else 'bg-gray-200 text-gray-500' }}">
+            3
+          </div>
+          <span class="text-xs text-gray-500 hidden sm:inline">Senha</span>
+        </div>
+
+      </div>
     </div>
-    <!-- fim do card de cadastro -->
+
+    <!-- ===================== MENSAGENS DE FEEDBACK ===================== -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    {% if category == "erro" %}
+    <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">⚠️ {{ message }}</div>
+    {% elif category == "sucesso" %}
+    <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4">✅ {{ message }}</div>
+    {% endif %}
+    {% endfor %}
+    {% endwith %}
+
+
+    <!-- ===================== ETAPA 1: DADOS PESSOAIS =====================
+         Coleta nome, data de nascimento, CPF, email e telefone.
+         Ao submeter: backend verifica unicidade e envia token por email.
+    -->
+    {% if etapa == "dados" %}
+    <form method="POST" action="/cadastros" class="space-y-4" id="form-dados">
+
+      <!-- Campo oculto que indica ao backend qual etapa está sendo processada -->
+      <input type="hidden" name="etapa" value="dados">
+
+      <!-- Nome completo -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Nome completo</label>
+        <input name="nome" required placeholder="Seu nome completo"
+          value="{{ pending.nome if pending else '' }}"
+          class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+      </div>
+
+      <!-- Data de nascimento: inputmode="numeric" exibe teclado numérico no mobile.
+           O formato DD/MM/AAAA é aplicado via máscara JS e convertido no backend. -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Data de nascimento</label>
+        <input id="data_nascimento" name="data_nascimento" required
+          placeholder="DD/MM/AAAA" inputmode="numeric" maxlength="10"
+          value="{{ pending.data_nascimento if pending else '' }}"
+          class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+      </div>
+
+      <!-- CPF: máscara JS aplica o formato 000.000.000-00 automaticamente -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">CPF</label>
+        <input id="cpf" name="cpf" required placeholder="000.000.000-00"
+          inputmode="numeric" maxlength="14"
+          value="{{ pending.cpf if pending else '' }}"
+          class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+      </div>
+
+      <!-- Email: deve ser único no banco; será usado para envio do token -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+        <input type="email" name="email" required placeholder="seu@email.com"
+          value="{{ pending.email if pending else '' }}"
+          class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+      </div>
+
+      <!-- Telefone: máscara JS aplica o formato (00) 00000-0000 -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+        <input id="telefone" name="telefone" required placeholder="(00) 00000-0000"
+          inputmode="numeric" maxlength="15"
+          value="{{ pending.telefone if pending else '' }}"
+          class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+      </div>
+
+      <!-- Botão de avançar: envia os dados e dispara o envio do token -->
+      <button type="submit"
+        class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+        Enviar código de verificação →
+      </button>
+
+    </form>
+    {% endif %}
+    <!-- fim da etapa 1 -->
+
+
+    <!-- ===================== ETAPA 2: VERIFICAÇÃO DO TOKEN =====================
+         Exibe campo para o usuário digitar o código de 6 dígitos enviado por email.
+    -->
+    {% if etapa == "token" %}
+    <form method="POST" action="/cadastros" class="space-y-4">
+
+      <!-- Campo oculto que indica ao backend qual etapa está sendo processada -->
+      <input type="hidden" name="etapa" value="token">
+
+      <!-- Descrição da etapa -->
+      <p class="text-sm text-gray-500 text-center">
+        Enviamos um código de 6 dígitos para o seu email.<br>
+        Digite-o abaixo para confirmar sua identidade.
+      </p>
+
+      <!-- Campo do token: teclado numérico no mobile, centralizado visualmente -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1 text-center">Código de verificação</label>
+        <input id="token" name="token" required
+          placeholder="000000" inputmode="numeric" maxlength="6"
+          class="w-full p-3 border-2 border-green-300 rounded-lg text-center text-2xl font-bold tracking-widest
+                 focus:outline-none focus:ring-2 focus:ring-green-400 text-green-800" />
+      </div>
+
+      <!-- Botão de verificar -->
+      <button type="submit"
+        class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+        ✅ Verificar código
+      </button>
+
+    </form>
+
+    <!-- Link para reenviar o código reiniciando o fluxo desde o início -->
+    <p class="text-center text-sm text-gray-400 mt-4">
+      Não recebeu o código?
+      <a href="/cadastros" class="text-green-600 hover:underline">Tentar novamente</a>
+    </p>
+    {% endif %}
+    <!-- fim da etapa 2 -->
+
+
+    <!-- ===================== ETAPA 3: DEFINIÇÃO DE SENHA =====================
+         O usuário define sua senha e deve confirmá-la em dois campos.
+         Cada campo tem botão de exibir/ocultar para facilitar a digitação.
+    -->
+    {% if etapa == "senha" %}
+    <form method="POST" action="/cadastros" class="space-y-4" id="form-senha">
+
+      <!-- Campo oculto que indica ao backend qual etapa está sendo processada -->
+      <input type="hidden" name="etapa" value="senha">
+
+      <!-- Descrição da etapa -->
+      <p class="text-sm text-gray-500 text-center">
+        Ótimo! Agora crie uma senha para acessar a plataforma.
+      </p>
+
+      <!-- Senha: campo com botão de visualização ao lado direito -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+        <div class="relative">
+          <input id="senha" type="password" name="senha" required
+            placeholder="Crie uma senha"
+            class="w-full p-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+          <!-- Botão de olho: alterna entre exibir e ocultar o conteúdo do campo -->
+          <button type="button" onclick="alternarVisibilidade('senha', 'olho-senha')"
+            class="absolute right-2 top-2 text-gray-400 hover:text-green-600 transition text-lg"
+            title="Exibir/ocultar senha">
+            <span id="olho-senha">👁️</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Confirmar senha: mesmo comportamento do campo acima -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Confirme a senha</label>
+        <div class="relative">
+          <input id="confirma_senha" type="password" name="confirma_senha" required
+            placeholder="Repita a senha"
+            class="w-full p-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+          <!-- Botão de olho para o campo de confirmação -->
+          <button type="button" onclick="alternarVisibilidade('confirma_senha', 'olho-confirma')"
+            class="absolute right-2 top-2 text-gray-400 hover:text-green-600 transition text-lg"
+            title="Exibir/ocultar senha">
+            <span id="olho-confirma">👁️</span>
+          </button>
+        </div>
+        <!-- Mensagem de validação exibida em tempo real antes do envio -->
+        <p id="msg-senha" class="text-xs mt-1 hidden"></p>
+      </div>
+
+      <!-- Botão de envio: desabilitado até as senhas coincidirem -->
+      <button type="submit" id="btn-criar"
+        class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition">
+        🌱 Criar minha conta
+      </button>
+
+    </form>
+    {% endif %}
+    <!-- fim da etapa 3 -->
+
+
+    <!-- Links de navegação comuns a todas as etapas -->
+    <p class="text-center text-sm text-gray-500 mt-5">
+      Já tem conta?
+      <a href="/login" class="text-green-600 hover:underline">Entrar</a>
+    </p>
+    <div class="mt-2 text-center">
+      <a href="/" class="text-sm text-gray-400 hover:text-green-600 hover:underline transition">
+        🏠 Início
+      </a>
+    </div>
+
+  </div>
+  <!-- fim do card -->
+
+
+  <!-- ===================== JAVASCRIPT: MÁSCARAS E VALIDAÇÕES =====================
+       Três funções principais:
+         1. mascaraCPF      — formata o campo CPF enquanto o usuário digita
+         2. mascaraTelefone — formata o campo telefone (celular com 9 dígitos)
+         3. mascaraData     — formata DD/MM/AAAA e converte para YYYY-MM-DD ao submeter
+         4. alternarVisibilidade — exibe/oculta o conteúdo de campos de senha
+         5. Validação em tempo real das senhas (etapa 3)
+  -->
+  <script>
+
+    // ── Máscara de CPF: 000.000.000-00 ──
+    // Aplica pontos e traço automaticamente conforme o usuário digita.
+    const campoCpf = document.getElementById('cpf');
+    if (campoCpf) {
+      campoCpf.addEventListener('input', function () {
+        // Remove tudo que não for dígito
+        let v = this.value.replace(/\D/g, '').slice(0, 11);
+
+        // Aplica a máscara progressivamente
+        if (v.length > 9)       v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+        else if (v.length > 6)  v = v.replace(/(\d{3})(\d{3})(\d{1,3})/,        '$1.$2.$3');
+        else if (v.length > 3)  v = v.replace(/(\d{3})(\d{1,3})/,               '$1.$2');
+
+        this.value = v;
+      });
+    }
+
+    // ── Máscara de Telefone: (00) 00000-0000 ──
+    // Suporta celular com 9 dígitos; ajusta o traço dinamicamente.
+    const campoTel = document.getElementById('telefone');
+    if (campoTel) {
+      campoTel.addEventListener('input', function () {
+        // Remove tudo que não for dígito
+        let v = this.value.replace(/\D/g, '').slice(0, 11);
+
+        // Aplica a máscara progressivamente
+        if (v.length > 10)     v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+        else if (v.length > 6) v = v.replace(/(\d{2})(\d{4,5})(\d{0,4})/, '($1) $2-$3');
+        else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+        else if (v.length > 0) v = v.replace(/(\d{0,2})/, '($1');
+
+        this.value = v;
+      });
+    }
+
+    // ── Máscara de Data de Nascimento: DD/MM/AAAA ──
+    // Formata enquanto o usuário digita e converte para YYYY-MM-DD ao submeter
+    // para compatibilidade com o backend e o banco de dados.
+    const campoData = document.getElementById('data_nascimento');
+    if (campoData) {
+      // Aplica máscara visual DD/MM/AAAA enquanto o usuário digita
+      campoData.addEventListener('input', function () {
+        let v = this.value.replace(/\D/g, '').slice(0, 8);
+
+        if (v.length > 4)      v = v.replace(/(\d{2})(\d{2})(\d{0,4})/, '$1/$2/$3');
+        else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,2})/, '$1/$2');
+
+        this.value = v;
+      });
+
+      // Ao submeter, converte DD/MM/AAAA para YYYY-MM-DD antes de enviar
+      const formDados = document.getElementById('form-dados');
+      if (formDados) {
+        formDados.addEventListener('submit', function () {
+          const partes = campoData.value.split('/');
+          if (partes.length === 3) {
+            // Reescreve o valor no formato esperado pelo backend
+            campoData.value = `${partes[2]}-${partes[1]}-${partes[0]}`;
+          }
+        });
+      }
+    }
+
+    // ── Alterna visibilidade de campo de senha ──
+    // Troca type="password" ↔ type="text" e atualiza o ícone de olho.
+    function alternarVisibilidade(campoId, olhoId) {
+      const campo = document.getElementById(campoId);
+      const olho  = document.getElementById(olhoId);
+      if (!campo) return;
+
+      if (campo.type === 'password') {
+        campo.type = 'text';
+        if (olho) olho.textContent = '🙈';  // Olho fechado quando está visível
+      } else {
+        campo.type = 'password';
+        if (olho) olho.textContent = '👁️';  // Olho aberto quando está oculto
+      }
+    }
+
+    // ── Validação em tempo real das senhas (Etapa 3) ──
+    // Compara os dois campos e exibe feedback visual antes do envio.
+    const campoSenha   = document.getElementById('senha');
+    const campoConfirma = document.getElementById('confirma_senha');
+    const msgSenha     = document.getElementById('msg-senha');
+    const btnCriar     = document.getElementById('btn-criar');
+
+    function validarSenhas() {
+      if (!campoSenha || !campoConfirma) return;
+
+      const s1 = campoSenha.value;
+      const s2 = campoConfirma.value;
+
+      // Não exibe mensagem enquanto o campo de confirmação estiver vazio
+      if (!s2) {
+        msgSenha.classList.add('hidden');
+        return;
+      }
+
+      if (s1 === s2) {
+        msgSenha.textContent = '✅ Senhas coincidem';
+        msgSenha.className = 'text-xs mt-1 text-green-600';
+      } else {
+        msgSenha.textContent = '❌ As senhas não coincidem';
+        msgSenha.className = 'text-xs mt-1 text-red-500';
+      }
+    }
+
+    // Chama a validação a cada tecla nos dois campos de senha
+    if (campoSenha)    campoSenha.addEventListener('input', validarSenhas);
+    if (campoConfirma) campoConfirma.addEventListener('input', validarSenhas);
+
+    // Bloqueia o envio se as senhas não coincidem (segurança extra no front-end)
+    const formSenha = document.getElementById('form-senha');
+    if (formSenha) {
+      formSenha.addEventListener('submit', function (e) {
+        if (campoSenha.value !== campoConfirma.value) {
+          e.preventDefault();
+          validarSenhas();
+        }
+      });
+    }
+
+    // ── Foco automático no campo de token (Etapa 2) ──
+    const campoToken = document.getElementById('token');
+    if (campoToken) campoToken.focus();
+
+  </script>
 
 </body>
 
