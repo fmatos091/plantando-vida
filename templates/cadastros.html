@@ -155,6 +155,22 @@
         Digite-o abaixo para confirmar sua identidade.
       </p>
 
+      <!-- ── Caixa de token visível apenas em ambiente de desenvolvimento ──
+           Exibida somente quando dev_token está definido (EMAIL_SENHA ausente).
+           Permite copiar o código com um clique para agilizar os testes. -->
+      {% if dev_token %}
+      <div class="bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-3 text-center">
+        <p class="text-xs font-semibold text-yellow-700 mb-1">🧪 Modo desenvolvimento — token gerado:</p>
+        <div id="dev-token-valor"
+             class="text-3xl font-bold tracking-widest text-yellow-800 cursor-pointer select-all"
+             onclick="copiarDevToken()"
+             title="Clique para copiar">
+          {{ dev_token }}
+        </div>
+        <p class="text-xs text-yellow-600 mt-1">Clique no código para copiar</p>
+      </div>
+      {% endif %}
+
       <!-- Campo do token: teclado numérico no mobile, centralizado visualmente -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1 text-center">Código de verificação</label>
@@ -391,6 +407,21 @@
     // ── Foco automático no campo de token (Etapa 2) ──
     const campoToken = document.getElementById('token');
     if (campoToken) campoToken.focus();
+
+    // ── Copiar token de desenvolvimento com um clique ──
+    // Preenche automaticamente o campo de código e exibe feedback visual.
+    function copiarDevToken() {
+      const valor = document.getElementById('dev-token-valor');
+      const campo = document.getElementById('token');
+      if (!valor || !campo) return;
+
+      campo.value = valor.textContent.trim();
+      campo.focus();
+
+      // Feedback visual temporário no elemento clicado
+      valor.textContent = '✅ Copiado!';
+      setTimeout(() => { valor.textContent = campo.value; }, 1200);
+    }
 
   </script>
 

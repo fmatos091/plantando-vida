@@ -191,7 +191,14 @@ def cadastro():
     if request.method == "GET":
         etapa   = request.args.get("etapa", "dados")
         pending = session.get("pending_cadastro", {})
-        return render_template("cadastros.html", etapa=etapa, pending=pending)
+
+        # Em dev (sem EMAIL_SENHA configurado), expõe o token na página de
+        # verificação para facilitar testes sem depender de envio de email.
+        dev_token = None
+        if etapa == "token" and not os.environ.get("EMAIL_SENHA"):
+            dev_token = session.get("cadastro_token")
+
+        return render_template("cadastros.html", etapa=etapa, pending=pending, dev_token=dev_token)
 
     # ── POST: processa a etapa informada pelo campo oculto "etapa" ──
     etapa = request.form.get("etapa", "dados")
