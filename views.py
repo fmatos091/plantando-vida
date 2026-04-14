@@ -192,10 +192,11 @@ def cadastro():
         etapa   = request.args.get("etapa", "dados")
         pending = session.get("pending_cadastro", {})
 
-        # Em dev (sem EMAIL_SENHA configurado), expõe o token na página de
-        # verificação para facilitar testes sem depender de envio de email.
+        # Em desenvolvimento (FLASK_ENV != "production"), expõe o token na
+        # página de verificação para facilitar testes locais.
+        # Em produção (Render com FLASK_ENV=production) o bloco não é exibido.
         dev_token = None
-        if etapa == "token" and not os.environ.get("EMAIL_SENHA"):
+        if etapa == "token" and os.environ.get("FLASK_ENV") != "production":
             dev_token = session.get("cadastro_token")
 
         return render_template("cadastros.html", etapa=etapa, pending=pending, dev_token=dev_token)
@@ -244,11 +245,11 @@ def cadastro():
 
         token = _enviar_token_cadastro(email, nome)
 
-        # Em desenvolvimento (sem email configurado) exibe o token via flash
-        if not os.environ.get("EMAIL_SENHA"):
-            flash(f"[DEV] Token de teste: {token}", "sucesso")
-        else:
+        # Em produção envia email; localmente apenas informa que o código foi gerado
+        if os.environ.get("FLASK_ENV") == "production":
             flash(f"Código enviado para {email}. Verifique sua caixa de entrada.", "sucesso")
+        else:
+            flash("Código gerado. Veja o código exibido abaixo.", "sucesso")
 
         return redirect("/cadastros?etapa=token")
 
