@@ -1141,6 +1141,19 @@ def fornecedor_painel():
         ORDER BY inicio_vigencia ASC
     """)
     percentuais = cursor.fetchall()
+
+    # Busca histórico de faturamentos deste fornecedor, ordenado do mais recente.
+    # fat[0]=id  fat[1]=mes_ref  fat[2]=numero_baixa  fat[3]=quantidade
+    # fat[4]=valor_bruto  fat[5]=perc_fornecedor  fat[6]=valor_liquido  fat[7]=data_faturamento
+    cursor.execute("""
+        SELECT id, mes_ref, numero_baixa, quantidade,
+               valor_bruto, perc_fornecedor, valor_liquido, data_faturamento
+        FROM faturamentos
+        WHERE fornecedor_id = ?
+        ORDER BY mes_ref DESC
+    """, (fornecedor_id,))
+    faturamentos = cursor.fetchall()
+
     conn.close()
 
     # Garante que o QR Code existe (gera se ainda não tiver)
@@ -1151,7 +1164,8 @@ def fornecedor_painel():
                            fornecedor=fornecedor,
                            qr_arquivo=qr_arquivo,
                            retiradas=retiradas,
-                           percentuais=percentuais)
+                           percentuais=percentuais,
+                           faturamentos=faturamentos)
 
 
 # ===================== ROTA VALIDAR VOUCHER DE RETIRADA =====================
@@ -1456,6 +1470,31 @@ def admin_painel():
     """)
     percentuais = cursor.fetchall()
 
+    # ---- Cálculo do Fechamento Mensal Pendente ----
+    # Agrupamento de compras retiradas e não faturadas por fornecedor + mês.
+    # Usa vigências em ordem ASC para aplicar o percentual correto por data.
+    cursor.execute("""
+        SELECT inicio_vigencia, perc_fornecedor
+        FROM percentuais_vigencia ORDER BY inicio_vigencia ASC
+    """)
+    vigencias_asc = cursor.fetchall()
+    fechamento_pendente = _calcular_fechamento_pendente(cursor, vigencias_asc)
+
+    # ---- Histórico de Faturamentos já realizados ----
+    # fat[0]=id  fat[1]=fornecedor_id  fat[2]=mes_ref  fat[3]=numero_baixa
+    # fat[4]=quantidade  fat[5]=valor_bruto  fat[6]=perc_fornecedor
+    # fat[7]=valor_liquido  fat[8]=data_faturamento  fat[9]=razao_social
+    cursor.execute("""
+        SELECT fat.id, fat.fornecedor_id, fat.mes_ref, fat.numero_baixa,
+               fat.quantidade, fat.valor_bruto, fat.perc_fornecedor,
+               fat.valor_liquido, fat.data_faturamento,
+               f.razao_social
+        FROM faturamentos fat
+        JOIN fornecedores f ON f.id = fat.fornecedor_id
+        ORDER BY fat.mes_ref DESC, f.razao_social
+    """)
+    faturamentos_hist = cursor.fetchall()
+
     conn.close()
 
     return render_template("admin_painel.html",
@@ -1466,6 +1505,8 @@ def admin_painel():
                            especies=especies,
                            dados_bancarios=dados_bancarios,
                            percentuais=percentuais,
+                           fechamento_pendente=fechamento_pendente,
+                           faturamentos_hist=faturamentos_hist,
                            busca=busca,
                            tipo=tipo)
 
@@ -2159,6 +2200,80 @@ def admin_analise_compra(cid):
     return redirect("/admin/painel?tipo=plantios")
 
 
+# ===================== HELPER: CALCULAR PERCENTUAL VIGENTE =====================
+# Recebe uma data (string YYYY-MM-DD ou YYYY-MM-DD HH:MM:SS) e a lista de vigências
+# ordenada ASC por inicio_vigencia. Retorna o perc_fornecedor aplicável naquela data.
+def _perc_vigente(data_str, vigencias):
+    data = (data_str or "9999-12-31")[:10]
+    resultado = 100.0  # sem regra cadastrada: 100% ao fornecedor
+    for v in vigencias:              # v[0]=inicio_vigencia  v[1]=perc_fornecedor
+        if v[0] <= data:
+            resultado = v[1]         # avança enquanto a vigência cabe na data
+    return resultado
+
+
+# ===================== HELPER: MONTAR FECHAMENTO PENDENTE =====================
+# Retorna lista de grupos {fornecedor_id, razao_social, mes_ref, numero_baixa,
+# quantidade, valor_bruto, valor_liquido, perc_display} para compras retiradas
+# ainda não faturadas. Agrupa por (fornecedor, mês) e aplica percentual vigente.
+def _calcular_fechamento_pendente(cursor, vigencias):
+    cursor.execute("""
+        SELECT c.id, c.fornecedor_id, c.valor, c.data_validacao,
+               SUBSTR(COALESCE(c.data_validacao, ''), 1, 7) AS mes_ref,
+               f.razao_social, f.whatsapp
+        FROM compras c
+        JOIN fornecedores f ON f.id = c.fornecedor_id
+        WHERE c.status = 'retirado'
+          AND (c.faturamento_id IS NULL OR c.faturamento_id = 0)
+        ORDER BY c.fornecedor_id, mes_ref
+    """)
+    rows = cursor.fetchall()
+
+    grupos = {}
+    for row in rows:
+        cid, forn_id, valor, data_valid, mes_ref, razao, whatsapp = row
+        if not mes_ref:
+            mes_ref = "sem_data"
+        chave = (forn_id, mes_ref)
+
+        if chave not in grupos:
+            # Formata nº Baixa: "2026-04" → "042026"
+            if mes_ref != "sem_data":
+                ano, mes = mes_ref.split("-")
+                numero_baixa = f"{mes}{ano}"
+            else:
+                numero_baixa = "000000"
+            grupos[chave] = {
+                "fornecedor_id": forn_id,
+                "razao_social":  razao,
+                "whatsapp":      whatsapp,
+                "mes_ref":       mes_ref,
+                "numero_baixa":  numero_baixa,
+                "quantidade":    0,
+                "valor_bruto":   0.0,
+                "valor_liquido": 0.0,
+                "percs":         set(),  # conjunto de percentuais usados no mês
+            }
+
+        perc  = _perc_vigente(data_valid, vigencias)
+        val   = valor or 0.0
+        grupos[chave]["quantidade"]    += 1
+        grupos[chave]["valor_bruto"]   += val
+        grupos[chave]["valor_liquido"] += val * perc / 100
+        grupos[chave]["percs"].add(perc)
+
+    # Converte para lista ordenada por mês desc, depois razao_social
+    resultado = []
+    for g in grupos.values():
+        percs = sorted(g["percs"])
+        g["perc_display"] = "/".join(f"{p:.0f}%" for p in percs)
+        del g["percs"]
+        resultado.append(g)
+
+    resultado.sort(key=lambda x: (x["mes_ref"], x["razao_social"]))
+    return resultado
+
+
 # ===================== ROTA ADMIN: SALVAR PERCENTUAL DE VIGÊNCIA =====================
 # Insere ou atualiza a tabela de percentuais de distribuição.
 # Valida que a soma dos três percentuais seja exatamente 100%.
@@ -2213,6 +2328,109 @@ def admin_percentual_excluir(pid):
 
     flash("Registro de vigência excluído.", "sucesso")
     return redirect("/admin/painel?tipo=percentuais")
+
+
+# ===================== ROTA ADMIN: CRIAR FATURAMENTO (FECHAMENTO MENSAL) =====================
+# Gera o fechamento mensal de um fornecedor para o mês informado.
+# Segurança: recalcula tudo no servidor — não confia nos valores enviados pelo form.
+# Fluxo:
+#   1. Busca todas as compras retiradas não faturadas do fornecedor no mês.
+#   2. Aplica o percentual vigente em cada compra individualmente.
+#   3. Insere o registro em faturamentos e marca as compras com faturamento_id.
+@app.route("/admin/faturamento/criar", methods=["POST"])
+def admin_faturamento_criar():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    fornecedor_id = request.form.get("fornecedor_id", "").strip()
+    mes_ref       = request.form.get("mes_ref", "").strip()  # "YYYY-MM"
+
+    if not fornecedor_id or not mes_ref:
+        flash("Dados inválidos para faturamento.", "erro")
+        return redirect("/admin/painel?tipo=fechamento")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Busca vigências ordenadas ASC para cálculo do percentual por data
+    cursor.execute("""
+        SELECT inicio_vigencia, perc_fornecedor
+        FROM percentuais_vigencia ORDER BY inicio_vigencia ASC
+    """)
+    vigencias = cursor.fetchall()
+
+    # Busca todas as compras pendentes deste fornecedor no mês especificado
+    cursor.execute("""
+        SELECT id, valor, data_validacao
+        FROM compras
+        WHERE fornecedor_id = ?
+          AND status = 'retirado'
+          AND (faturamento_id IS NULL OR faturamento_id = 0)
+          AND SUBSTR(COALESCE(data_validacao, ''), 1, 7) = ?
+    """, (int(fornecedor_id), mes_ref))
+    compras_do_mes = cursor.fetchall()
+
+    if not compras_do_mes:
+        conn.close()
+        flash("Nenhuma compra pendente para faturar neste período.", "erro")
+        return redirect("/admin/painel?tipo=fechamento")
+
+    # Recalcula totais com percentual vigente por data de cada compra
+    quantidade   = len(compras_do_mes)
+    valor_bruto  = 0.0
+    valor_liquido = 0.0
+    perc_usado   = 100.0  # percentual da última compra (referência para o registro)
+
+    for row in compras_do_mes:
+        _id, val, data_valid = row
+        val       = val or 0.0
+        perc      = _perc_vigente(data_valid, vigencias)
+        valor_bruto   += val
+        valor_liquido += val * perc / 100
+        perc_usado    = perc  # guarda o último aplicado
+
+    # Gera nº Baixa: "YYYY-MM" → "MMAAAA" (ex: "2026-04" → "042026")
+    try:
+        ano, mes = mes_ref.split("-")
+        numero_baixa = f"{mes}{ano}"
+    except ValueError:
+        numero_baixa = mes_ref.replace("-", "")
+
+    # Insere o faturamento e obtém o id gerado
+    cursor.execute("""
+        INSERT INTO faturamentos
+            (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, perc_fornecedor, valor_liquido)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (int(fornecedor_id), mes_ref, numero_baixa,
+          quantidade, valor_bruto, perc_usado, valor_liquido))
+
+    # Recupera o id do faturamento recém-inserido (compatível com SQLite e PostgreSQL)
+    cursor.execute("""
+        SELECT id FROM faturamentos
+        WHERE fornecedor_id = ? AND mes_ref = ?
+        ORDER BY id DESC LIMIT 1
+    """, (int(fornecedor_id), mes_ref))
+    fat_row      = cursor.fetchone()
+    faturamento_id = fat_row[0] if fat_row else None
+
+    # Marca cada compra com o id do faturamento gerado
+    if faturamento_id:
+        ids = [row[0] for row in compras_do_mes]
+        for cid in ids:
+            cursor.execute(
+                "UPDATE compras SET faturamento_id = ? WHERE id = ?",
+                (faturamento_id, cid)
+            )
+
+    conn.commit()
+    conn.close()
+
+    flash(
+        f"Faturamento gerado — nº Baixa {numero_baixa} · "
+        f"{quantidade} muda(s) · R$ {valor_liquido:.2f}",
+        "sucesso"
+    )
+    return redirect("/admin/painel?tipo=fechamento")
 
 
 # ===================== ROTA INICIAR PLANTIO (5 ETAPAS) =====================

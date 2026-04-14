@@ -114,6 +114,14 @@
                     📊 Percentuais ({{ percentuais|length }})
                 </button>
             </a>
+            <!-- Aba Fechamento Mensal -->
+            <a href="/admin/painel?tipo=fechamento">
+                <button
+                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                    {{ 'bg-green-600 text-white' if tipo == 'fechamento' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
+                    💰 Fechamento ({{ fechamento_pendente|length }})
+                </button>
+            </a>
         </div>
 
 
@@ -1183,6 +1191,161 @@
 
         {% endif %}
         <!-- fim da aba percentuais -->
+
+
+        <!-- ===================== ABA FECHAMENTO MENSAL =====================
+             Exibe o saldo pendente por fornecedor agrupado por mês.
+             O botão "Faturar" gera o registro de faturamento e zera o saldo do período.
+             fechamento_pendente: lista de dicts com fornecedor_id, razao_social, mes_ref,
+               numero_baixa, quantidade, valor_bruto, valor_liquido, perc_display.
+             faturamentos_hist: histórico de todos os faturamentos já gerados.
+        -->
+        {% if tipo == 'fechamento' %}
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        {% if category == "erro" %}
+        <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">⚠️ {{ message }}</div>
+        {% elif category == "sucesso" %}
+        <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">✅ {{ message }}</div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+
+        <!-- ---- Saldos Pendentes ---- -->
+        <div class="bg-white rounded-2xl shadow overflow-hidden mb-6">
+            <div class="bg-green-700 px-6 py-4">
+                <h3 class="text-white font-bold text-base">💰 Saldos Pendentes de Faturamento</h3>
+                <p class="text-green-200 text-xs mt-0.5">
+                    Compras retiradas ainda não incluídas em nenhum fechamento mensal.
+                </p>
+            </div>
+
+            {% if fechamento_pendente %}
+
+            <!-- Agrupa visualmente por mês: cabeçalho antes de cada grupo de mês -->
+            {% set ns = namespace(mes_atual='') %}
+            <div class="divide-y divide-gray-100">
+                {% for g in fechamento_pendente %}
+
+                <!-- Separador de mês: exibido apenas quando o mês muda -->
+                {% if g.mes_ref != ns.mes_atual %}
+                {% set ns.mes_atual = g.mes_ref %}
+                <div class="bg-gray-50 px-6 py-2 flex items-center gap-2">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        📅 nº Baixa {{ g.numero_baixa }}
+                        &nbsp;·&nbsp;
+                        {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}
+                    </span>
+                </div>
+                {% endif %}
+
+                <!-- Card do fornecedor com saldo pendente -->
+                <div class="px-6 py-4 flex items-center justify-between gap-4">
+                    <div class="flex-1 min-w-0">
+                        <!-- Nome e percentual aplicado -->
+                        <p class="text-sm font-bold text-gray-800 truncate">🏪 {{ g.razao_social }}</p>
+                        <div class="flex flex-wrap gap-2 mt-1.5">
+                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                🌱 {{ g.quantidade }} muda{{ 's' if g.quantidade != 1 else '' }}
+                            </span>
+                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                📦 Bruto: R$ {{ "%.2f"|format(g.valor_bruto) }}
+                            </span>
+                            <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">
+                                % {{ g.perc_display }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Valor líquido e botão Faturar -->
+                    <div class="flex flex-col items-end gap-2 shrink-0">
+                        <p class="text-base font-extrabold text-green-700">
+                            R$ {{ "%.2f"|format(g.valor_liquido) }}
+                        </p>
+                        <!-- Formulário POST: envia fornecedor_id + mes_ref para gerar o faturamento -->
+                        <form method="POST" action="/admin/faturamento/criar"
+                              onsubmit="return confirm('Faturar {{ g.razao_social }} — {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}?\n\nEsta ação é irreversível.')">
+                            <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
+                            <input type="hidden" name="mes_ref"       value="{{ g.mes_ref }}">
+                            <button type="submit"
+                                class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold
+                                       px-4 py-2 rounded-xl transition whitespace-nowrap shadow">
+                                💳 Faturar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% else %}
+            <div class="px-6 py-12 text-center text-gray-400">
+                <div class="text-4xl mb-3">✅</div>
+                <p class="text-sm font-semibold">Nenhum saldo pendente de faturamento.</p>
+                <p class="text-xs mt-1">Todos os fornecedores estão em dia.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ---- Histórico de Faturamentos ---- -->
+        <div class="bg-white rounded-2xl shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                <div>
+                    <h3 class="text-sm font-bold text-gray-700">📋 Histórico de Faturamentos</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Fechamentos já realizados com nº Baixa.</p>
+                </div>
+                <span class="text-xs text-gray-400">{{ faturamentos_hist|length }} registro(s)</span>
+            </div>
+
+            {% if faturamentos_hist %}
+            <!-- Cabeçalho da tabela -->
+            <div class="hidden sm:grid grid-cols-6 gap-2 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <div>nº Baixa</div>
+                <div>Período</div>
+                <div>Fornecedor</div>
+                <div class="text-center">Mudas</div>
+                <div class="text-right">Valor Líquido</div>
+                <div class="text-right">Data</div>
+            </div>
+            <div class="divide-y divide-gray-100">
+                {% for fat in faturamentos_hist %}
+                <!-- fat[0]=id  fat[1]=fornecedor_id  fat[2]=mes_ref  fat[3]=numero_baixa
+                     fat[4]=quantidade  fat[5]=valor_bruto  fat[6]=perc_fornecedor
+                     fat[7]=valor_liquido  fat[8]=data_faturamento  fat[9]=razao_social -->
+                <div class="px-6 py-3 grid grid-cols-2 sm:grid-cols-6 gap-2 items-center text-sm">
+                    <!-- nº Baixa em destaque -->
+                    <div>
+                        <span class="font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-lg text-xs">
+                            {{ fat[3] }}
+                        </span>
+                    </div>
+                    <div class="text-gray-600 text-xs">
+                        {{ fat[2][5:7] }}/{{ fat[2][:4] }}
+                    </div>
+                    <div class="col-span-2 sm:col-span-1 font-semibold text-gray-800 truncate">
+                        {{ fat[9] }}
+                    </div>
+                    <div class="text-center text-gray-500 text-xs">{{ fat[4] }} muda(s)</div>
+                    <div class="text-right font-bold text-green-700">
+                        R$ {{ "%.2f"|format(fat[7]) }}
+                    </div>
+                    <div class="text-right text-xs text-gray-400">
+                        {{ fat[8][:10] if fat[8] else '—' }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% else %}
+            <div class="px-6 py-10 text-center text-gray-400">
+                <p class="text-sm">Nenhum faturamento gerado ainda.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        {% endif %}
+        <!-- fim da aba fechamento -->
 
 
         <!-- fim das abas -->

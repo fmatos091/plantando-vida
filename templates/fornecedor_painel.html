@@ -156,6 +156,57 @@
     </div>
 
 
+    <!-- ===================== SEÇÃO: HISTÓRICO DE FATURAMENTOS =====================
+         Exibe os fechamentos mensais já gerados pelo admin para este fornecedor.
+         Cada registro mostra o nº Baixa, período, quantidade de mudas e valor líquido.
+         fat[0]=id  fat[1]=mes_ref  fat[2]=numero_baixa  fat[3]=quantidade
+         fat[4]=valor_bruto  fat[5]=perc_fornecedor  fat[6]=valor_liquido  fat[7]=data_faturamento
+    -->
+    {% if faturamentos %}
+    <div class="bg-white rounded-xl shadow-md w-full max-w-lg mx-auto mb-5 overflow-hidden">
+
+        <div class="bg-blue-700 px-6 py-4">
+            <h2 class="text-white font-bold text-base">💳 Meus Faturamentos</h2>
+            <p class="text-blue-200 text-xs mt-0.5">Histórico de fechamentos mensais</p>
+        </div>
+
+        <div class="divide-y divide-gray-100">
+            {% for fat in faturamentos %}
+            <div class="px-6 py-4 flex items-center justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                    <!-- nº Baixa em destaque e período de referência -->
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200
+                                     px-3 py-0.5 rounded-full tracking-wide">
+                            FATURADO — nº Baixa {{ fat[2] }}
+                        </span>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-800">
+                        📅 {{ fat[1][5:7] }}/{{ fat[1][:4] }}
+                    </p>
+                    <p class="text-xs text-gray-400 mt-0.5">
+                        🌱 {{ fat[3] }} muda{{ 's' if fat[3] != 1 else '' }}
+                        &nbsp;·&nbsp;
+                        {{ fat[5]|int }}% de R$ {{ "%.2f"|format(fat[4]) }}
+                        &nbsp;·&nbsp;
+                        {{ fat[7][:10] if fat[7] else '—' }}
+                    </p>
+                </div>
+                <!-- Valor líquido do fornecedor -->
+                <div class="shrink-0 text-right">
+                    <p class="text-lg font-extrabold text-blue-700">
+                        R$ {{ "%.2f"|format(fat[6]) }}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+    {% endif %}
+    <!-- fim histórico faturamentos -->
+
+
     <!-- ===================== CARD PRINCIPAL =====================
          Exibe os dados do fornecedor logado e permite editá-los.
          Todos os campos são preenchidos com os valores atuais do banco.
@@ -361,6 +412,7 @@
     <script>
         // ===================== DADOS DE RETIRADAS (INJETADOS DO BACKEND) =====================
         // Cada item: [id, especie_nome, tipo_planta, valor, data_validacao]
+        // Inclui TODAS as retiradas (faturadas e pendentes) — o JS distingue por faturamento_id.
         const retiradas = {{ retiradas | tojson }};
 
         // Tabela de percentuais de vigência ordenada por data (ASC).

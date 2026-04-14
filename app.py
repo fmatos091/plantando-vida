@@ -160,6 +160,24 @@ def init_db():
     )
     """)
 
+    # Tabela de faturamentos mensais por fornecedor.
+    # Cada registro representa um fechamento (baixa) de um mês para um fornecedor.
+    # numero_baixa: código do período no formato MMAAAA (ex: "042026" = Abril/2026).
+    # faturamento_id é gravado em cada compra quando incluída neste fechamento.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS faturamentos (
+        id               {pk},
+        fornecedor_id    INTEGER NOT NULL,
+        mes_ref          TEXT    NOT NULL,
+        numero_baixa     TEXT    NOT NULL,
+        quantidade       INTEGER NOT NULL DEFAULT 0,
+        valor_bruto      REAL    NOT NULL DEFAULT 0.0,
+        perc_fornecedor  REAL    NOT NULL DEFAULT 100.0,
+        valor_liquido    REAL    NOT NULL DEFAULT 0.0,
+        data_faturamento TEXT    DEFAULT ({ts})
+    )
+    """)
+
     # Tabela de percentuais de distribuição do valor das plantas por vigência.
     # Cada registro define como o valor de uma compra é dividido entre
     # fornecedor, entidade favorecida e administração, a partir de inicio_vigencia.
@@ -192,7 +210,8 @@ def init_db():
         ],
         # data_validacao: preenchida pelo fornecedor ao escanear o voucher de retirada.
         # plantio_id: referência ao registro de plantas_go criado após o plantio definitivo.
-        "compras": ["data_validacao TEXT", "plantio_id INTEGER"],
+        # faturamento_id: preenchido ao gerar o fechamento mensal — indica que a compra foi faturada.
+        "compras": ["data_validacao TEXT", "plantio_id INTEGER", "faturamento_id INTEGER"],
     }
 
     for tabela, colunas in migracoes.items():
