@@ -98,46 +98,118 @@
                     🌿 Espécies ({{ especies|length }})
                 </button>
             </a>
-            <!-- Aba Dados Bancários -->
-            <a href="/admin/painel?tipo=dados_bancarios">
+            <!-- ====== Grupo "Financeiro" com sub-menu em cascata ======
+                 Detecta se a aba ativa pertence ao grupo para manter o botão destacado.
+                 O sub-menu abre via JS ao clicar no botão pai (toggle de classe hidden).
+                 Fecha automaticamente ao clicar fora (listener no document).
+            -->
+            {% set financeiro_ativo = tipo in ['dados_bancarios', 'percentuais', 'fechamento', 'fechamento_entidade', 'fechamento_admin'] %}
+            <div class="relative" id="grupo-financeiro">
+
+                <!-- Botão principal do grupo -->
                 <button
-                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
-                    {{ 'bg-green-600 text-white' if tipo == 'dados_bancarios' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    🏦 Dados Bancários
+                    onclick="toggleFinanceiro(event)"
+                    class="px-5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-1.5
+                    {{ 'bg-emerald-700 text-white' if financeiro_ativo else 'bg-white text-gray-600 hover:bg-gray-200' }}">
+                    💼 Financeiro
+                    <!-- Seta indicadora de sub-menu -->
+                    <svg id="seta-financeiro" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                    </svg>
                 </button>
-            </a>
-            <!-- Aba Percentuais de Distribuição -->
-            <a href="/admin/painel?tipo=percentuais">
-                <button
-                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
-                    {{ 'bg-green-600 text-white' if tipo == 'percentuais' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    📊 Percentuais ({{ percentuais|length }})
-                </button>
-            </a>
-            <!-- Aba Fechamento Fornecedor -->
-            <a href="/admin/painel?tipo=fechamento">
-                <button
-                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
-                    {{ 'bg-green-600 text-white' if tipo == 'fechamento' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    💰 Fechamento Fornecedor ({{ fechamento_pendente|length }})
-                </button>
-            </a>
-            <!-- Aba Fechamento Entidade Favorecida -->
-            <a href="/admin/painel?tipo=fechamento_entidade">
-                <button
-                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
-                    {{ 'bg-blue-600 text-white' if tipo == 'fechamento_entidade' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    🏛️ Fechamento Entidade ({{ fechamento_entidade_pendente|length }})
-                </button>
-            </a>
-            <!-- Aba Fechamento Administração -->
-            <a href="/admin/painel?tipo=fechamento_admin">
-                <button
-                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
-                    {{ 'bg-purple-600 text-white' if tipo == 'fechamento_admin' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    ⚙️ Fechamento Admin ({{ fechamento_admin_pendente|length }})
-                </button>
-            </a>
+
+                <!-- Sub-menu cascata (oculto por padrão, aberto via JS) -->
+                <div id="submenu-financeiro"
+                     class="hidden absolute left-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-xl border border-gray-100
+                            flex flex-col min-w-[220px] py-1.5 overflow-hidden">
+
+                    <!-- Item: Dados Bancários -->
+                    <a href="/admin/painel?tipo=dados_bancarios"
+                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                              {{ 'bg-emerald-50 text-emerald-800 font-semibold' if tipo == 'dados_bancarios' else 'text-gray-700 hover:bg-gray-50' }}">
+                        🏦 Dados Bancários
+                        {% if tipo == 'dados_bancarios' %}
+                        <span class="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                        {% endif %}
+                    </a>
+
+                    <!-- Item: Percentuais -->
+                    <a href="/admin/painel?tipo=percentuais"
+                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                              {{ 'bg-emerald-50 text-emerald-800 font-semibold' if tipo == 'percentuais' else 'text-gray-700 hover:bg-gray-50' }}">
+                        📊 Percentuais
+                        <span class="ml-auto text-xs text-gray-400">({{ percentuais|length }})</span>
+                        {% if tipo == 'percentuais' %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                        {% endif %}
+                    </a>
+
+                    <!-- Separador visual antes dos fechamentos -->
+                    <div class="border-t border-gray-100 my-1 mx-3"></div>
+                    <p class="px-4 pb-1 text-xs font-bold text-gray-400 uppercase tracking-wider">Fechamentos</p>
+
+                    <!-- Item: Fechamento Fornecedor -->
+                    <a href="/admin/painel?tipo=fechamento"
+                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                              {{ 'bg-emerald-50 text-emerald-800 font-semibold' if tipo == 'fechamento' else 'text-gray-700 hover:bg-gray-50' }}">
+                        💰 Fornecedor
+                        <span class="ml-auto text-xs text-gray-400">({{ fechamento_pendente|length }})</span>
+                        {% if tipo == 'fechamento' %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                        {% endif %}
+                    </a>
+
+                    <!-- Item: Fechamento Entidade -->
+                    <a href="/admin/painel?tipo=fechamento_entidade"
+                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                              {{ 'bg-blue-50 text-blue-800 font-semibold' if tipo == 'fechamento_entidade' else 'text-gray-700 hover:bg-gray-50' }}">
+                        🏛️ Entidade Favorecida
+                        <span class="ml-auto text-xs text-gray-400">({{ fechamento_entidade_pendente|length }})</span>
+                        {% if tipo == 'fechamento_entidade' %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                        {% endif %}
+                    </a>
+
+                    <!-- Item: Fechamento Admin -->
+                    <a href="/admin/painel?tipo=fechamento_admin"
+                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                              {{ 'bg-purple-50 text-purple-800 font-semibold' if tipo == 'fechamento_admin' else 'text-gray-700 hover:bg-gray-50' }}">
+                        ⚙️ Administração
+                        <span class="ml-auto text-xs text-gray-400">({{ fechamento_admin_pendente|length }})</span>
+                        {% if tipo == 'fechamento_admin' %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
+                        {% endif %}
+                    </a>
+                </div>
+            </div>
+
+            <!-- JS: abre/fecha o sub-menu Financeiro e fecha ao clicar fora -->
+            <script>
+            function toggleFinanceiro(e) {
+                e.stopPropagation();
+                const menu  = document.getElementById('submenu-financeiro');
+                const seta  = document.getElementById('seta-financeiro');
+                const aberto = !menu.classList.contains('hidden');
+                menu.classList.toggle('hidden', aberto);
+                seta.style.transform = aberto ? '' : 'rotate(180deg)';
+            }
+            // Fecha ao clicar em qualquer lugar fora do grupo
+            document.addEventListener('click', function() {
+                const menu = document.getElementById('submenu-financeiro');
+                const seta = document.getElementById('seta-financeiro');
+                if (menu) { menu.classList.add('hidden'); }
+                if (seta)  { seta.style.transform = ''; }
+            });
+            // Se a aba ativa pertence ao grupo, abre o sub-menu automaticamente ao carregar
+            {% if financeiro_ativo %}
+            document.addEventListener('DOMContentLoaded', function() {
+                const menu = document.getElementById('submenu-financeiro');
+                const seta = document.getElementById('seta-financeiro');
+                if (menu) { menu.classList.remove('hidden'); }
+                if (seta)  { seta.style.transform = 'rotate(180deg)'; }
+            });
+            {% endif %}
+            </script>
         </div>
 
 
