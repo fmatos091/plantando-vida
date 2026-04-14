@@ -79,9 +79,9 @@
                         <!-- Botões de ação: Comprar Planta e Ver no Maps -->
                         <div class="flex gap-2 flex-wrap mt-3" onclick="event.stopPropagation()">
 
-                            <!-- Botão Comprar Planta: abre modal de compra para o fornecedor clicado -->
+                            <!-- Botão Comprar Planta: passa id, nome e tipo_planta do fornecedor -->
                             <button type="button"
-                                onclick="abrirModalCompra({{ f[0] }}, '{{ f[1] | replace("'", "\\'") }}')"
+                                onclick="abrirModalCompra({{ f[0] }}, '{{ f[1] | replace("'", "\\'") }}', '{{ f[5] }}')"
                                 class="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition shadow-sm">
                                 🛒 Comprar Planta
                             </button>
@@ -140,23 +140,15 @@
                             1️⃣ Escolha a planta
                         </p>
 
-                        <!-- Filtro de tipo -->
-                        <div class="flex gap-4 mb-3">
-                            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
-                                <input type="radio" name="filtro_tipo" value=""
-                                    checked onchange="buscarPlantas()"
-                                    class="accent-green-600" /> Todas
-                            </label>
-                            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
-                                <input type="radio" name="filtro_tipo" value="Frutífera"
-                                    onchange="buscarPlantas()"
-                                    class="accent-green-600" /> 🍎 Frutífera
-                            </label>
-                            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
-                                <input type="radio" name="filtro_tipo" value="Nativa"
-                                    onchange="buscarPlantas()"
-                                    class="accent-green-600" /> 🌳 Nativa
-                            </label>
+                        <!-- Badge de tipo fixo pelo fornecedor selecionado.
+                             O tipo é preenchido via JS ao abrir o modal e não pode
+                             ser alterado pelo usuário — reflete o que o fornecedor oferece. -->
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-xs text-gray-500">Tipo disponível neste fornecedor:</span>
+                            <span id="badge-tipo-fornecedor"
+                                class="text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700">
+                                —
+                            </span>
                         </div>
 
                         <!-- Campo de busca por nome -->
@@ -447,13 +439,29 @@
     <script>
         // ===================== MODAL COMPRAR PLANTA =====================
 
+        // Tipo de planta fixado pelo fornecedor selecionado no momento.
+        // Usado em _executarBusca para filtrar somente as plantas deste tipo.
+        let _tipoFornecedorAtual = '';
+
         // Abre o modal de compra para o fornecedor clicado.
-        // Preenche o campo oculto fornecedor_id e exibe o nome no cabeçalho.
-        function abrirModalCompra(fornecedorId, fornecedorNome) {
+        // tipoPlanta: valor de tipo_planta cadastrado pelo fornecedor (ex: "Nativa").
+        // O tipo é exibido como badge e enviado como filtro fixo na busca.
+        function abrirModalCompra(fornecedorId, fornecedorNome, tipoPlanta) {
+            // Preenche campos do cabeçalho do modal
             document.getElementById('compra-fornecedor-id').value = fornecedorId;
             document.getElementById('modal-fornecedor-nome').textContent = fornecedorNome;
+
+            // Armazena e exibe o tipo de planta do fornecedor como badge
+            _tipoFornecedorAtual = tipoPlanta || '';
+            const icone = tipoPlanta === 'Frutífera' ? '🍎' : tipoPlanta === 'Nativa' ? '🌳' : '🌿';
+            document.getElementById('badge-tipo-fornecedor').textContent =
+                tipoPlanta ? `${icone} ${tipoPlanta}` : '— Todos';
+
+            // Limpa campo de busca e abre o modal
+            document.getElementById('busca-planta').value = '';
             document.getElementById('modal-compra').classList.remove('hidden');
-            // Carrega as primeiras plantas ao abrir
+
+            // Carrega plantas já filtradas pelo tipo do fornecedor
             buscarPlantas();
         }
 
@@ -479,9 +487,9 @@
         }
 
         async function _executarBusca() {
-            const tipoEl  = document.querySelector('input[name="filtro_tipo"]:checked');
-            const tipo    = tipoEl ? tipoEl.value : '';
-            const busca   = document.getElementById('busca-planta').value.trim();
+            // Usa sempre o tipo definido pelo fornecedor selecionado — sem filtro manual
+            const tipo  = _tipoFornecedorAtual;
+            const busca = document.getElementById('busca-planta').value.trim();
             const lista   = document.getElementById('lista-plantas-modal');
 
             lista.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">⏳ Buscando...</p>';
