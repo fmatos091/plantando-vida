@@ -106,6 +106,14 @@
                     🏦 Dados Bancários
                 </button>
             </a>
+            <!-- Aba Percentuais de Distribuição -->
+            <a href="/admin/painel?tipo=percentuais">
+                <button
+                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
+                    {{ 'bg-green-600 text-white' if tipo == 'percentuais' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
+                    📊 Percentuais ({{ percentuais|length }})
+                </button>
+            </a>
         </div>
 
 
@@ -976,6 +984,207 @@
         <!-- fim da aba dados bancários -->
 
 
+        <!-- ===================== ABA PERCENTUAIS DE DISTRIBUIÇÃO =====================
+             Gerencia o histórico de percentuais de divisão do valor das plantas entre
+             fornecedor, entidade favorecida e administração.
+             O sistema aplica automaticamente o percentual vigente na data de cada compra.
+             p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin  p[5]=criado_em
+        -->
+        {% if tipo == 'percentuais' %}
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        {% if category == "erro" %}
+        <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">⚠️ {{ message }}</div>
+        {% elif category == "sucesso" %}
+        <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">✅ {{ message }}</div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+
+        <!-- Destaque: percentual atualmente vigente -->
+        {% if percentuais %}
+        {% set atual = percentuais[0] %}
+        <div class="bg-green-50 border border-green-200 rounded-2xl p-5 mb-6">
+            <p class="text-xs text-green-600 font-semibold uppercase tracking-wider mb-3">
+                📌 Percentual Vigente — a partir de {{ atual[1] }}
+            </p>
+            <div class="grid grid-cols-3 gap-3 text-center">
+                <div class="bg-white rounded-xl p-3 border border-green-100">
+                    <p class="text-xs text-gray-400 mb-1">Fornecedor</p>
+                    <p class="text-2xl font-extrabold text-green-700">{{ atual[2]|int }}%</p>
+                </div>
+                <div class="bg-white rounded-xl p-3 border border-green-100">
+                    <p class="text-xs text-gray-400 mb-1">Entidade Favorecida</p>
+                    <p class="text-2xl font-extrabold text-blue-700">{{ atual[3]|int }}%</p>
+                </div>
+                <div class="bg-white rounded-xl p-3 border border-green-100">
+                    <p class="text-xs text-gray-400 mb-1">Administração</p>
+                    <p class="text-2xl font-extrabold text-purple-700">{{ atual[4]|int }}%</p>
+                </div>
+            </div>
+            <!-- Exemplo de cálculo com base no primeiro valor de espécie cadastrado -->
+            <p class="text-xs text-gray-400 text-center mt-3">
+                Ex: Planta R$ 50,00 →
+                Fornecedor R$ {{ "%.2f"|format(50 * atual[2] / 100) }} ·
+                Entidade R$ {{ "%.2f"|format(50 * atual[3] / 100) }} ·
+                Admin R$ {{ "%.2f"|format(50 * atual[4] / 100) }}
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Formulário para cadastrar nova vigência -->
+        <div class="bg-white rounded-2xl shadow p-6 mb-6">
+            <h3 class="text-sm font-bold text-gray-700 mb-4">➕ Nova Vigência de Percentuais</h3>
+
+            <form method="POST" action="/admin/percentual/salvar" id="form-percentual"
+                  onsubmit="return validarPercentuais()">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+
+                    <!-- Data de início da vigência -->
+                    <div class="col-span-2">
+                        <label class="text-xs font-semibold text-gray-600 block mb-1">
+                            📅 Início da Vigência
+                        </label>
+                        <input type="date" name="inicio_vigencia" required
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-green-400">
+                    </div>
+
+                    <!-- % Fornecedor -->
+                    <div>
+                        <label class="text-xs font-semibold text-gray-600 block mb-1">
+                            🏪 % Fornecedor
+                        </label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" name="perc_fornecedor" id="perc_fornecedor"
+                                min="0" max="100" step="0.01" required
+                                placeholder="80"
+                                oninput="atualizarSoma()"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-green-400">
+                            <span class="text-gray-500 text-sm">%</span>
+                        </div>
+                    </div>
+
+                    <!-- % Entidade Favorecida -->
+                    <div>
+                        <label class="text-xs font-semibold text-gray-600 block mb-1">
+                            🏛️ % Entidade Favorecida
+                        </label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" name="perc_entidade" id="perc_entidade"
+                                min="0" max="100" step="0.01" required
+                                placeholder="10"
+                                oninput="atualizarSoma()"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-green-400">
+                            <span class="text-gray-500 text-sm">%</span>
+                        </div>
+                    </div>
+
+                    <!-- % Administração -->
+                    <div>
+                        <label class="text-xs font-semibold text-gray-600 block mb-1">
+                            ⚙️ % Administração
+                        </label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" name="perc_admin" id="perc_admin"
+                                min="0" max="100" step="0.01" required
+                                placeholder="10"
+                                oninput="atualizarSoma()"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-green-400">
+                            <span class="text-gray-500 text-sm">%</span>
+                        </div>
+                    </div>
+
+                    <!-- Indicador da soma em tempo real -->
+                    <div class="flex items-end pb-1">
+                        <div id="soma-display"
+                            class="w-full rounded-lg px-3 py-2 text-sm font-bold text-center
+                                   bg-gray-100 text-gray-500 border border-gray-200">
+                            Soma: 0%
+                        </div>
+                    </div>
+
+                </div>
+
+                <button type="submit"
+                    class="w-full bg-green-700 hover:bg-green-800 text-white font-semibold
+                           py-2.5 rounded-xl transition text-sm">
+                    💾 Cadastrar Vigência
+                </button>
+            </form>
+        </div>
+
+        <!-- Tabela histórica de vigências -->
+        {% if percentuais %}
+        <div class="bg-white rounded-2xl shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-bold text-gray-700">📋 Histórico de Vigências</h3>
+                <p class="text-xs text-gray-400 mt-0.5">
+                    O sistema aplica o percentual vigente na data de cada compra.
+                    O registro mais recente ativo é destacado em verde.
+                </p>
+            </div>
+            <div class="divide-y divide-gray-100">
+                {% for p in percentuais %}
+                <div class="px-6 py-4 flex items-center justify-between gap-4
+                    {{ 'bg-green-50' if loop.first else '' }}">
+
+                    <div class="flex-1 min-w-0">
+                        <!-- Data de início com badge "vigente" no mais recente -->
+                        <div class="flex items-center gap-2 mb-2">
+                            <p class="text-sm font-bold text-gray-800">📅 {{ p[1] }}</p>
+                            {% if loop.first %}
+                            <span class="text-xs font-semibold bg-green-600 text-white px-2 py-0.5 rounded-full">
+                                Vigente
+                            </span>
+                            {% endif %}
+                        </div>
+                        <!-- Barras de percentual visual -->
+                        <div class="flex gap-3 text-xs">
+                            <span class="bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">
+                                🏪 Fornecedor: {{ p[2]|int }}%
+                            </span>
+                            <span class="bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">
+                                🏛️ Entidade: {{ p[3]|int }}%
+                            </span>
+                            <span class="bg-purple-100 text-purple-700 font-semibold px-2 py-0.5 rounded-full">
+                                ⚙️ Admin: {{ p[4]|int }}%
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Botão excluir (não aparece para o vigente para evitar exclusão acidental) -->
+                    {% if not loop.first %}
+                    <form method="POST" action="/admin/percentual/{{ p[0] }}/excluir"
+                          onsubmit="return confirm('Excluir esta vigência?')">
+                        <button type="submit"
+                            class="text-red-500 hover:text-red-700 text-xs font-semibold px-3 py-1.5
+                                   rounded-lg bg-red-50 hover:bg-red-100 transition whitespace-nowrap">
+                            🗑️ Excluir
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% else %}
+        <div class="bg-white rounded-xl shadow p-12 text-center text-gray-400">
+            <div class="text-5xl mb-3">📊</div>
+            <p class="text-sm">Nenhum percentual cadastrado ainda.</p>
+            <p class="text-xs mt-2">Cadastre a primeira vigência acima.</p>
+        </div>
+        {% endif %}
+
+        {% endif %}
+        <!-- fim da aba percentuais -->
+
+
         <!-- fim das abas -->
 
     </div>
@@ -1067,6 +1276,41 @@
         function fecharModalReprovar(id) {
             const modal = document.getElementById('modal-reprovar-' + id);
             if (modal) modal.classList.add('hidden');
+        }
+
+        // ===================== PERCENTUAIS: VALIDAÇÃO DA SOMA =====================
+
+        // Atualiza o indicador de soma em tempo real ao digitar nos campos de percentual
+        function atualizarSoma() {
+            const f   = parseFloat(document.getElementById('perc_fornecedor')?.value || 0);
+            const e   = parseFloat(document.getElementById('perc_entidade')?.value   || 0);
+            const a   = parseFloat(document.getElementById('perc_admin')?.value      || 0);
+            const soma = f + e + a;
+            const el   = document.getElementById('soma-display');
+            if (!el) return;
+
+            el.textContent = `Soma: ${soma.toFixed(2)}%`;
+            // Verde quando soma = 100, vermelho quando diferente
+            if (Math.abs(soma - 100) < 0.01) {
+                el.className = el.className.replace(/bg-\S+|text-\S+|border-\S+/g, '').trim();
+                el.className += ' bg-green-100 text-green-700 border-green-300';
+            } else {
+                el.className = el.className.replace(/bg-\S+|text-\S+|border-\S+/g, '').trim();
+                el.className += ' bg-red-100 text-red-600 border-red-300';
+            }
+        }
+
+        // Bloqueia envio do formulário se a soma não for 100%
+        function validarPercentuais() {
+            const f    = parseFloat(document.getElementById('perc_fornecedor')?.value || 0);
+            const e    = parseFloat(document.getElementById('perc_entidade')?.value   || 0);
+            const a    = parseFloat(document.getElementById('perc_admin')?.value      || 0);
+            const soma = f + e + a;
+            if (Math.abs(soma - 100) > 0.01) {
+                alert(`A soma dos percentuais deve ser 100%.\nSoma atual: ${soma.toFixed(2)}%`);
+                return false;
+            }
+            return true;
         }
     </script>
 

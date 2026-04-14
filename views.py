@@ -1132,6 +1132,15 @@ def fornecedor_painel():
         ORDER BY data_validacao DESC
     """, (fornecedor_id,))
     retiradas = cursor.fetchall()
+
+    # Busca tabela de percentuais de vigência para calcular o saldo líquido do fornecedor.
+    # p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin
+    cursor.execute("""
+        SELECT id, inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin
+        FROM percentuais_vigencia
+        ORDER BY inicio_vigencia ASC
+    """)
+    percentuais = cursor.fetchall()
     conn.close()
 
     # Garante que o QR Code existe (gera se ainda não tiver)
@@ -1141,7 +1150,8 @@ def fornecedor_painel():
     return render_template("fornecedor_painel.html",
                            fornecedor=fornecedor,
                            qr_arquivo=qr_arquivo,
-                           retiradas=retiradas)
+                           retiradas=retiradas,
+                           percentuais=percentuais)
 
 
 # ===================== ROTA VALIDAR VOUCHER DE RETIRADA =====================
@@ -1437,6 +1447,15 @@ def admin_painel():
     cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios LIMIT 1")
     dados_bancarios = cursor.fetchone()
 
+    # ---- Consulta Percentuais de Vigência — tabela de distribuição do valor das plantas ----
+    # p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin
+    cursor.execute("""
+        SELECT id, inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin, criado_em
+        FROM percentuais_vigencia
+        ORDER BY inicio_vigencia DESC
+    """)
+    percentuais = cursor.fetchall()
+
     conn.close()
 
     return render_template("admin_painel.html",
@@ -1446,6 +1465,7 @@ def admin_painel():
                            compras=compras,
                            especies=especies,
                            dados_bancarios=dados_bancarios,
+                           percentuais=percentuais,
                            busca=busca,
                            tipo=tipo)
 
@@ -2137,6 +2157,62 @@ def admin_analise_compra(cid):
 
     flash("Compra retornada para análise.", "sucesso")
     return redirect("/admin/painel?tipo=plantios")
+
+
+# ===================== ROTA ADMIN: SALVAR PERCENTUAL DE VIGÊNCIA =====================
+# Insere ou atualiza a tabela de percentuais de distribuição.
+# Valida que a soma dos três percentuais seja exatamente 100%.
+@app.route("/admin/percentual/salvar", methods=["POST"])
+def admin_percentual_salvar():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    inicio_vigencia = request.form.get("inicio_vigencia", "").strip()
+    try:
+        perc_fornecedor = float(request.form.get("perc_fornecedor", "0").replace(",", "."))
+        perc_entidade   = float(request.form.get("perc_entidade",   "0").replace(",", "."))
+        perc_admin      = float(request.form.get("perc_admin",      "0").replace(",", "."))
+    except ValueError:
+        flash("Percentuais inválidos. Use apenas números.", "erro")
+        return redirect("/admin/painel?tipo=percentuais")
+
+    # Valida que os três percentuais somam exatamente 100
+    soma = round(perc_fornecedor + perc_entidade + perc_admin, 4)
+    if abs(soma - 100.0) > 0.001:
+        flash(f"A soma dos percentuais deve ser 100%. Soma atual: {soma:.2f}%", "erro")
+        return redirect("/admin/painel?tipo=percentuais")
+
+    if not inicio_vigencia:
+        flash("Informe a data de início da vigência.", "erro")
+        return redirect("/admin/painel?tipo=percentuais")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO percentuais_vigencia (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin)
+        VALUES (?, ?, ?, ?)
+    """, (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin))
+    conn.commit()
+    conn.close()
+
+    flash(f"Vigência a partir de {inicio_vigencia} cadastrada com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=percentuais")
+
+
+# ===================== ROTA ADMIN: EXCLUIR PERCENTUAL DE VIGÊNCIA =====================
+@app.route("/admin/percentual/<int:pid>/excluir", methods=["POST"])
+def admin_percentual_excluir(pid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM percentuais_vigencia WHERE id = ?", (pid,))
+    conn.commit()
+    conn.close()
+
+    flash("Registro de vigência excluído.", "sucesso")
+    return redirect("/admin/painel?tipo=percentuais")
 
 
 # ===================== ROTA INICIAR PLANTIO (5 ETAPAS) =====================

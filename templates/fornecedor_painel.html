@@ -363,6 +363,22 @@
         // Cada item: [id, especie_nome, tipo_planta, valor, data_validacao]
         const retiradas = {{ retiradas | tojson }};
 
+        // Tabela de percentuais de vigência ordenada por data (ASC).
+        // Cada item: [id, inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin]
+        const percentuais = {{ percentuais | tojson }};
+
+        // Retorna o percentual do fornecedor vigente na data informada (YYYY-MM-DD).
+        // Percorre do mais recente para o mais antigo e retorna o primeiro cujo
+        // inicio_vigencia seja <= à data da compra. Se não encontrar, retorna 100%.
+        function getPercFornecedor(dataValidacao) {
+            const data = (dataValidacao || '9999-12-31').slice(0, 10);
+            // percentuais está ordenado ASC, iterar do fim para o início
+            for (let i = percentuais.length - 1; i >= 0; i--) {
+                if (percentuais[i][1] <= data) return percentuais[i][2];
+            }
+            return 100; // sem regra cadastrada: 100% vai para o fornecedor
+        }
+
         // ===================== GRID DE ESTATÍSTICAS =====================
 
         // Formata "YYYY-MM" para "Mês/Ano" legível (ex: "2026-04" → "Abril/2026")
@@ -385,7 +401,8 @@
             });
         }
 
-        // Atualiza os cards de quantidade e saldo conforme o filtro selecionado
+        // Atualiza os cards de quantidade e saldo líquido conforme o filtro selecionado.
+        // O saldo é calculado aplicando o percentual do fornecedor vigente em cada validação.
         function atualizarStats() {
             const filtro   = document.getElementById('filtro-mes').value;
             const lista    = document.getElementById('lista-retiradas');
@@ -396,16 +413,19 @@
                 ? retiradas.filter(r => (r[4] || '').startsWith(filtro))
                 : retiradas;
 
-            // Calcula totais
-            const quantidade = filtradas.length;
-            const saldo      = filtradas.reduce((acc, r) => acc + (r[3] || 0), 0);
+            // Calcula totais aplicando o percentual vigente em cada validação
+            const quantidade   = filtradas.length;
+            const saldoLiquido = filtradas.reduce((acc, r) => {
+                const perc = getPercFornecedor(r[4]) / 100;
+                return acc + (r[3] || 0) * perc;
+            }, 0);
 
             // Atualiza os cards
             document.getElementById('stat-quantidade').textContent = quantidade;
             document.getElementById('stat-saldo').textContent =
-                'R$ ' + saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                'R$ ' + saldoLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
-            // Monta a lista de registros
+            // Monta a lista de registros com valor bruto e valor líquido do fornecedor
             lista.innerHTML = '';
             if (!filtradas.length) {
                 semMsg.classList.remove('hidden');
@@ -414,18 +434,21 @@
             semMsg.classList.add('hidden');
 
             filtradas.forEach(r => {
-                const icone = (r[2] || '').toLowerCase().includes('frut') ? '🍎' : '🌳';
-                const data  = r[4] ? r[4].slice(0, 10) : '—';
-                const div   = document.createElement('div');
-                div.className = 'flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2 text-sm';
-                div.innerHTML = `
+                const icone      = (r[2] || '').toLowerCase().includes('frut') ? '🍎' : '🌳';
+                const data       = r[4] ? r[4].slice(0, 10) : '—';
+                const perc       = getPercFornecedor(r[4]);
+                const liquido    = (r[3] || 0) * perc / 100;
+                const div        = document.createElement('div');
+                div.className    = 'flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2 text-sm';
+                div.innerHTML    = `
                     <div>
                         <span class="font-semibold text-gray-700">${icone} ${r[1]}</span>
                         <span class="text-xs text-gray-400 ml-2">#${String(r[0]).padStart(6,'0')}</span>
+                        <p class="text-xs text-gray-400">${data}</p>
                     </div>
                     <div class="text-right">
-                        <p class="font-bold text-green-700">R$ ${(r[3]||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p>
-                        <p class="text-xs text-gray-400">${data}</p>
+                        <p class="font-bold text-green-700">R$ ${liquido.toLocaleString('pt-BR',{minimumFractionDigits:2})}</p>
+                        <p class="text-xs text-gray-400">${perc}% de R$ ${(r[3]||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p>
                     </div>`;
                 lista.appendChild(div);
             });

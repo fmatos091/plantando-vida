@@ -160,6 +160,21 @@ def init_db():
     )
     """)
 
+    # Tabela de percentuais de distribuição do valor das plantas por vigência.
+    # Cada registro define como o valor de uma compra é dividido entre
+    # fornecedor, entidade favorecida e administração, a partir de inicio_vigencia.
+    # O sistema aplica o registro vigente na data de cada compra (data mais recente <= data_compra).
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS percentuais_vigencia (
+        id               {pk},
+        inicio_vigencia  TEXT NOT NULL,
+        perc_fornecedor  REAL NOT NULL DEFAULT 80.0,
+        perc_entidade    REAL NOT NULL DEFAULT 10.0,
+        perc_admin       REAL NOT NULL DEFAULT 10.0,
+        criado_em        TEXT DEFAULT ({ts})
+    )
+    """)
+
     # ---- Migrações seguras para bancos já existentes ----
     # Adiciona colunas que podem não existir em instalações anteriores.
     # SQLite: try/except (não suporta IF NOT EXISTS no ADD COLUMN antes da v3.37)
