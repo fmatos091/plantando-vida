@@ -1828,6 +1828,13 @@ def compra_finalizar():
     """, (session["usuario_id"], fornecedor_id, especie_nome, tipo_planta, valor, comprovante))
     conn.commit()
 
+    # Recupera o ID da compra recém-inserida para uso no número do pedido
+    cursor.execute(
+        "SELECT id FROM compras WHERE usuario_id=? ORDER BY id DESC LIMIT 1",
+        (session["usuario_id"],)
+    )
+    compra_id = cursor.fetchone()[0]
+
     # Busca nome e email do usuário para envio do email de confirmação
     cursor.execute("SELECT nome, email FROM usuarios WHERE id = ?", (session["usuario_id"],))
     usuario = cursor.fetchone()
@@ -1883,8 +1890,76 @@ def compra_finalizar():
         """
         enviar_email(email_usuario, "🌱 Compra recebida — Aguardando validação | Plantando Vida", corpo_html)
 
-    flash("Compra realizada! Aguarde a validação do pagamento.", "sucesso")
+    # Exibe o número sequencial do pedido para rastreamento
+    flash(
+        f"Pedido #{compra_id:06d} registrado com sucesso! "
+        f"Acompanhe a aprovação em 'Meus Plantios'.",
+        "sucesso"
+    )
     return redirect("/plantios/pendentes")
+
+
+# ===================== ROTA VOUCHER DE RETIRADA =====================
+# Gera um voucher em QR Code para a compra aprovada.
+# Segurança:
+#   - Somente o dono da compra pode acessar (usuario_id da sessão).
+#   - Somente compras com status='aprovado' geram o voucher.
+#   - Compras em análise ou reprovadas retornam erro e redirecionam.
+@app.route("/voucher/<int:compra_id>")
+def voucher(compra_id):
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Busca a compra verificando posse (usuario_id) e status aprovado
+    cursor.execute("""
+        SELECT c.id, c.especie_nome, c.tipo_planta, c.valor, c.criado_em,
+               u.nome,
+               COALESCE(f.razao_social, 'Não informado') AS fornecedor_nome,
+               COALESCE(f.cidade, '')    AS cidade,
+               COALESCE(f.uf, '')        AS uf,
+               COALESCE(f.whatsapp, '')  AS whatsapp
+        FROM compras c
+        JOIN   usuarios    u ON u.id = c.usuario_id
+        LEFT JOIN fornecedores f ON f.id = c.fornecedor_id
+        WHERE c.id = ? AND c.usuario_id = ? AND c.status = 'aprovado'
+    """, (compra_id, session["usuario_id"]))
+    compra = cursor.fetchone()
+    conn.close()
+
+    # Voucher indisponível: compra não encontrada, não pertence ao usuário ou não aprovada
+    if not compra:
+        flash("Voucher indisponível. O pagamento precisa ser aprovado pelo administrador.", "erro")
+        return redirect("/plantios/pendentes")
+
+    # Monta o texto do QR Code com todas as informações relevantes para o fornecedor
+    qr_texto = (
+        f"PLANTANDO VIDA — VOUCHER DE RETIRADA\n"
+        f"Pedido: #{compra[0]:06d}\n"
+        f"Planta: {compra[1]}\n"
+        f"Tipo: {compra[2]}\n"
+        f"Valor: R$ {compra[3]:.2f}\n"
+        f"Fornecedor: {compra[6]} — {compra[7]}/{compra[8]}\n"
+        f"Comprador: {compra[5]}\n"
+        f"Data: {compra[4]}"
+    )
+
+    # Gera o QR Code como imagem PNG em memória e codifica em base64
+    # para incorporar diretamente no HTML sem gravar arquivo no disco
+    import io, base64
+    qr = qrcode.QRCode(version=1, box_size=8, border=4,
+                       error_correction=qrcode.constants.ERROR_CORRECT_H)
+    qr.add_data(qr_texto)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#166534", back_color="white")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_base64 = base64.b64encode(buf.getvalue()).decode()
+
+    return render_template("voucher.html", compra=compra, qr_base64=qr_base64)
 
 
 # ===================== ROTA ADMIN: APROVAR COMPRA =====================

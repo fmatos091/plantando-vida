@@ -164,14 +164,28 @@
                         </div>
                     </div>
 
-                    <!-- Aviso quando pagamento aprovado -->
+                    <!-- Voucher de retirada: liberado somente após aprovação do pagamento.
+                         O botão leva à rota /voucher/<id> que gera o QR Code seguro.
+                         Compras em análise ou reprovadas não exibem este botão. -->
                     {% if c[4] == 'aprovado' %}
-                    <p class="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2 mt-1">
-                        🌱 Sua muda está disponível para retirada no fornecedor!
-                    </p>
+                    <div class="mt-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                        <p class="text-xs text-green-700 font-semibold mb-2">
+                            🌱 Pagamento aprovado! Sua muda está disponível para retirada.
+                        </p>
+                        <a href="/voucher/{{ c[0] }}">
+                            <button type="button"
+                                class="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-bold
+                                       py-2 px-4 rounded-lg transition flex items-center justify-center gap-2">
+                                🎟️ Ver Voucher de Retirada
+                            </button>
+                        </a>
+                    </div>
                     {% endif %}
 
-                    <p class="text-xs text-gray-300 mt-2">#{{ c[0] }} · {{ c[2] }}</p>
+                    <!-- Número sequencial do pedido para rastreamento -->
+                    <p class="text-xs text-gray-300 mt-2">
+                        Pedido #{{ "%06d"|format(c[0]) }} · {{ c[2] }}
+                    </p>
                 </div>
                 {% endfor %}
             </div>
