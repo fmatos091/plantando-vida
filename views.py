@@ -1425,11 +1425,16 @@ def admin_painel():
         cursor.execute("SELECT id, nome, email, cpf, telefone, data_nascimento FROM usuarios ORDER BY nome")
     usuarios = cursor.fetchall()
 
-    # ---- Consulta Plantios com dados do usuário e fornecedor (JOIN) ----
+    # ---- Consulta Plantios com dados do usuário, fornecedor, fotos e localização ----
+    # p[0]=id  p[1]=data_plantio  p[2]=especie  p[3]=municipio  p[4]=status
+    # p[5]=justificativa  p[6]=criado_em  p[7]=nome_usuario  p[8]=fornecedor_nome
+    # p[9]=bairro  p[10]=latitude  p[11]=longitude  p[12]=foto_plantio  p[13]=foto_1
     cursor.execute("""
         SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio,
                pg.status, pg.justificativa, pg.criado_em,
-               u.nome, COALESCE(f.razao_social, 'Não informado') AS fornecedor_nome
+               u.nome, COALESCE(f.razao_social, 'Não informado') AS fornecedor_nome,
+               pg.bairro, pg.latitude, pg.longitude,
+               pg.foto_plantio, pg.foto_1
         FROM plantas_go pg
         JOIN usuarios u ON u.id = pg.responsavel_id
         LEFT JOIN fornecedores f ON f.id = pg.fornecedor_id
