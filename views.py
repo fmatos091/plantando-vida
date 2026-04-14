@@ -1767,16 +1767,18 @@ def api_plantas():
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Monta a query dinamicamente conforme os filtros recebidos
+    # Monta a query dinamicamente conforme os filtros recebidos.
+    # LOWER() + LIKE no campo tipo garante tolerância a variações de capitalização
+    # caso o banco contenha valores levemente diferentes do canônico.
     if tipo and busca:
         cursor.execute(
-            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE tipo = ? AND nome LIKE ? ORDER BY nome",
-            (tipo, f"%{busca}%")
+            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE LOWER(tipo) LIKE LOWER(?) AND nome LIKE ? ORDER BY nome",
+            (f"%{tipo}%", f"%{busca}%")
         )
     elif tipo:
         cursor.execute(
-            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE tipo = ? ORDER BY nome",
-            (tipo,)
+            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE LOWER(tipo) LIKE LOWER(?) ORDER BY nome",
+            (f"%{tipo}%",)
         )
     elif busca:
         cursor.execute(

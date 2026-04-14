@@ -439,29 +439,42 @@
     <script>
         // ===================== MODAL COMPRAR PLANTA =====================
 
-        // Tipo de planta fixado pelo fornecedor selecionado no momento.
-        // Usado em _executarBusca para filtrar somente as plantas deste tipo.
+        // Tipo canônico do fornecedor ativo no modal.
+        // Sempre um dos valores usados em especies_plantas.tipo: "Frutífera" | "Nativa" | "".
         let _tipoFornecedorAtual = '';
+
+        // Normaliza qualquer variação de escrita do tipo_planta para o valor
+        // canônico gravado em especies_plantas.tipo, tornando a comparação resiliente
+        // a acentuação, plural ou capitalização diferente no cadastro do fornecedor.
+        function _normalizarTipo(tipo) {
+            if (!tipo) return '';
+            // Remove acentos e converte para minúsculas para comparação neutra
+            const sem_acento = tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            if (sem_acento.includes('frut')) return 'Frutífera';
+            if (sem_acento.includes('nat'))  return 'Nativa';
+            return ''; // tipo desconhecido → sem filtro, exibe todas
+        }
 
         // Abre o modal de compra para o fornecedor clicado.
         // tipoPlanta: valor de tipo_planta cadastrado pelo fornecedor (ex: "Nativa").
-        // O tipo é exibido como badge e enviado como filtro fixo na busca.
+        // O tipo é normalizado, exibido como badge e enviado como filtro fixo na busca.
         function abrirModalCompra(fornecedorId, fornecedorNome, tipoPlanta) {
             // Preenche campos do cabeçalho do modal
             document.getElementById('compra-fornecedor-id').value = fornecedorId;
             document.getElementById('modal-fornecedor-nome').textContent = fornecedorNome;
 
-            // Armazena e exibe o tipo de planta do fornecedor como badge
-            _tipoFornecedorAtual = tipoPlanta || '';
-            const icone = tipoPlanta === 'Frutífera' ? '🍎' : tipoPlanta === 'Nativa' ? '🌳' : '🌿';
+            // Normaliza para o valor canônico e atualiza o badge
+            _tipoFornecedorAtual = _normalizarTipo(tipoPlanta);
+            const icone = _tipoFornecedorAtual === 'Frutífera' ? '🍎'
+                        : _tipoFornecedorAtual === 'Nativa'    ? '🌳' : '🌿';
             document.getElementById('badge-tipo-fornecedor').textContent =
-                tipoPlanta ? `${icone} ${tipoPlanta}` : '— Todos';
+                _tipoFornecedorAtual ? `${icone} ${_tipoFornecedorAtual}` : '🌿 Todas';
 
             // Limpa campo de busca e abre o modal
             document.getElementById('busca-planta').value = '';
             document.getElementById('modal-compra').classList.remove('hidden');
 
-            // Carrega plantas já filtradas pelo tipo do fornecedor
+            // Carrega plantas já filtradas pelo tipo normalizado do fornecedor
             buscarPlantas();
         }
 
