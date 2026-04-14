@@ -338,8 +338,9 @@ def login():
         usuario = cursor.fetchone()
         conn.close()
 
-        # usuario[2] = cpf armazenado; normaliza para comparação neutra de formatação
-        cpf_banco = re.sub(r"\D", "", usuario[2]) if usuario and usuario[2] else ""
+        # usuarios: id[0] nome[1] email[2] senha[3] cpf[4] telefone[5] data_nascimento[6]
+        # usuario[4] = cpf armazenado; normaliza para comparação neutra de formatação
+        cpf_banco = re.sub(r"\D", "", usuario[4]) if usuario and usuario[4] else ""
 
         # Valida: usuário existe + CPF confere + senha confere com o hash
         if usuario and cpf_banco == cpf and check_password_hash(usuario[3], senha):
