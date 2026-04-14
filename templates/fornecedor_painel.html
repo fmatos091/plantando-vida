@@ -30,6 +30,132 @@
         </a>
     </nav>
 
+    <!-- ===================== SEÇÃO: VALIDAR QR CODE VOUCHER =====================
+         O fornecedor escaneia o QR Code do comprador (ou digita o nº do pedido)
+         para confirmar a retirada da muda. Somente pedidos com status 'aprovado'
+         são aceitos — a validação muda o status para 'retirado'.
+    -->
+    <div class="bg-white rounded-xl shadow-md w-full max-w-lg mx-auto mb-5 overflow-hidden">
+
+        <div class="bg-emerald-700 px-6 py-4">
+            <h2 class="text-white font-bold text-base">📷 Validar Voucher de Retirada</h2>
+            <p class="text-emerald-200 text-xs mt-0.5">Escaneie o QR Code ou informe o número do pedido</p>
+        </div>
+
+        <div class="p-6 space-y-4">
+
+            <!-- Campo manual: número do pedido digitado ou preenchido pelo scanner -->
+            <form method="POST" action="/fornecedor/validar-voucher" id="form-validar">
+                <div class="flex gap-2">
+                    <input id="campo-pedido" name="compra_id" required
+                        placeholder="Nº do pedido (ex: 000001)"
+                        inputmode="numeric"
+                        class="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                    <button type="submit"
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition whitespace-nowrap">
+                        ✅ Validar
+                    </button>
+                </div>
+            </form>
+
+            <!-- Botão para abrir câmera e ler QR Code do voucher -->
+            <button type="button" onclick="abrirCameraVoucher()"
+                class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold
+                       py-2 px-4 rounded-lg transition flex items-center justify-center gap-2 border border-gray-200">
+                📷 Escanear QR Code do Voucher
+            </button>
+
+            <!-- Área do leitor QR (oculta até o botão ser pressionado) -->
+            <div id="area-camera-voucher" class="hidden">
+                <div id="leitor-qr-voucher" class="w-full rounded-xl overflow-hidden"></div>
+                <p id="status-qr-voucher" class="text-center text-xs text-gray-500 mt-2">Iniciando câmera...</p>
+                <button onclick="cancelarCameraVoucher()"
+                    class="mt-2 w-full py-2 rounded-lg bg-red-100 text-red-600 text-sm font-semibold hover:bg-red-200 transition">
+                    ✖ Cancelar câmera
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ===================== SEÇÃO: GRID DE ESTATÍSTICAS =====================
+         Exibe quantidade de plantas validadas e saldo total por Mês/Ano.
+         O dropdown filtra os dados via JS sem recarregar a página.
+         retiradas = lista de compras com status='retirado' deste fornecedor.
+    -->
+    <div class="bg-white rounded-xl shadow-md w-full max-w-lg mx-auto mb-5 overflow-hidden">
+
+        <div class="bg-green-700 px-6 py-4 flex justify-between items-center">
+            <div>
+                <h2 class="text-white font-bold text-base">📊 Minhas Estatísticas</h2>
+                <p class="text-green-200 text-xs mt-0.5">Mudas validadas e saldo por período</p>
+            </div>
+            <!-- Dropdown Mês/Ano: gerado dinamicamente via JS com os meses disponíveis -->
+            <select id="filtro-mes" onchange="atualizarStats()"
+                class="text-sm border border-green-300 rounded-lg px-3 py-1.5 bg-white text-gray-700
+                       focus:outline-none focus:ring-2 focus:ring-green-400">
+                <option value="">Todos os períodos</option>
+            </select>
+        </div>
+
+        <div class="p-6">
+
+            <!-- Grid 2 colunas: quantidade e saldo -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+
+                <!-- Card: Quantidade de plantas validadas -->
+                <div class="bg-green-50 rounded-xl p-4 text-center border border-green-100">
+                    <p class="text-xs text-green-600 font-semibold uppercase tracking-wider mb-1">
+                        Plantas Validadas
+                    </p>
+                    <p id="stat-quantidade" class="text-3xl font-extrabold text-green-700">0</p>
+                </div>
+
+                <!-- Card: Saldo total das validações -->
+                <div class="bg-emerald-50 rounded-xl p-4 text-center border border-emerald-100">
+                    <p class="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-1">
+                        Saldo Total
+                    </p>
+                    <p id="stat-saldo" class="text-2xl font-extrabold text-emerald-700">R$ 0,00</p>
+                </div>
+
+            </div>
+
+            <!-- Lista das últimas validações do período selecionado -->
+            <div id="lista-retiradas" class="space-y-2 max-h-64 overflow-y-auto">
+                <!-- Preenchida via JS -->
+            </div>
+
+            <!-- Mensagem quando não há registros -->
+            <div id="sem-retiradas" class="hidden text-center py-6 text-gray-400">
+                <div class="text-4xl mb-2">🌱</div>
+                <p class="text-sm">Nenhuma muda validada neste período.</p>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ===================== MODAL CÂMERA VOUCHER =====================
+         Sobrepõe a tela para leitura do QR Code do voucher do comprador.
+         Após leitura, extrai o número do pedido e preenche o campo manual.
+    -->
+    <div id="modal-camera-voucher"
+        class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center px-4">
+        <div class="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl">
+            <h3 class="text-center text-base font-bold text-emerald-800 mb-1">📷 Leitura do Voucher</h3>
+            <p class="text-center text-xs text-gray-400 mb-3">Aponte a câmera para o QR Code do comprador</p>
+            <div id="leitor-qr-modal" class="w-full rounded-xl overflow-hidden"></div>
+            <p id="status-qr-modal" class="text-center text-sm text-gray-500 mt-2">Iniciando câmera...</p>
+            <button onclick="cancelarCameraVoucher()"
+                class="mt-3 w-full py-2 rounded-xl bg-red-100 text-red-600 font-semibold text-sm hover:bg-red-200 transition">
+                ✖ Cancelar
+            </button>
+        </div>
+    </div>
+
+
     <!-- ===================== CARD PRINCIPAL =====================
          Exibe os dados do fornecedor logado e permite editá-los.
          Todos os campos são preenchidos com os valores atuais do banco.
@@ -229,7 +355,153 @@
          Lê os checkboxes, monta o valor combinado no campo oculto
          e valida que ao menos um tipo foi selecionado antes de salvar.
     -->
+    <!-- html5-qrcode: biblioteca para leitura do QR Code do voucher via câmera -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
     <script>
+        // ===================== DADOS DE RETIRADAS (INJETADOS DO BACKEND) =====================
+        // Cada item: [id, especie_nome, tipo_planta, valor, data_validacao]
+        const retiradas = {{ retiradas | tojson }};
+
+        // ===================== GRID DE ESTATÍSTICAS =====================
+
+        // Formata "YYYY-MM" para "Mês/Ano" legível (ex: "2026-04" → "Abril/2026")
+        function formatarMes(ym) {
+            const meses = ['Jan','Fev','Mar','Abr','Mai','Jun',
+                           'Jul','Ago','Set','Out','Nov','Dez'];
+            const [ano, mes] = ym.split('-');
+            return `${meses[parseInt(mes) - 1]}/${ano}`;
+        }
+
+        // Popula o dropdown com os meses únicos das retiradas
+        function popularDropdown() {
+            const sel    = document.getElementById('filtro-mes');
+            const meses  = [...new Set(retiradas.map(r => (r[4] || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+            meses.forEach(m => {
+                const opt       = document.createElement('option');
+                opt.value       = m;
+                opt.textContent = formatarMes(m);
+                sel.appendChild(opt);
+            });
+        }
+
+        // Atualiza os cards de quantidade e saldo conforme o filtro selecionado
+        function atualizarStats() {
+            const filtro   = document.getElementById('filtro-mes').value;
+            const lista    = document.getElementById('lista-retiradas');
+            const semMsg   = document.getElementById('sem-retiradas');
+
+            // Filtra os dados pelo período selecionado (ou todos)
+            const filtradas = filtro
+                ? retiradas.filter(r => (r[4] || '').startsWith(filtro))
+                : retiradas;
+
+            // Calcula totais
+            const quantidade = filtradas.length;
+            const saldo      = filtradas.reduce((acc, r) => acc + (r[3] || 0), 0);
+
+            // Atualiza os cards
+            document.getElementById('stat-quantidade').textContent = quantidade;
+            document.getElementById('stat-saldo').textContent =
+                'R$ ' + saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+            // Monta a lista de registros
+            lista.innerHTML = '';
+            if (!filtradas.length) {
+                semMsg.classList.remove('hidden');
+                return;
+            }
+            semMsg.classList.add('hidden');
+
+            filtradas.forEach(r => {
+                const icone = (r[2] || '').toLowerCase().includes('frut') ? '🍎' : '🌳';
+                const data  = r[4] ? r[4].slice(0, 10) : '—';
+                const div   = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2 text-sm';
+                div.innerHTML = `
+                    <div>
+                        <span class="font-semibold text-gray-700">${icone} ${r[1]}</span>
+                        <span class="text-xs text-gray-400 ml-2">#${String(r[0]).padStart(6,'0')}</span>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-green-700">R$ ${(r[3]||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</p>
+                        <p class="text-xs text-gray-400">${data}</p>
+                    </div>`;
+                lista.appendChild(div);
+            });
+        }
+
+        // Inicializa o grid ao carregar a página
+        window.addEventListener('DOMContentLoaded', () => {
+            popularDropdown();
+            atualizarStats();
+        });
+
+        // ===================== CÂMERA — VALIDAR VOUCHER =====================
+        let _qrVoucher = null;
+
+        // Abre o modal com a câmera para leitura do QR Code do voucher
+        function abrirCameraVoucher() {
+            document.getElementById('modal-camera-voucher').classList.remove('hidden');
+            document.getElementById('status-qr-modal').textContent = 'Iniciando câmera...';
+
+            _qrVoucher = new Html5Qrcode("leitor-qr-modal");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            _qrVoucher.start(
+                { facingMode: "environment" },
+                config,
+                // Sucesso: extrai o número do pedido do texto do QR Code
+                function (texto) {
+                    _qrVoucher.stop().then(() => {
+                        _qrVoucher = null;
+                        fecharCameraVoucher();
+                        preencherPedidoDoQR(texto);
+                    }).catch(() => {
+                        _qrVoucher = null;
+                        fecharCameraVoucher();
+                        preencherPedidoDoQR(texto);
+                    });
+                },
+                function (_err) {} // erros de frame são normais — ignorar
+            ).then(() => {
+                document.getElementById('status-qr-modal').textContent = '🔍 Escaneando...';
+            }).catch(err => {
+                document.getElementById('status-qr-modal').textContent = '⚠️ Câmera não disponível.';
+            });
+        }
+
+        // Para a câmera e fecha o modal
+        function cancelarCameraVoucher() {
+            if (_qrVoucher) {
+                _qrVoucher.stop().catch(() => {}).finally(() => {
+                    _qrVoucher = null;
+                    fecharCameraVoucher();
+                });
+            } else {
+                fecharCameraVoucher();
+            }
+        }
+
+        function fecharCameraVoucher() {
+            document.getElementById('modal-camera-voucher').classList.add('hidden');
+            const leitor = document.getElementById('leitor-qr-modal');
+            if (leitor) leitor.innerHTML = '';
+        }
+
+        // Extrai o número do pedido do texto do QR Code e preenche o campo manual.
+        // Formato esperado: "...Pedido: #000001\n..." ou apenas "000001"
+        function preencherPedidoDoQR(texto) {
+            const match = texto.match(/[#:]?\s*(\d{1,10})/);
+            if (match) {
+                document.getElementById('campo-pedido').value = match[1];
+                // Foca o campo para o fornecedor confirmar antes de enviar
+                document.getElementById('campo-pedido').focus();
+            } else {
+                alert('Não foi possível identificar o número do pedido no QR Code.');
+            }
+        }
+
         // ===================== IBGE API — CARREGAR CIDADES =====================
         // Busca os municípios do estado selecionado via API gratuita do IBGE.
         // cidadeSalva: se informado, pré-seleciona a cidade após carregar a lista

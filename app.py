@@ -172,6 +172,9 @@ def init_db():
             "fornecedor_id INTEGER",
             "justificativa TEXT",
         ],
+        # data_validacao: preenchida pelo fornecedor ao escanear o voucher de retirada.
+        # Quando preenchida, status da compra muda para 'retirado'.
+        "compras": ["data_validacao TEXT"],
     }
 
     for tabela, colunas in migracoes.items():

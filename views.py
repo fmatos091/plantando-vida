@@ -1122,13 +1122,82 @@ def fornecedor_painel():
     # Busca os dados atuais do fornecedor pelo id da sessão
     cursor.execute("SELECT * FROM fornecedores WHERE id = ?", (fornecedor_id,))
     fornecedor = cursor.fetchone()
+
+    # Busca todas as compras já retiradas por este fornecedor para o grid de estatísticas.
+    # r[0]=id  r[1]=especie_nome  r[2]=tipo_planta  r[3]=valor  r[4]=data_validacao
+    cursor.execute("""
+        SELECT id, especie_nome, tipo_planta, valor, data_validacao
+        FROM compras
+        WHERE fornecedor_id = ? AND status = 'retirado'
+        ORDER BY data_validacao DESC
+    """, (fornecedor_id,))
+    retiradas = cursor.fetchall()
     conn.close()
 
     # Garante que o QR Code existe (gera se ainda não tiver)
     cnpj_atual = fornecedor[2]  # índice 2 = cnpj
     qr_arquivo = gerar_qrcode(cnpj_atual)
 
-    return render_template("fornecedor_painel.html", fornecedor=fornecedor, qr_arquivo=qr_arquivo)
+    return render_template("fornecedor_painel.html",
+                           fornecedor=fornecedor,
+                           qr_arquivo=qr_arquivo,
+                           retiradas=retiradas)
+
+
+# ===================== ROTA VALIDAR VOUCHER DE RETIRADA =====================
+# Chamada pelo fornecedor ao escanear o QR Code do voucher do comprador.
+# Segurança:
+#   - Verifica que a compra pertence a ESTE fornecedor (session["fornecedor_id"]).
+#   - Verifica que o status é 'aprovado' (não 'em_analise', 'reprovado' ou já 'retirado').
+# Ao validar: muda status para 'retirado' e grava data/hora da validação.
+@app.route("/fornecedor/validar-voucher", methods=["POST"])
+def fornecedor_validar_voucher():
+    if "fornecedor_id" not in session:
+        return redirect("/fornecedor/login")
+
+    compra_id_str = request.form.get("compra_id", "").strip()
+
+    # Aceita número puro ou formato #000001
+    compra_id_str = compra_id_str.lstrip("#").strip()
+    if not compra_id_str.isdigit():
+        flash("Número do pedido inválido. Informe apenas os dígitos.", "erro")
+        return redirect("/fornecedor/painel")
+
+    compra_id     = int(compra_id_str)
+    fornecedor_id = session["fornecedor_id"]
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Valida: compra existe + pertence a este fornecedor + está aprovada
+    cursor.execute("""
+        SELECT id, especie_nome, tipo_planta, valor
+        FROM compras
+        WHERE id = ? AND fornecedor_id = ? AND status = 'aprovado'
+    """, (compra_id, fornecedor_id))
+    compra = cursor.fetchone()
+
+    if not compra:
+        conn.close()
+        flash("Voucher inválido, já utilizado ou não pertence a este estabelecimento.", "erro")
+        return redirect("/fornecedor/painel")
+
+    # Registra a validação com data/hora atual e muda status para 'retirado'
+    from datetime import datetime
+    data_agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute(
+        "UPDATE compras SET status='retirado', data_validacao=? WHERE id=?",
+        (data_agora, compra_id)
+    )
+    conn.commit()
+    conn.close()
+
+    flash(
+        f"✅ Pedido #{compra_id:06d} validado com sucesso! "
+        f"{compra[1]} — R$ {compra[3]:.2f}",
+        "sucesso"
+    )
+    return redirect("/fornecedor/painel")
 
 
 # ===================== ROTA ENVIAR QR CODE POR EMAIL =====================

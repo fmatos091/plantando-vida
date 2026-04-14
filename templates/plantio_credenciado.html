@@ -8,8 +8,7 @@
     <title>Registrar Plantio Credenciado - Plantando Vida</title>
     <!-- Tailwind CSS via CDN para estilização da página -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- html5-qrcode: biblioteca para leitura de QR Code via câmera do dispositivo -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- html5-qrcode: biblioteca para leitura de QR Code (usada no painel do fornecedor) -->
 </head>
 
 <body class="bg-green-50 min-h-screen py-10 px-4">
@@ -240,51 +239,8 @@
         </div>
         <!-- fim modal compra -->
 
-        <!-- ===================== BOTÃO VALIDAR PLANTA =====================
-             Desabilitado até o usuário selecionar um fornecedor.
-             Ao clicar, abre o modal com a câmera para leitura do QR Code.
-        -->
-        <button type="button" id="btn-validar" disabled onclick="abrirCamera()"
-            class="w-full py-3 rounded-xl font-bold text-lg transition mb-6 bg-gray-200 text-gray-400 cursor-not-allowed">
-            📷 Validar Planta
-        </button>
-
-
-        <!-- ===================== MODAL CÂMERA / QR CODE =====================
-             Exibido ao clicar em "Validar Planta". Usa a câmera traseira do celular
-             para ler o QR Code do fornecedor. Ao escanear com sucesso, fecha o modal
-             e libera a Etapa 2 (formulário de dados do plantio).
-        -->
-        <div id="modal-camera"
-            class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex flex-col items-center justify-center px-4">
-            <div class="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl">
-
-                <!-- Título do modal -->
-                <h3 class="text-center text-base font-bold text-green-800 mb-1">📷 Leitura de QR Code</h3>
-                <p class="text-center text-xs text-gray-400 mb-4">Aponte a câmera para o QR Code do fornecedor</p>
-
-                <!-- Área onde a câmera será renderizada pela biblioteca html5-qrcode -->
-                <div id="leitor-qr" class="w-full rounded-xl overflow-hidden"></div>
-
-                <!-- Mensagem de status da leitura (aguardando / escaneando...) -->
-                <p id="status-qr" class="text-center text-sm text-gray-500 mt-3">Iniciando câmera...</p>
-
-                <!-- Botão de cancelar — para a câmera e fecha o modal -->
-                <button onclick="cancelarCamera()"
-                    class="mt-4 w-full py-2 rounded-xl bg-red-100 text-red-600 font-semibold text-sm hover:bg-red-200 transition">
-                    ✖ Cancelar
-                </button>
-            </div>
-        </div>
-
-        <!-- Mensagem de erro exibida quando o QR Code não pertence ao fornecedor selecionado -->
-        <div id="erro-qr" class="hidden bg-red-100 border border-red-300 text-red-700 text-sm px-4 py-3 rounded-xl mb-4 text-center">
-            ⚠️ QR Code inválido! O código lido não pertence ao fornecedor selecionado. Tente novamente.
-        </div>
-
-
         <!-- ===================== FORMULÁRIO ETAPA 2 =====================
-             Oculto inicialmente. Exibido somente após leitura bem-sucedida do QR Code.
+             Exibido automaticamente após selecionar o fornecedor.
              enctype="multipart/form-data" obrigatório para envio de fotos.
         -->
         <form method="POST" action="/plantio/credenciado" enctype="multipart/form-data" id="form-plantio"
@@ -613,128 +569,10 @@
             // Grava o id do fornecedor no campo oculto do formulário
             document.getElementById('fornecedor_id').value = id;
 
-            // Armazena o CNPJ do fornecedor (apenas dígitos) para validação posterior
-            const cnpjBruto = cardClicado.dataset.cnpj || '';
-            cnpjSelecionado = cnpjBruto.replace(/\D/g, '');
-
-            // Oculta mensagem de erro de QR anterior (se houver)
-            document.getElementById('erro-qr').classList.add('hidden');
-
-            // Ativa o botão "Validar Planta"
-            const btn = document.getElementById('btn-validar');
-            btn.disabled = false;
-            btn.className = 'w-full py-3 rounded-xl font-bold text-lg transition mb-6 bg-green-600 hover:bg-green-700 text-white cursor-pointer';
-        }
-
-        // -----------------------------------------------------------------
-        // abrirCamera(): exibe o modal e inicia a câmera traseira
-        // para leitura do QR Code do fornecedor.
-        // -----------------------------------------------------------------
-        function abrirCamera() {
-            // Exibe o modal da câmera
-            document.getElementById('modal-camera').classList.remove('hidden');
-            document.getElementById('status-qr').textContent = 'Iniciando câmera...';
-
-            // Cria a instância do leitor QR no elemento #leitor-qr
-            html5QrCode = new Html5Qrcode("leitor-qr");
-
-            // Configuração: câmera traseira (environment), área de leitura de 250px
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-            html5QrCode.start(
-                { facingMode: "environment" }, // câmera traseira do celular
-                config,
-                // Callback de SUCESSO: QR Code lido
-                function (textoDecodificado) {
-                    // Para a câmera após leitura bem-sucedida
-                    html5QrCode.stop().then(() => {
-                        html5QrCode = null;
-                        fecharModal();
-                        liberarEtapa2(textoDecodificado);
-                    }).catch(() => {
-                        html5QrCode = null;
-                        fecharModal();
-                        liberarEtapa2(textoDecodificado);
-                    });
-                },
-                // Callback de erro de frame (normal durante o escaneamento — ignorado)
-                function (_erroFrame) { }
-            ).then(() => {
-                // Câmera iniciada com sucesso
-                document.getElementById('status-qr').textContent = '🔍 Escaneando...';
-            }).catch(function (err) {
-                // Falha ao iniciar câmera (permissão negada ou câmera indisponível)
-                document.getElementById('status-qr').textContent = '⚠️ Câmera não disponível. Verifique as permissões.';
-                console.error("Erro ao iniciar câmera:", err);
-            });
-        }
-
-        // -----------------------------------------------------------------
-        // cancelarCamera(): para a câmera e fecha o modal sem avançar.
-        // -----------------------------------------------------------------
-        function cancelarCamera() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    html5QrCode = null;
-                    fecharModal();
-                }).catch(() => {
-                    html5QrCode = null;
-                    fecharModal();
-                });
-            } else {
-                fecharModal();
-            }
-        }
-
-        // -----------------------------------------------------------------
-        // fecharModal(): oculta o modal da câmera e limpa o container do leitor.
-        // -----------------------------------------------------------------
-        function fecharModal() {
-            document.getElementById('modal-camera').classList.add('hidden');
-            // Limpa o conteúdo gerado pela biblioteca dentro do container
-            const leitor = document.getElementById('leitor-qr');
-            leitor.innerHTML = '';
-        }
-
-        // -----------------------------------------------------------------
-        // liberarEtapa2(): chamado após leitura bem-sucedida do QR Code.
-        // Valida que o CNPJ do QR bate com o fornecedor selecionado.
-        // Se válido: exibe o formulário de dados e trava o botão.
-        // Se inválido: exibe mensagem de erro e permite nova tentativa.
-        // -----------------------------------------------------------------
-        function liberarEtapa2(qrTexto) {
-            // O QR Code deve conter apenas os 14 dígitos do CNPJ
-            const cnpjQr = qrTexto.replace(/\D/g, '');
-
-            // Valida se o CNPJ lido pertence ao fornecedor selecionado
-            if (cnpjQr !== cnpjSelecionado) {
-                // QR Code inválido — exibe erro e permite nova tentativa
-                document.getElementById('erro-qr').classList.remove('hidden');
-                // Reativa o botão para que o usuário possa escanear novamente
-                const btn = document.getElementById('btn-validar');
-                btn.disabled = false;
-                btn.className = 'w-full py-3 rounded-xl font-bold text-lg transition mb-6 bg-green-600 hover:bg-green-700 text-white cursor-pointer';
-                return;
-            }
-
-            // CNPJ válido — oculta qualquer mensagem de erro anterior
-            document.getElementById('erro-qr').classList.add('hidden');
-
-            // Salva o conteúdo do QR Code no campo oculto do formulário
-            document.getElementById('qr_data').value = qrTexto;
-
-            // Exibe o formulário de dados do plantio (Etapa 2)
+            // Exibe o formulário de registro diretamente — QR de validação removido
             const form = document.getElementById('form-plantio');
             form.classList.remove('hidden');
-
-            // Rola suavemente até o início do formulário
             form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-            // Atualiza o botão para indicar QR Code validado (desabilitado)
-            const btn = document.getElementById('btn-validar');
-            btn.disabled = true;
-            btn.className = 'w-full py-3 rounded-xl font-bold text-lg transition mb-6 bg-green-100 text-green-700 cursor-default';
-            btn.textContent = '✅ QR Code Validado';
         }
     </script>
 
