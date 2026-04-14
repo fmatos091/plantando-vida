@@ -311,29 +311,36 @@ def cadastro():
 
 # ===================== ROTA DE LOGIN =====================
 # GET:  exibe o formulário de login.
-# POST: valida email e senha no banco.
-#       Se correto: cria sessão e redireciona para /dashboard.
-#       Se incorreto: exibe mensagem de erro via flash sem expor qual campo está errado.
+# POST: valida email, CPF e senha no banco.
+#       CPF é normalizado (somente dígitos) antes da comparação para aceitar
+#       qualquer formatação digitada pelo usuário.
+#       Mensagem de erro genérica por segurança — não expõe qual campo falhou.
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form["email"]
+        email = request.form["email"].strip().lower()
+        cpf   = re.sub(r"\D", "", request.form.get("cpf", ""))  # Somente dígitos
         senha = request.form["senha"]
 
         conn   = get_db()
         cursor = conn.cursor()
+
+        # Busca o usuário pelo email e valida CPF e senha na mesma etapa
         cursor.execute("SELECT * FROM usuarios WHERE email = ?", (email,))
         usuario = cursor.fetchone()
         conn.close()
 
-        # Verifica se o usuário existe e se a senha confere com o hash no banco
-        if usuario and check_password_hash(usuario[3], senha):
+        # usuario[2] = cpf armazenado; normaliza para comparação neutra de formatação
+        cpf_banco = re.sub(r"\D", "", usuario[2]) if usuario and usuario[2] else ""
+
+        # Valida: usuário existe + CPF confere + senha confere com o hash
+        if usuario and cpf_banco == cpf and check_password_hash(usuario[3], senha):
             session["usuario_id"]   = usuario[0]
             session["usuario_nome"] = usuario[1]
             return redirect("/dashboard")
 
-        # Credenciais inválidas: mensagem genérica por segurança
-        flash("Email ou senha incorretos. Tente novamente.", "erro")
+        # Credenciais inválidas: mensagem genérica para não expor qual campo falhou
+        flash("Email, CPF ou senha incorretos. Tente novamente.", "erro")
         return redirect("/login")
 
     return render_template("login.html")

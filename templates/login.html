@@ -56,21 +56,36 @@
         -->
         <form method="POST" action="/login" class="space-y-4">
 
-            <!-- Campo de email: o atributo name="email" deve coincidir
-                 com request.form["email"] no backend (views.py) -->
+            <!-- Campo de email: lido no backend via request.form["email"] -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input type="email" name="email" required placeholder="seu@email.com"
                     class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
 
+            <!-- Campo CPF: máscara JS aplica 000.000.000-00 automaticamente.
+                 O backend normaliza para somente dígitos antes de comparar com o banco. -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">CPF</label>
+                <input id="cpf" name="cpf" required placeholder="000.000.000-00"
+                    inputmode="numeric" maxlength="14"
+                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+            </div>
+
             <!-- Campo de senha: type="password" oculta os caracteres digitados.
-                 O atributo name="senha" é lido pelo backend em request.form["senha"]
-                 e comparado com o hash armazenado no banco via check_password_hash. -->
+                 Botão de olho permite visualizar a senha antes de enviar. -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
-                <input type="password" name="senha" required placeholder="Sua senha"
-                    class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                <div class="relative">
+                    <input id="senha" type="password" name="senha" required placeholder="Sua senha"
+                        class="w-full p-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    <!-- Botão de olho: alterna entre exibir e ocultar a senha -->
+                    <button type="button" onclick="alternarSenha()"
+                        class="absolute right-2 top-2 text-gray-400 hover:text-green-600 transition text-lg"
+                        title="Exibir/ocultar senha">
+                        <span id="olho">👁️</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Link "Esqueci minha senha": redireciona para /esqueci-senha -->
@@ -88,6 +103,39 @@
 
         </form>
         <!-- fim do formulário -->
+
+        <!-- ===================== JAVASCRIPT: MÁSCARA CPF + SHOW/HIDE SENHA =====================
+             mascaraCpf — aplica formato 000.000.000-00 enquanto o usuário digita.
+             alternarSenha — alterna type="password" ↔ type="text" no campo de senha.
+        -->
+        <script>
+            // ── Máscara de CPF ──
+            document.getElementById('cpf').addEventListener('input', function () {
+                // Remove tudo que não for dígito e limita a 11 caracteres
+                let v = this.value.replace(/\D/g, '').slice(0, 11);
+
+                // Aplica os separadores progressivamente conforme a quantidade de dígitos
+                if (v.length > 9)      v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+                else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/,        '$1.$2.$3');
+                else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/,               '$1.$2');
+
+                this.value = v;
+            });
+
+            // ── Exibir / ocultar senha ──
+            function alternarSenha() {
+                const campo = document.getElementById('senha');
+                const olho  = document.getElementById('olho');
+
+                if (campo.type === 'password') {
+                    campo.type = 'text';
+                    olho.textContent = '🙈';   // Fechado quando conteúdo está visível
+                } else {
+                    campo.type = 'password';
+                    olho.textContent = '👁️';   // Aberto quando conteúdo está oculto
+                }
+            }
+        </script>
 
         <!-- Link de redirecionamento para a página de cadastro,
              caso o usuário ainda não tenha uma conta -->
