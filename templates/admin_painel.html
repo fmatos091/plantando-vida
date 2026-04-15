@@ -103,29 +103,29 @@
                  O sub-menu abre via JS ao clicar no botão pai (toggle de classe hidden).
                  Fecha automaticamente ao clicar fora (listener no document).
             -->
-            {% set financeiro_ativo = tipo in ['dados_bancarios', 'percentuais', 'fechamento', 'fechamento_entidade', 'fechamento_admin'] %}
+            {% set financeiro_ativo = tipo in ['dados_bancarios', 'percentuais', 'fechamento', 'fechamento_entidade',
+            'fechamento_admin'] %}
             <div class="relative" id="grupo-financeiro">
 
                 <!-- Botão principal do grupo -->
-                <button
-                    onclick="toggleFinanceiro(event)"
+                <button onclick="toggleFinanceiro(event)"
                     class="px-5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-1.5
                     {{ 'bg-emerald-700 text-white' if financeiro_ativo else 'bg-white text-gray-600 hover:bg-gray-200' }}">
                     💼 Financeiro
                     <!-- Seta indicadora de sub-menu -->
-                    <svg id="seta-financeiro" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                    <svg id="seta-financeiro" class="w-3.5 h-3.5 transition-transform duration-200" fill="none"
+                        stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
                     </svg>
                 </button>
 
                 <!-- Sub-menu cascata (oculto por padrão, aberto via JS) -->
-                <div id="submenu-financeiro"
-                     class="hidden absolute left-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-xl border border-gray-100
+                <div id="submenu-financeiro" class="hidden absolute left-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-xl border border-gray-100
                             flex flex-col min-w-[220px] py-1.5 overflow-hidden">
 
                     <!-- Item: Dados Bancários -->
                     <a href="/admin/painel?tipo=dados_bancarios"
-                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                        class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
                               {{ 'bg-emerald-50 text-emerald-800 font-semibold' if tipo == 'dados_bancarios' else 'text-gray-700 hover:bg-gray-50' }}">
                         🏦 Dados Bancários
                         {% if tipo == 'dados_bancarios' %}
@@ -135,7 +135,7 @@
 
                     <!-- Item: Percentuais -->
                     <a href="/admin/painel?tipo=percentuais"
-                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                        class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
                               {{ 'bg-emerald-50 text-emerald-800 font-semibold' if tipo == 'percentuais' else 'text-gray-700 hover:bg-gray-50' }}">
                         📊 Percentuais
                         <span class="ml-auto text-xs text-gray-400">({{ percentuais|length }})</span>
@@ -150,7 +150,7 @@
 
                     <!-- Item: Fechamento Fornecedor -->
                     <a href="/admin/painel?tipo=fechamento"
-                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                        class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
                               {{ 'bg-emerald-50 text-emerald-800 font-semibold' if tipo == 'fechamento' else 'text-gray-700 hover:bg-gray-50' }}">
                         💰 Fornecedor
                         <span class="ml-auto text-xs text-gray-400">({{ fechamento_pendente|length }})</span>
@@ -161,7 +161,7 @@
 
                     <!-- Item: Fechamento Entidade -->
                     <a href="/admin/painel?tipo=fechamento_entidade"
-                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                        class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
                               {{ 'bg-blue-50 text-blue-800 font-semibold' if tipo == 'fechamento_entidade' else 'text-gray-700 hover:bg-gray-50' }}">
                         🏛️ Entidade Favorecida
                         <span class="ml-auto text-xs text-gray-400">({{ fechamento_entidade_pendente|length }})</span>
@@ -172,7 +172,7 @@
 
                     <!-- Item: Fechamento Admin -->
                     <a href="/admin/painel?tipo=fechamento_admin"
-                       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                        class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
                               {{ 'bg-purple-50 text-purple-800 font-semibold' if tipo == 'fechamento_admin' else 'text-gray-700 hover:bg-gray-50' }}">
                         ⚙️ Administração
                         <span class="ml-auto text-xs text-gray-400">({{ fechamento_admin_pendente|length }})</span>
@@ -185,30 +185,30 @@
 
             <!-- JS: abre/fecha o sub-menu Financeiro e fecha ao clicar fora -->
             <script>
-            function toggleFinanceiro(e) {
-                e.stopPropagation();
-                const menu  = document.getElementById('submenu-financeiro');
-                const seta  = document.getElementById('seta-financeiro');
-                const aberto = !menu.classList.contains('hidden');
-                menu.classList.toggle('hidden', aberto);
-                seta.style.transform = aberto ? '' : 'rotate(180deg)';
-            }
-            // Fecha ao clicar em qualquer lugar fora do grupo
-            document.addEventListener('click', function() {
-                const menu = document.getElementById('submenu-financeiro');
-                const seta = document.getElementById('seta-financeiro');
-                if (menu) { menu.classList.add('hidden'); }
-                if (seta)  { seta.style.transform = ''; }
-            });
-            // Se a aba ativa pertence ao grupo, abre o sub-menu automaticamente ao carregar
-            {% if financeiro_ativo %}
-            document.addEventListener('DOMContentLoaded', function() {
-                const menu = document.getElementById('submenu-financeiro');
-                const seta = document.getElementById('seta-financeiro');
-                if (menu) { menu.classList.remove('hidden'); }
-                if (seta)  { seta.style.transform = 'rotate(180deg)'; }
-            });
-            {% endif %}
+                function toggleFinanceiro(e) {
+                    e.stopPropagation();
+                    const menu = document.getElementById('submenu-financeiro');
+                    const seta = document.getElementById('seta-financeiro');
+                    const aberto = !menu.classList.contains('hidden');
+                    menu.classList.toggle('hidden', aberto);
+                    seta.style.transform = aberto ? '' : 'rotate(180deg)';
+                }
+                // Fecha ao clicar em qualquer lugar fora do grupo
+                document.addEventListener('click', function () {
+                    const menu = document.getElementById('submenu-financeiro');
+                    const seta = document.getElementById('seta-financeiro');
+                    if (menu) { menu.classList.add('hidden'); }
+                    if (seta) { seta.style.transform = ''; }
+                });
+                // Se a aba ativa pertence ao grupo, abre o sub-menu automaticamente ao carregar
+                {% if financeiro_ativo %}
+                document.addEventListener('DOMContentLoaded', function () {
+                    const menu = document.getElementById('submenu-financeiro');
+                    const seta = document.getElementById('seta-financeiro');
+                    if (menu) { menu.classList.remove('hidden'); }
+                    if (seta) { seta.style.transform = 'rotate(180deg)'; }
+                });
+                {% endif %}
             </script>
         </div>
 
@@ -424,7 +424,7 @@
 
                 <!-- ── Cabeçalho do card: dados resumidos e botão de expandir ── -->
                 <div class="p-5 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition"
-                     onclick="toggleEdicao({{ u[0] }})">
+                    onclick="toggleEdicao({{ u[0] }})">
                     <div>
                         <h2 class="text-base font-semibold text-gray-800">{{ u[1] }}</h2>
                         <p class="text-sm text-gray-500">{{ u[2] }} &nbsp;·&nbsp; CPF: {{ u[3] or '—' }}</p>
@@ -462,18 +462,16 @@
                             <!-- CPF com máscara JS -->
                             <div>
                                 <label class="block text-xs font-medium text-gray-600 mb-1">CPF</label>
-                                <input name="cpf" value="{{ u[3] or '' }}"
-                                    placeholder="000.000.000-00" inputmode="numeric" maxlength="14"
-                                    data-cpf-mask
+                                <input name="cpf" value="{{ u[3] or '' }}" placeholder="000.000.000-00"
+                                    inputmode="numeric" maxlength="14" data-cpf-mask
                                     class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
                             </div>
 
                             <!-- Telefone com máscara JS -->
                             <div>
                                 <label class="block text-xs font-medium text-gray-600 mb-1">Telefone</label>
-                                <input name="telefone" value="{{ u[4] or '' }}"
-                                    placeholder="(00) 00000-0000" inputmode="numeric" maxlength="15"
-                                    data-tel-mask
+                                <input name="telefone" value="{{ u[4] or '' }}" placeholder="(00) 00000-0000"
+                                    inputmode="numeric" maxlength="15" data-tel-mask
                                     class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
                             </div>
 
@@ -499,7 +497,7 @@
 
                         <!-- Limpar senha: impede login até o usuário redefinir via "esqueci senha" -->
                         <form method="POST" action="/admin/usuario/{{ u[0] }}/limpar-senha"
-                              onsubmit="return confirm('Limpar a senha de {{ u[1] }}? O usuário precisará redefini-la.')">
+                            onsubmit="return confirm('Limpar a senha de {{ u[1] }}? O usuário precisará redefini-la.')">
                             <button type="submit"
                                 class="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-sm font-semibold px-4 py-2 rounded-lg transition border border-yellow-300">
                                 🔑 Limpar senha
@@ -508,7 +506,7 @@
 
                         <!-- Excluir usuário: confirmação obrigatória via JS -->
                         <form method="POST" action="/admin/usuario/{{ u[0] }}/excluir"
-                              onsubmit="return confirm('Excluir permanentemente o cadastro de {{ u[1] }}? Esta ação não pode ser desfeita.')">
+                            onsubmit="return confirm('Excluir permanentemente o cadastro de {{ u[1] }}? Esta ação não pode ser desfeita.')">
                             <button type="submit"
                                 class="bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold px-4 py-2 rounded-lg transition border border-red-300">
                                 🗑️ Excluir usuário
@@ -584,15 +582,18 @@
 
                     <!-- Badge de status colorido -->
                     {% if p[4] == 'em_analise' %}
-                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 whitespace-nowrap">
+                    <span
+                        class="text-xs font-semibold px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 whitespace-nowrap">
                         🕐 Em Análise
                     </span>
                     {% elif p[4] == 'aprovado' %}
-                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
+                    <span
+                        class="text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
                         ✅ Aprovado
                     </span>
                     {% elif p[4] == 'reprovado' %}
-                    <span class="text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700 whitespace-nowrap">
+                    <span
+                        class="text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700 whitespace-nowrap">
                         ❌ Reprovado
                     </span>
                     {% endif %}
@@ -608,9 +609,7 @@
                 <div class="mt-3 border border-gray-100 rounded-xl overflow-hidden">
 
                     <!-- Botão para expandir/recolher o painel de evidências -->
-                    <button type="button"
-                        onclick="toggleEvidencias({{ p[0] }})"
-                        class="w-full flex items-center justify-between px-4 py-2.5
+                    <button type="button" onclick="toggleEvidencias({{ p[0] }})" class="w-full flex items-center justify-between px-4 py-2.5
                                bg-gray-50 hover:bg-gray-100 transition text-sm font-semibold text-gray-600">
                         <span>📸 Ver Fotos e Localização</span>
                         <span id="icone-evidencias-{{ p[0] }}">▼</span>
@@ -621,9 +620,8 @@
 
                         <!-- Link Google Maps: visível apenas quando lat/lon estão preenchidos -->
                         {% if p[10] and p[11] %}
-                        <a href="https://www.google.com/maps?q={{ p[10] }},{{ p[11] }}"
-                           target="_blank" rel="noopener"
-                           class="flex items-center gap-2 text-sm font-semibold text-blue-600
+                        <a href="https://www.google.com/maps?q={{ p[10] }},{{ p[11] }}" target="_blank" rel="noopener"
+                            class="flex items-center gap-2 text-sm font-semibold text-blue-600
                                   hover:text-blue-800 bg-blue-50 border border-blue-200
                                   rounded-xl px-4 py-2.5 transition w-full">
                             🗺️ Ver no Google Maps
@@ -646,9 +644,7 @@
                             <div class="space-y-1">
                                 <p class="text-xs font-semibold text-gray-500">📸 Ao lado da cova</p>
                                 <a href="/static/uploads/{{ p[12] }}" target="_blank">
-                                    <img src="/static/uploads/{{ p[12] }}"
-                                         alt="Foto ao lado da cova"
-                                         class="w-full h-36 object-cover rounded-xl border border-gray-200
+                                    <img src="/static/uploads/{{ p[12] }}" alt="Foto ao lado da cova" class="w-full h-36 object-cover rounded-xl border border-gray-200
                                                 hover:opacity-90 transition cursor-zoom-in shadow-sm">
                                 </a>
                             </div>
@@ -659,9 +655,7 @@
                             <div class="space-y-1">
                                 <p class="text-xs font-semibold text-gray-500">💧 Na cova com água</p>
                                 <a href="/static/uploads/{{ p[13] }}" target="_blank">
-                                    <img src="/static/uploads/{{ p[13] }}"
-                                         alt="Foto na cova com água"
-                                         class="w-full h-36 object-cover rounded-xl border border-gray-200
+                                    <img src="/static/uploads/{{ p[13] }}" alt="Foto na cova com água" class="w-full h-36 object-cover rounded-xl border border-gray-200
                                                 hover:opacity-90 transition cursor-zoom-in shadow-sm">
                                 </a>
                             </div>
@@ -798,7 +792,8 @@
                                 ✅ Aprovado
                             </span>
                             {% elif c[5] == 'retirado' %}
-                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                            <span
+                                class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
                                 🌿 Retirado
                             </span>
                             {% elif c[5] == 'reprovado' %}
@@ -942,9 +937,9 @@
                         <strong>B:</strong> Tipo &nbsp;|&nbsp;
                         <strong>C:</strong> Valor
                     </p>
-                    <form method="POST" action="/admin/importar-especies" enctype="multipart/form-data" class="space-y-3">
-                        <input type="file" name="arquivo_xls" accept=".xlsx" required
-                            class="w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0
+                    <form method="POST" action="/admin/importar-especies" enctype="multipart/form-data"
+                        class="space-y-3">
+                        <input type="file" name="arquivo_xls" accept=".xlsx" required class="w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0
                                    file:bg-blue-100 file:text-blue-700 file:font-medium hover:file:bg-blue-200" />
                         <button type="submit"
                             class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition">
@@ -983,7 +978,8 @@
                         <div class="flex items-center justify-between gap-3" id="linha-{{ e[0] }}">
                             <div class="flex-1">
                                 <span class="font-semibold text-green-800 text-sm">{{ e[1] }}</span>
-                                <span class="ml-2 text-xs px-2 py-0.5 rounded-full
+                                <span
+                                    class="ml-2 text-xs px-2 py-0.5 rounded-full
                                     {{ 'bg-orange-100 text-orange-700' if e[2] == 'Frutífera' else 'bg-green-100 text-green-700' }}">
                                     {{ '🍎 Frutífera' if e[2] == 'Frutífera' else '🌳 Nativa' }}
                                 </span>
@@ -1016,11 +1012,11 @@
                             <div class="flex gap-4">
                                 <label class="flex items-center gap-2 cursor-pointer text-sm">
                                     <input type="radio" name="tipo" value="Frutífera" class="accent-green-600"
-                                        {{ 'checked' if e[2] == 'Frutífera' }} /> 🍎 Frutífera
+                                        {{ 'checked' if e[2]=='Frutífera' }} /> 🍎 Frutífera
                                 </label>
                                 <label class="flex items-center gap-2 cursor-pointer text-sm">
-                                    <input type="radio" name="tipo" value="Nativa" class="accent-green-600"
-                                        {{ 'checked' if e[2] == 'Nativa' }} /> 🌳 Nativa
+                                    <input type="radio" name="tipo" value="Nativa" class="accent-green-600" {{ 'checked'
+                                        if e[2]=='Nativa' }} /> 🌳 Nativa
                                 </label>
                             </div>
                             <div class="flex gap-2">
@@ -1076,8 +1072,8 @@
             <!-- Formulário de dados bancários -->
             <div class="bg-white rounded-xl shadow p-6">
                 <h3 class="font-bold text-gray-800 mb-5">🏦 Dados Bancários da Entidade</h3>
-                <form method="POST" action="/admin/dados-bancarios/salvar"
-                    enctype="multipart/form-data" class="space-y-4">
+                <form method="POST" action="/admin/dados-bancarios/salvar" enctype="multipart/form-data"
+                    class="space-y-4">
 
                     <!-- Nome Empresarial -->
                     <div>
@@ -1099,14 +1095,12 @@
                     <div class="flex gap-3">
                         <div class="w-32">
                             <label class="block text-sm font-medium text-gray-600 mb-1">Agência</label>
-                            <input type="text" name="agencia" value="{{ db[3] if db else '' }}"
-                                placeholder="0001"
+                            <input type="text" name="agencia" value="{{ db[3] if db else '' }}" placeholder="0001"
                                 class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
                         </div>
                         <div class="flex-1">
                             <label class="block text-sm font-medium text-gray-600 mb-1">Conta Corrente</label>
-                            <input type="text" name="conta" value="{{ db[2] if db else '' }}"
-                                placeholder="00000-0"
+                            <input type="text" name="conta" value="{{ db[2] if db else '' }}" placeholder="00000-0"
                                 class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
                         </div>
                     </div>
@@ -1146,15 +1140,19 @@
                     <h4 class="font-semibold text-gray-700 mb-3 text-sm">📋 Dados Salvos</h4>
                     <div class="space-y-2 text-sm">
                         <p><span class="text-gray-400">Empresa:</span>
-                            <strong class="text-gray-800">{{ db[0] or '—' }}</strong></p>
+                            <strong class="text-gray-800">{{ db[0] or '—' }}</strong>
+                        </p>
                         <p><span class="text-gray-400">Banco:</span>
-                            <strong class="text-gray-800">{{ db[1] or '—' }}</strong></p>
+                            <strong class="text-gray-800">{{ db[1] or '—' }}</strong>
+                        </p>
                         <p><span class="text-gray-400">Agência:</span>
                             <strong class="text-gray-800">{{ db[3] or '—' }}</strong> &nbsp;
-                           <span class="text-gray-400">Conta:</span>
-                            <strong class="text-gray-800">{{ db[2] or '—' }}</strong></p>
+                            <span class="text-gray-400">Conta:</span>
+                            <strong class="text-gray-800">{{ db[2] or '—' }}</strong>
+                        </p>
                         <p><span class="text-gray-400">Chave PIX:</span>
-                            <strong class="text-gray-800 break-all">{{ db[4] or '—' }}</strong></p>
+                            <strong class="text-gray-800 break-all">{{ db[4] or '—' }}</strong>
+                        </p>
                     </div>
                 </div>
 
@@ -1163,7 +1161,7 @@
                 <div class="bg-white border border-green-200 rounded-xl p-5 text-center">
                     <p class="text-xs text-gray-500 mb-3">QR Code para pagamento via PIX</p>
                     <img src="/static/pix/{{ db[5] }}" alt="QR Code PIX"
-                         class="mx-auto w-44 h-44 object-contain rounded-lg shadow" />
+                        class="mx-auto w-44 h-44 object-contain rounded-lg shadow" />
                 </div>
                 {% endif %}
 
@@ -1234,7 +1232,7 @@
             <h3 class="text-sm font-bold text-gray-700 mb-4">➕ Nova Vigência de Percentuais</h3>
 
             <form method="POST" action="/admin/percentual/salvar" id="form-percentual"
-                  onsubmit="return validarPercentuais()">
+                onsubmit="return validarPercentuais()">
                 <div class="grid grid-cols-2 gap-4 mb-4">
 
                     <!-- Data de início da vigência -->
@@ -1242,8 +1240,7 @@
                         <label class="text-xs font-semibold text-gray-600 block mb-1">
                             📅 Início da Vigência
                         </label>
-                        <input type="date" name="inicio_vigencia" required
-                            class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                        <input type="date" name="inicio_vigencia" required class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                    focus:outline-none focus:ring-2 focus:ring-green-400">
                     </div>
 
@@ -1253,11 +1250,8 @@
                             🏪 % Fornecedor
                         </label>
                         <div class="flex items-center gap-1">
-                            <input type="number" name="perc_fornecedor" id="perc_fornecedor"
-                                min="0" max="100" step="0.01" required
-                                placeholder="80"
-                                oninput="atualizarSoma()"
-                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                            <input type="number" name="perc_fornecedor" id="perc_fornecedor" min="0" max="100"
+                                step="0.01" required placeholder="80" oninput="atualizarSoma()" class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                        focus:outline-none focus:ring-2 focus:ring-green-400">
                             <span class="text-gray-500 text-sm">%</span>
                         </div>
@@ -1269,11 +1263,8 @@
                             🏛️ % Entidade Favorecida
                         </label>
                         <div class="flex items-center gap-1">
-                            <input type="number" name="perc_entidade" id="perc_entidade"
-                                min="0" max="100" step="0.01" required
-                                placeholder="10"
-                                oninput="atualizarSoma()"
-                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                            <input type="number" name="perc_entidade" id="perc_entidade" min="0" max="100" step="0.01"
+                                required placeholder="10" oninput="atualizarSoma()" class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                        focus:outline-none focus:ring-2 focus:ring-green-400">
                             <span class="text-gray-500 text-sm">%</span>
                         </div>
@@ -1285,11 +1276,8 @@
                             ⚙️ % Administração
                         </label>
                         <div class="flex items-center gap-1">
-                            <input type="number" name="perc_admin" id="perc_admin"
-                                min="0" max="100" step="0.01" required
-                                placeholder="10"
-                                oninput="atualizarSoma()"
-                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                            <input type="number" name="perc_admin" id="perc_admin" min="0" max="100" step="0.01"
+                                required placeholder="10" oninput="atualizarSoma()" class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                        focus:outline-none focus:ring-2 focus:ring-green-400">
                             <span class="text-gray-500 text-sm">%</span>
                         </div>
@@ -1297,8 +1285,7 @@
 
                     <!-- Indicador da soma em tempo real -->
                     <div class="flex items-end pb-1">
-                        <div id="soma-display"
-                            class="w-full rounded-lg px-3 py-2 text-sm font-bold text-center
+                        <div id="soma-display" class="w-full rounded-lg px-3 py-2 text-sm font-bold text-center
                                    bg-gray-100 text-gray-500 border border-gray-200">
                             Soma: 0%
                         </div>
@@ -1306,8 +1293,7 @@
 
                 </div>
 
-                <button type="submit"
-                    class="w-full bg-green-700 hover:bg-green-800 text-white font-semibold
+                <button type="submit" class="w-full bg-green-700 hover:bg-green-800 text-white font-semibold
                            py-2.5 rounded-xl transition text-sm">
                     💾 Cadastrar Vigência
                 </button>
@@ -1356,9 +1342,8 @@
                     <!-- Botão excluir (não aparece para o vigente para evitar exclusão acidental) -->
                     {% if not loop.first %}
                     <form method="POST" action="/admin/percentual/{{ p[0] }}/excluir"
-                          onsubmit="return confirm('Excluir esta vigência?')">
-                        <button type="submit"
-                            class="text-red-500 hover:text-red-700 text-xs font-semibold px-3 py-1.5
+                        onsubmit="return confirm('Excluir esta vigência?')">
+                        <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-semibold px-3 py-1.5
                                    rounded-lg bg-red-50 hover:bg-red-100 transition whitespace-nowrap">
                             🗑️ Excluir
                         </button>
@@ -1453,11 +1438,10 @@
                         </p>
                         <!-- Formulário POST: envia fornecedor_id + mes_ref para gerar o faturamento -->
                         <form method="POST" action="/admin/faturamento/criar"
-                              onsubmit="return confirm('Faturar {{ g.razao_social }} — {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}?\n\nEsta ação é irreversível.')">
+                            onsubmit="return confirm('Faturar {{ g.razao_social }} — {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}?\n\nEsta ação é irreversível.')">
                             <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
-                            <input type="hidden" name="mes_ref"       value="{{ g.mes_ref }}">
-                            <button type="submit"
-                                class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold
+                            <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
+                            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold
                                        px-4 py-2 rounded-xl transition whitespace-nowrap shadow">
                                 💳 Faturar
                             </button>
@@ -1488,7 +1472,8 @@
 
             {% if faturamentos_hist %}
             <!-- Cabeçalho da tabela -->
-            <div class="hidden sm:grid grid-cols-6 gap-2 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div
+                class="hidden sm:grid grid-cols-6 gap-2 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div>nº Baixa</div>
                 <div>Período</div>
                 <div>Fornecedor</div>
@@ -1571,9 +1556,9 @@
                     </div>
                 </div>
                 <!-- Seta rotaciona ao abrir -->
-                <svg id="seta-dados-ent" class="w-4 h-4 text-gray-400 transition-transform duration-200"
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                <svg id="seta-dados-ent" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
             </button>
 
@@ -1590,9 +1575,9 @@
 
                             <!-- Nome Empresarial -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-600 mb-1">Nome Empresarial da Conta</label>
-                                <input type="text" name="nome_empresarial_ent"
-                                    value="{{ dbe[0] if dbe else '' }}"
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Nome Empresarial da
+                                    Conta</label>
+                                <input type="text" name="nome_empresarial_ent" value="{{ dbe[0] if dbe else '' }}"
                                     placeholder="Razão social da conta bancária"
                                     class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
@@ -1600,8 +1585,7 @@
                             <!-- Banco -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-600 mb-1">Banco</label>
-                                <input type="text" name="banco_ent"
-                                    value="{{ dbe[1] if dbe else '' }}"
+                                <input type="text" name="banco_ent" value="{{ dbe[1] if dbe else '' }}"
                                     placeholder="Ex: Nubank, Bradesco, Itaú..."
                                     class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
@@ -1610,15 +1594,13 @@
                             <div class="flex gap-3">
                                 <div class="w-32">
                                     <label class="block text-sm font-medium text-gray-600 mb-1">Agência</label>
-                                    <input type="text" name="agencia_ent"
-                                        value="{{ dbe[3] if dbe else '' }}"
+                                    <input type="text" name="agencia_ent" value="{{ dbe[3] if dbe else '' }}"
                                         placeholder="0001"
                                         class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                                 </div>
                                 <div class="flex-1">
                                     <label class="block text-sm font-medium text-gray-600 mb-1">Conta Corrente</label>
-                                    <input type="text" name="conta_ent"
-                                        value="{{ dbe[2] if dbe else '' }}"
+                                    <input type="text" name="conta_ent" value="{{ dbe[2] if dbe else '' }}"
                                         placeholder="00000-0"
                                         class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                                 </div>
@@ -1627,8 +1609,7 @@
                             <!-- Chave PIX -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-600 mb-1">Chave PIX</label>
-                                <input type="text" name="chave_pix_ent"
-                                    value="{{ dbe[4] if dbe else '' }}"
+                                <input type="text" name="chave_pix_ent" value="{{ dbe[4] if dbe else '' }}"
                                     placeholder="CNPJ, email, telefone ou chave aleatória"
                                     class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
@@ -1640,7 +1621,8 @@
                                     class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded
                                            file:border-0 file:bg-blue-100 file:text-blue-700 file:font-medium hover:file:bg-blue-200" />
                                 {% if dbe and dbe[5] %}
-                                <p class="text-xs text-gray-400 mt-1">✅ QR Code já cadastrado — envie novo para substituir.</p>
+                                <p class="text-xs text-gray-400 mt-1">✅ QR Code já cadastrado — envie novo para
+                                    substituir.</p>
                                 {% endif %}
                             </div>
 
@@ -1658,22 +1640,26 @@
                             <h4 class="font-semibold text-gray-700 mb-3 text-sm">📋 Dados Salvos</h4>
                             <div class="space-y-2 text-sm">
                                 <p><span class="text-gray-400">Empresa:</span>
-                                    <strong class="text-gray-800">{{ dbe[0] or '—' }}</strong></p>
+                                    <strong class="text-gray-800">{{ dbe[0] or '—' }}</strong>
+                                </p>
                                 <p><span class="text-gray-400">Banco:</span>
-                                    <strong class="text-gray-800">{{ dbe[1] or '—' }}</strong></p>
+                                    <strong class="text-gray-800">{{ dbe[1] or '—' }}</strong>
+                                </p>
                                 <p><span class="text-gray-400">Agência:</span>
                                     <strong class="text-gray-800">{{ dbe[3] or '—' }}</strong> &nbsp;
-                                   <span class="text-gray-400">Conta:</span>
-                                    <strong class="text-gray-800">{{ dbe[2] or '—' }}</strong></p>
+                                    <span class="text-gray-400">Conta:</span>
+                                    <strong class="text-gray-800">{{ dbe[2] or '—' }}</strong>
+                                </p>
                                 <p><span class="text-gray-400">Chave PIX:</span>
-                                    <strong class="text-gray-800 break-all">{{ dbe[4] or '—' }}</strong></p>
+                                    <strong class="text-gray-800 break-all">{{ dbe[4] or '—' }}</strong>
+                                </p>
                             </div>
                         </div>
                         {% if dbe[5] %}
                         <div class="bg-white border border-blue-200 rounded-xl p-5 text-center">
                             <p class="text-xs text-gray-500 mb-3">QR Code para pagamento via PIX</p>
                             <img src="/static/pix/{{ dbe[5] }}" alt="QR Code PIX"
-                                 class="mx-auto w-44 h-44 object-contain rounded-lg shadow" />
+                                class="mx-auto w-44 h-44 object-contain rounded-lg shadow" />
                         </div>
                         {% endif %}
                         {% else %}
@@ -1701,9 +1687,9 @@
                         <p class="text-xs text-gray-400 mt-0.5">{{ entidades|length }} entidade(s) cadastrada(s)</p>
                     </div>
                 </div>
-                <svg id="seta-entidades" class="w-4 h-4 text-gray-400 transition-transform duration-200"
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                <svg id="seta-entidades" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
             </button>
 
@@ -1720,8 +1706,7 @@
                                 <label class="block text-sm font-medium text-gray-600 mb-1">
                                     Razão Social <span class="text-red-500">*</span>
                                 </label>
-                                <input type="text" name="razao_social" required
-                                    placeholder="Ex: APAE de Arapoti"
+                                <input type="text" name="razao_social" required placeholder="Ex: APAE de Arapoti"
                                     class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
 
@@ -1729,8 +1714,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-600 mb-1">CNPJ</label>
                                 <input type="text" name="cnpj" maxlength="18" inputmode="numeric"
-                                    placeholder="00.000.000/0001-00"
-                                    oninput="mascaraCnpjEnt(this)"
+                                    placeholder="00.000.000/0001-00" oninput="mascaraCnpjEnt(this)"
                                     class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
 
@@ -1738,8 +1722,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-600 mb-1">Fone WhatsApp</label>
                                 <input type="text" name="whatsapp" maxlength="15" inputmode="numeric"
-                                    placeholder="(00) 00000-0000"
-                                    oninput="mascaraFoneEnt(this)"
+                                    placeholder="(00) 00000-0000" oninput="mascaraFoneEnt(this)"
                                     class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
 
@@ -1761,7 +1744,8 @@
                         <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
                             {% for e in entidades %}
                             <!-- e[0]=id  e[1]=razao_social  e[2]=cnpj  e[3]=whatsapp -->
-                            <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                            <div
+                                class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
                                 <div class="min-w-0">
                                     <p class="text-sm font-semibold text-gray-800 truncate">{{ e[1] }}</p>
                                     <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
@@ -1798,50 +1782,50 @@
         <!-- fim cadastro entidades -->
 
         <script>
-        // Abre/fecha o accordion de Dados Bancários da Entidade
-        function toggleDadosBancariosEnt() {
-            const conteudo = document.getElementById('conteudo-dados-ent');
-            const seta     = document.getElementById('seta-dados-ent');
-            const aberto   = !conteudo.classList.contains('hidden');
-            conteudo.classList.toggle('hidden', aberto);
-            seta.style.transform = aberto ? '' : 'rotate(180deg)';
-        }
-        // Abre automaticamente se há flash (retorno após salvar)
-        (function () {
-            const temFlash = document.querySelector('.bg-green-100, .bg-red-100');
-            if (temFlash) {
-                document.getElementById('conteudo-dados-ent').classList.remove('hidden');
-                document.getElementById('seta-dados-ent').style.transform = 'rotate(180deg)';
+            // Abre/fecha o accordion de Dados Bancários da Entidade
+            function toggleDadosBancariosEnt() {
+                const conteudo = document.getElementById('conteudo-dados-ent');
+                const seta = document.getElementById('seta-dados-ent');
+                const aberto = !conteudo.classList.contains('hidden');
+                conteudo.classList.toggle('hidden', aberto);
+                seta.style.transform = aberto ? '' : 'rotate(180deg)';
             }
-        })();
+            // Abre automaticamente se há flash (retorno após salvar)
+            (function () {
+                const temFlash = document.querySelector('.bg-green-100, .bg-red-100');
+                if (temFlash) {
+                    document.getElementById('conteudo-dados-ent').classList.remove('hidden');
+                    document.getElementById('seta-dados-ent').style.transform = 'rotate(180deg)';
+                }
+            })();
 
-        // Abre/fecha o accordion de Cadastro de Entidades
-        function toggleCadastroEntidades() {
-            const conteudo = document.getElementById('conteudo-entidades');
-            const seta     = document.getElementById('seta-entidades');
-            const aberto   = !conteudo.classList.contains('hidden');
-            conteudo.classList.toggle('hidden', aberto);
-            seta.style.transform = aberto ? '' : 'rotate(180deg)';
-        }
+            // Abre/fecha o accordion de Cadastro de Entidades
+            function toggleCadastroEntidades() {
+                const conteudo = document.getElementById('conteudo-entidades');
+                const seta = document.getElementById('seta-entidades');
+                const aberto = !conteudo.classList.contains('hidden');
+                conteudo.classList.toggle('hidden', aberto);
+                seta.style.transform = aberto ? '' : 'rotate(180deg)';
+            }
 
-        // ── Máscara CNPJ: 00.000.000/0000-00 ──
-        function mascaraCnpjEnt(input) {
-            let v = input.value.replace(/\D/g, '').slice(0, 14);
-            if (v.length > 12)     v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
-            else if (v.length > 8) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{0,4})/, '$1.$2.$3/$4');
-            else if (v.length > 5) v = v.replace(/(\d{2})(\d{3})(\d{0,3})/, '$1.$2.$3');
-            else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,3})/, '$1.$2');
-            input.value = v;
-        }
+            // ── Máscara CNPJ: 00.000.000/0000-00 ──
+            function mascaraCnpjEnt(input) {
+                let v = input.value.replace(/\D/g, '').slice(0, 14);
+                if (v.length > 12) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
+                else if (v.length > 8) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{0,4})/, '$1.$2.$3/$4');
+                else if (v.length > 5) v = v.replace(/(\d{2})(\d{3})(\d{0,3})/, '$1.$2.$3');
+                else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,3})/, '$1.$2');
+                input.value = v;
+            }
 
-        // ── Máscara telefone: (00) 00000-0000 ──
-        function mascaraFoneEnt(input) {
-            let v = input.value.replace(/\D/g, '').slice(0, 11);
-            if (v.length >= 11)     v = v.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
-            else if (v.length >= 7) v = v.replace(/^(\d{2})(\d{4,5})(\d{0,4})/, '($1) $2-$3');
-            else if (v.length >= 3) v = v.replace(/^(\d{2})(\d+)/, '($1) $2');
-            input.value = v;
-        }
+            // ── Máscara telefone: (00) 00000-0000 ──
+            function mascaraFoneEnt(input) {
+                let v = input.value.replace(/\D/g, '').slice(0, 11);
+                if (v.length >= 11) v = v.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+                else if (v.length >= 7) v = v.replace(/^(\d{2})(\d{4,5})(\d{0,4})/, '($1) $2-$3');
+                else if (v.length >= 3) v = v.replace(/^(\d{2})(\d+)/, '($1) $2');
+                input.value = v;
+            }
         </script>
 
         <!-- ---- Saldos Pendentes Entidade ---- -->
@@ -1896,11 +1880,10 @@
                         </p>
                         <!-- Formulário POST: gera faturamento para a entidade favorecida -->
                         <form method="POST" action="/admin/faturamento-entidade/criar"
-                              onsubmit="return confirm('Faturar Entidade — {{ g.razao_social }} — {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}?\n\nEsta ação é irreversível.')">
+                            onsubmit="return confirm('Faturar Entidade — {{ g.razao_social }} — {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}?\n\nEsta ação é irreversível.')">
                             <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
-                            <input type="hidden" name="mes_ref"       value="{{ g.mes_ref }}">
-                            <button type="submit"
-                                class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold
+                            <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold
                                        px-4 py-2 rounded-xl transition whitespace-nowrap shadow">
                                 💳 Faturar
                             </button>
@@ -1931,7 +1914,8 @@
 
             {% if faturamentos_entidade_hist %}
             <!-- Cabeçalho da tabela -->
-            <div class="hidden sm:grid grid-cols-6 gap-2 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div
+                class="hidden sm:grid grid-cols-6 gap-2 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div>nº Baixa</div>
                 <div>Período</div>
                 <div>Fornecedor</div>
@@ -2048,11 +2032,10 @@
                         </p>
                         <!-- Formulário POST: gera faturamento para a administração -->
                         <form method="POST" action="/admin/faturamento-admin/criar"
-                              onsubmit="return confirm('Faturar Admin — {{ g.razao_social }} — {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}?\n\nEsta ação é irreversível.')">
+                            onsubmit="return confirm('Faturar Admin — {{ g.razao_social }} — {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}?\n\nEsta ação é irreversível.')">
                             <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
-                            <input type="hidden" name="mes_ref"       value="{{ g.mes_ref }}">
-                            <button type="submit"
-                                class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold
+                            <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
+                            <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold
                                        px-4 py-2 rounded-xl transition whitespace-nowrap shadow">
                                 💳 Faturar
                             </button>
@@ -2083,7 +2066,8 @@
 
             {% if faturamentos_admin_hist %}
             <!-- Cabeçalho da tabela -->
-            <div class="hidden sm:grid grid-cols-6 gap-2 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div
+                class="hidden sm:grid grid-cols-6 gap-2 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div>nº Baixa</div>
                 <div>Período</div>
                 <div>Fornecedor</div>
@@ -2157,10 +2141,10 @@
         // Filtra os cards de espécie pelo tipo selecionado no dropdown.
         // Atualiza o contador de resultados visíveis em tempo real.
         function filtrarEspecies() {
-            const filtro    = document.getElementById('filtro-tipo-especie').value;
-            const cards     = document.querySelectorAll('.especie-card');
-            const contador  = document.getElementById('contador-especies');
-            let visiveis    = 0;
+            const filtro = document.getElementById('filtro-tipo-especie').value;
+            const cards = document.querySelectorAll('.especie-card');
+            const contador = document.getElementById('contador-especies');
+            let visiveis = 0;
 
             cards.forEach(card => {
                 const tipo = card.dataset.tipo;
@@ -2179,7 +2163,7 @@
         // Também rotaciona a seta indicadora de estado.
         function toggleEdicao(id) {
             const painel = document.getElementById('edicao-' + id);
-            const seta   = document.getElementById('seta-' + id);
+            const seta = document.getElementById('seta-' + id);
             if (!painel) return;
 
             const expandindo = painel.classList.toggle('hidden');
@@ -2192,9 +2176,9 @@
         document.querySelectorAll('[data-cpf-mask]').forEach(function (campo) {
             campo.addEventListener('input', function () {
                 let v = this.value.replace(/\D/g, '').slice(0, 11);
-                if (v.length > 9)      v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
-                else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/,        '$1.$2.$3');
-                else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/,               '$1.$2');
+                if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+                else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+                else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
                 this.value = v;
             });
         });
@@ -2204,7 +2188,7 @@
         document.querySelectorAll('[data-tel-mask]').forEach(function (campo) {
             campo.addEventListener('input', function () {
                 let v = this.value.replace(/\D/g, '').slice(0, 11);
-                if (v.length > 10)     v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+                if (v.length > 10) v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
                 else if (v.length > 6) v = v.replace(/(\d{2})(\d{4,5})(\d{0,4})/, '($1) $2-$3');
                 else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
                 else if (v.length > 0) v = v.replace(/(\d{0,2})/, '($1');
@@ -2229,7 +2213,7 @@
         // Usa id único por plantio para evitar conflito entre múltiplos cards.
         function toggleEvidencias(id) {
             const painel = document.getElementById('evidencias-' + id);
-            const icone  = document.getElementById('icone-evidencias-' + id);
+            const icone = document.getElementById('icone-evidencias-' + id);
             if (!painel) return;
             const aberto = !painel.classList.contains('hidden');
             painel.classList.toggle('hidden', aberto);
@@ -2240,11 +2224,11 @@
 
         // Atualiza o indicador de soma em tempo real ao digitar nos campos de percentual
         function atualizarSoma() {
-            const f   = parseFloat(document.getElementById('perc_fornecedor')?.value || 0);
-            const e   = parseFloat(document.getElementById('perc_entidade')?.value   || 0);
-            const a   = parseFloat(document.getElementById('perc_admin')?.value      || 0);
+            const f = parseFloat(document.getElementById('perc_fornecedor')?.value || 0);
+            const e = parseFloat(document.getElementById('perc_entidade')?.value || 0);
+            const a = parseFloat(document.getElementById('perc_admin')?.value || 0);
             const soma = f + e + a;
-            const el   = document.getElementById('soma-display');
+            const el = document.getElementById('soma-display');
             if (!el) return;
 
             el.textContent = `Soma: ${soma.toFixed(2)}%`;
@@ -2260,9 +2244,9 @@
 
         // Bloqueia envio do formulário se a soma não for 100%
         function validarPercentuais() {
-            const f    = parseFloat(document.getElementById('perc_fornecedor')?.value || 0);
-            const e    = parseFloat(document.getElementById('perc_entidade')?.value   || 0);
-            const a    = parseFloat(document.getElementById('perc_admin')?.value      || 0);
+            const f = parseFloat(document.getElementById('perc_fornecedor')?.value || 0);
+            const e = parseFloat(document.getElementById('perc_entidade')?.value || 0);
+            const a = parseFloat(document.getElementById('perc_admin')?.value || 0);
             const soma = f + e + a;
             if (Math.abs(soma - 100) > 0.01) {
                 alert(`A soma dos percentuais deve ser 100%.\nSoma atual: ${soma.toFixed(2)}%`);
