@@ -6,7 +6,6 @@ import re
 import uuid
 import smtplib
 import qrcode
-import requests as http_req   # renomeado para não colidir com flask.request
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -171,64 +170,6 @@ def enviar_qrcode_email(destinatario, razao_social, cnpj):
 
 
 # ===================== API: BUSCAR CNPJ POR CIDADE =====================
-# Recebe UF + cidade e retorna CNPJ + razão social da Prefeitura e da APAE.
-# Usa a Brasil.io (dados abertos da Receita Federal) como fonte — gratuita,
-# sem autenticação para uso básico (até ~20 req/s sem token).
-# Chamada pelo front-end quando o usuário seleciona a cidade no cadastro/perfil.
-@app.route("/api/cnpj-cidade")
-def api_cnpj_cidade():
-    uf     = request.args.get("uf", "").strip().upper()
-    cidade = request.args.get("cidade", "").strip().upper()
-
-    if not uf or not cidade:
-        return jsonify({}), 400
-
-    # Formata 14 dígitos brutos no padrão XX.XXX.XXX/XXXX-XX
-    def formatar_cnpj(raw):
-        c = re.sub(r"\D", "", str(raw or ""))
-        if len(c) == 14:
-            return f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:]}"
-        return raw
-
-    # Tenta encontrar a empresa na Brasil.io pelo nome e UF.
-    # Retorna o primeiro resultado encontrado ou None.
-    def buscar_empresa(nome_busca):
-        try:
-            resp = http_req.get(
-                "https://brasil.io/api/dataset/socios-brasil/empresas/data/",
-                params={"search": nome_busca, "uf": uf},
-                headers={"User-Agent": "PlantandoVida/1.0",
-                         "Accept":     "application/json"},
-                timeout=8,
-            )
-            if resp.status_code == 200:
-                items = resp.json().get("results", [])
-                if items:
-                    return items[0]
-        except Exception:
-            pass
-        return None
-
-    resultado = {
-        "cnpj_prefeitura": "", "nome_prefeitura": "",
-        "cnpj_apae": "",       "nome_apae": "",
-    }
-
-    # Busca Prefeitura — tenta "PREFEITURA MUNICIPAL DE X" e "PREFEITURA DE X"
-    emp = buscar_empresa(f"PREFEITURA MUNICIPAL DE {cidade}") \
-       or buscar_empresa(f"PREFEITURA DE {cidade}")
-    if emp:
-        resultado["cnpj_prefeitura"] = formatar_cnpj(emp.get("cnpj", ""))
-        resultado["nome_prefeitura"] = emp.get("razao_social", "")
-
-    # Busca APAE — tenta "APAE DE X" e "ASSOCIACAO DE PAIS X"
-    emp = buscar_empresa(f"APAE DE {cidade}") \
-       or buscar_empresa(f"ASSOCIACAO DE PAIS E AMIGOS DOS EXCEPCIONAIS DE {cidade}")
-    if emp:
-        resultado["cnpj_apae"] = formatar_cnpj(emp.get("cnpj", ""))
-        resultado["nome_apae"] = emp.get("razao_social", "")
-
-    return jsonify(resultado)
 
 
 # ===================== ROTA HOME =====================
@@ -273,13 +214,9 @@ def cadastro():
         cpf                 = request.form["cpf"].strip()
         telefone            = request.form["telefone"].strip()
         data_nascimento     = request.form["data_nascimento"].strip()
-        # Campos de localização e entidade adicionados no cadastro
-        uf                       = request.form.get("uf", "").strip()
-        cidade                   = request.form.get("cidade", "").strip()
-        prefeitura               = request.form.get("prefeitura", "").strip()
-        cnpj_prefeitura          = request.form.get("cnpj_prefeitura", "").strip()
-        entidade_favorecida      = request.form.get("entidade_favorecida", "").strip()
-        cnpj_entidade_favorecida = request.form.get("cnpj_entidade_favorecida", "").strip()
+        # Campos de localização adicionados no cadastro
+        uf     = request.form.get("uf", "").strip()
+        cidade = request.form.get("cidade", "").strip()
 
         # Normaliza CPF (somente dígitos) para comparação neutra de formatação
         cpf_numeros = re.sub(r"\D", "", cpf)
@@ -310,9 +247,6 @@ def cadastro():
             "nome": nome, "email": email, "cpf": cpf,
             "telefone": telefone, "data_nascimento": data_nascimento,
             "uf": uf, "cidade": cidade,
-            "prefeitura": prefeitura, "cnpj_prefeitura": cnpj_prefeitura,
-            "entidade_favorecida": entidade_favorecida,
-            "cnpj_entidade_favorecida": cnpj_entidade_favorecida,
         }
         session["cadastro_verificado"] = False
 
@@ -365,17 +299,13 @@ def cadastro():
         try:
             cursor.execute(
                 """INSERT INTO usuarios
-                   (nome, email, senha, cpf, telefone, data_nascimento,
-                    uf, cidade, prefeitura, cnpj_prefeitura,
-                    entidade_favorecida, cnpj_entidade_favorecida)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (nome, email, senha, cpf, telefone, data_nascimento, uf, cidade)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     pending["nome"], pending["email"],
                     generate_password_hash(senha),
                     pending["cpf"], pending["telefone"], pending["data_nascimento"],
                     pending.get("uf"), pending.get("cidade"),
-                    pending.get("prefeitura"), pending.get("cnpj_prefeitura"),
-                    pending.get("entidade_favorecida"), pending.get("cnpj_entidade_favorecida"),
                 )
             )
             conn.commit()
@@ -1718,25 +1648,19 @@ def meu_perfil():
         telefone            = request.form.get("telefone", "").strip()
         data_nascimento     = request.form.get("data_nascimento", "").strip()
         # Campos de localização, entidade e CNPJs (podem ser vazios para usuários antigos)
-        uf                       = request.form.get("uf", "").strip()
-        cidade                   = request.form.get("cidade", "").strip()
-        prefeitura               = request.form.get("prefeitura", "").strip()
-        cnpj_prefeitura          = request.form.get("cnpj_prefeitura", "").strip()
-        entidade_favorecida      = request.form.get("entidade_favorecida", "").strip()
-        cnpj_entidade_favorecida = request.form.get("cnpj_entidade_favorecida", "").strip()
+        uf     = request.form.get("uf", "").strip()
+        cidade = request.form.get("cidade", "").strip()
 
         try:
-            # Atualiza os dados cadastrais incluindo localização e CNPJs.
+            # Atualiza os dados cadastrais incluindo localização.
             # A senha permanece intocada — alteração segue fluxo separado via token.
             cursor.execute("""
                 UPDATE usuarios
                 SET nome = ?, email = ?, cpf = ?, telefone = ?, data_nascimento = ?,
-                    uf = ?, cidade = ?, prefeitura = ?, cnpj_prefeitura = ?,
-                    entidade_favorecida = ?, cnpj_entidade_favorecida = ?
+                    uf = ?, cidade = ?
                 WHERE id = ?
             """, (nome, email, cpf, telefone, data_nascimento,
-                  uf, cidade, prefeitura, cnpj_prefeitura,
-                  entidade_favorecida, cnpj_entidade_favorecida,
+                  uf, cidade,
                   session["usuario_id"]))
             conn.commit()
             # Atualiza o nome na sessão para refletir imediatamente no dashboard
@@ -1750,15 +1674,11 @@ def meu_perfil():
 
         return redirect("/meu-perfil")
 
-    # GET: busca os dados atuais do usuário incluindo localização e CNPJs.
-    # u[0]=id  u[1]=nome       u[2]=email           u[3]=cpf
-    # u[4]=telefone  u[5]=data_nascimento
-    # u[6]=uf  u[7]=cidade  u[8]=prefeitura  u[9]=cnpj_prefeitura
-    # u[10]=entidade_favorecida  u[11]=cnpj_entidade_favorecida
+    # GET: busca os dados atuais do usuário incluindo localização.
+    # u[0]=id  u[1]=nome  u[2]=email  u[3]=cpf
+    # u[4]=telefone  u[5]=data_nascimento  u[6]=uf  u[7]=cidade
     cursor.execute("""
-        SELECT id, nome, email, cpf, telefone, data_nascimento,
-               uf, cidade, prefeitura, cnpj_prefeitura,
-               entidade_favorecida, cnpj_entidade_favorecida
+        SELECT id, nome, email, cpf, telefone, data_nascimento, uf, cidade
         FROM usuarios WHERE id = ?
     """, (session["usuario_id"],))
     usuario = cursor.fetchone()
