@@ -224,16 +224,29 @@
     <!-- fim histórico faturamentos -->
 
 
-    <!-- ===================== CARD PRINCIPAL =====================
-         Exibe os dados do fornecedor logado e permite editá-los.
-         Todos os campos são preenchidos com os valores atuais do banco.
-         fornecedor = (id, razao_social, cnpj, whatsapp, tipo_planta, maps_link)
+    <!-- ===================== CARD PRINCIPAL (ACCORDION) =====================
+         "Meu Cadastro" fica colapsado por padrão para manter a tela compacta.
+         Abre/fecha pelo botão no cabeçalho via JS (toggleCadastro).
+         Se houver mensagem flash (sucesso ou erro), abre automaticamente ao carregar.
     -->
-    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-lg mx-auto">
+    <div class="bg-white rounded-xl shadow-md w-full max-w-lg mx-auto overflow-hidden">
 
-        <h2 class="text-center text-2xl font-bold text-green-700 mb-6">
-            📋 Meu Cadastro
-        </h2>
+        <!-- Cabeçalho clicável do accordion -->
+        <button type="button" onclick="toggleCadastro()"
+            class="w-full bg-gray-700 hover:bg-gray-800 px-6 py-4 flex items-center justify-between transition">
+            <div class="flex items-center gap-2">
+                <span class="text-white font-bold text-base">📋 Meu Cadastro</span>
+                <span class="text-gray-300 text-xs">· dados e configurações</span>
+            </div>
+            <!-- Seta indicadora — gira 180° quando aberto -->
+            <svg id="seta-cadastro" class="w-4 h-4 text-gray-300 transition-transform duration-300"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+
+        <!-- Conteúdo colapsável -->
+        <div id="conteudo-cadastro" class="hidden px-8 pt-6 pb-8">
 
         <!-- ===================== MENSAGENS DE FEEDBACK (FLASH) =====================
              Exibe confirmações de atualização ou mensagens de erro.
@@ -415,8 +428,33 @@
             </a>
         </div>
 
+        </div>
+        <!-- fim do conteúdo colapsável -->
+
     </div>
-    <!-- fim do card principal -->
+    <!-- fim do card principal (accordion) -->
+
+    <script>
+        // ===================== ACCORDION: MEU CADASTRO =====================
+        // Alterna a visibilidade do conteúdo e gira a seta indicadora.
+        function toggleCadastro() {
+            const conteudo = document.getElementById('conteudo-cadastro');
+            const seta     = document.getElementById('seta-cadastro');
+            const aberto   = !conteudo.classList.contains('hidden');
+            conteudo.classList.toggle('hidden', aberto);
+            seta.style.transform = aberto ? '' : 'rotate(180deg)';
+        }
+
+        // Se houver mensagem flash (sucesso ou erro de salvar), abre automaticamente
+        // para o fornecedor ver o resultado sem precisar clicar.
+        (function() {
+            const temFlash = document.querySelector('#conteudo-cadastro .bg-green-100, #conteudo-cadastro .bg-red-100');
+            if (temFlash) {
+                document.getElementById('conteudo-cadastro').classList.remove('hidden');
+                document.getElementById('seta-cadastro').style.transform = 'rotate(180deg)';
+            }
+        })();
+    </script>
 
 
     <!-- ===================== JAVASCRIPT =====================
