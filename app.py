@@ -229,7 +229,9 @@ def init_db():
     # PostgreSQL: suporta ADD COLUMN IF NOT EXISTS nativamente
     migracoes = {
         "fornecedores": ["senha TEXT", "cidade TEXT", "uf TEXT", "ativo INTEGER DEFAULT 1", "email TEXT"],
-        "usuarios":     ["cpf TEXT", "telefone TEXT", "data_nascimento TEXT"],
+        # uf/cidade/prefeitura/entidade_favorecida: localização e entidade do usuário.
+        "usuarios":     ["cpf TEXT", "telefone TEXT", "data_nascimento TEXT",
+                         "uf TEXT", "cidade TEXT", "prefeitura TEXT", "entidade_favorecida TEXT"],
         # status/fornecedor_id/justificativa: gestão de aprovação de plantios pelo admin.
         # foto_plantio: foto tirada pelo usuário ao lado da cova antes de plantar (Etapa 3 do fluxo).
         "plantas_go":   [

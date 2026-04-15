@@ -206,11 +206,16 @@ def cadastro():
 
     # ── Etapa 1: valida unicidade e envia token ──
     if etapa == "dados":
-        nome            = request.form["nome"].strip()
-        email           = request.form["email"].strip().lower()
-        cpf             = request.form["cpf"].strip()
-        telefone        = request.form["telefone"].strip()
-        data_nascimento = request.form["data_nascimento"].strip()
+        nome                = request.form["nome"].strip()
+        email               = request.form["email"].strip().lower()
+        cpf                 = request.form["cpf"].strip()
+        telefone            = request.form["telefone"].strip()
+        data_nascimento     = request.form["data_nascimento"].strip()
+        # Campos de localização e entidade adicionados no cadastro
+        uf                  = request.form.get("uf", "").strip()
+        cidade              = request.form.get("cidade", "").strip()
+        prefeitura          = request.form.get("prefeitura", "").strip()
+        entidade_favorecida = request.form.get("entidade_favorecida", "").strip()
 
         # Normaliza CPF (somente dígitos) para comparação neutra de formatação
         cpf_numeros = re.sub(r"\D", "", cpf)
@@ -239,7 +244,9 @@ def cadastro():
         # Salva dados temporários na sessão e gera + envia token
         session["pending_cadastro"] = {
             "nome": nome, "email": email, "cpf": cpf,
-            "telefone": telefone, "data_nascimento": data_nascimento
+            "telefone": telefone, "data_nascimento": data_nascimento,
+            "uf": uf, "cidade": cidade,
+            "prefeitura": prefeitura, "entidade_favorecida": entidade_favorecida,
         }
         session["cadastro_verificado"] = False
 
@@ -291,11 +298,16 @@ def cadastro():
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT INTO usuarios (nome, email, senha, cpf, telefone, data_nascimento) VALUES (?, ?, ?, ?, ?, ?)",
+                """INSERT INTO usuarios
+                   (nome, email, senha, cpf, telefone, data_nascimento,
+                    uf, cidade, prefeitura, entidade_favorecida)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     pending["nome"], pending["email"],
                     generate_password_hash(senha),
-                    pending["cpf"], pending["telefone"], pending["data_nascimento"]
+                    pending["cpf"], pending["telefone"], pending["data_nascimento"],
+                    pending.get("uf"), pending.get("cidade"),
+                    pending.get("prefeitura"), pending.get("entidade_favorecida"),
                 )
             )
             conn.commit()
