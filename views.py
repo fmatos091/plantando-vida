@@ -212,10 +212,12 @@ def cadastro():
         telefone            = request.form["telefone"].strip()
         data_nascimento     = request.form["data_nascimento"].strip()
         # Campos de localização e entidade adicionados no cadastro
-        uf                  = request.form.get("uf", "").strip()
-        cidade              = request.form.get("cidade", "").strip()
-        prefeitura          = request.form.get("prefeitura", "").strip()
-        entidade_favorecida = request.form.get("entidade_favorecida", "").strip()
+        uf                       = request.form.get("uf", "").strip()
+        cidade                   = request.form.get("cidade", "").strip()
+        prefeitura               = request.form.get("prefeitura", "").strip()
+        cnpj_prefeitura          = request.form.get("cnpj_prefeitura", "").strip()
+        entidade_favorecida      = request.form.get("entidade_favorecida", "").strip()
+        cnpj_entidade_favorecida = request.form.get("cnpj_entidade_favorecida", "").strip()
 
         # Normaliza CPF (somente dígitos) para comparação neutra de formatação
         cpf_numeros = re.sub(r"\D", "", cpf)
@@ -246,7 +248,9 @@ def cadastro():
             "nome": nome, "email": email, "cpf": cpf,
             "telefone": telefone, "data_nascimento": data_nascimento,
             "uf": uf, "cidade": cidade,
-            "prefeitura": prefeitura, "entidade_favorecida": entidade_favorecida,
+            "prefeitura": prefeitura, "cnpj_prefeitura": cnpj_prefeitura,
+            "entidade_favorecida": entidade_favorecida,
+            "cnpj_entidade_favorecida": cnpj_entidade_favorecida,
         }
         session["cadastro_verificado"] = False
 
@@ -300,14 +304,16 @@ def cadastro():
             cursor.execute(
                 """INSERT INTO usuarios
                    (nome, email, senha, cpf, telefone, data_nascimento,
-                    uf, cidade, prefeitura, entidade_favorecida)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    uf, cidade, prefeitura, cnpj_prefeitura,
+                    entidade_favorecida, cnpj_entidade_favorecida)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     pending["nome"], pending["email"],
                     generate_password_hash(senha),
                     pending["cpf"], pending["telefone"], pending["data_nascimento"],
                     pending.get("uf"), pending.get("cidade"),
-                    pending.get("prefeitura"), pending.get("entidade_favorecida"),
+                    pending.get("prefeitura"), pending.get("cnpj_prefeitura"),
+                    pending.get("entidade_favorecida"), pending.get("cnpj_entidade_favorecida"),
                 )
             )
             conn.commit()
@@ -1649,22 +1655,26 @@ def meu_perfil():
         cpf                 = request.form.get("cpf", "").strip()
         telefone            = request.form.get("telefone", "").strip()
         data_nascimento     = request.form.get("data_nascimento", "").strip()
-        # Campos de localização e entidade (podem ser vazios para usuários antigos)
-        uf                  = request.form.get("uf", "").strip()
-        cidade              = request.form.get("cidade", "").strip()
-        prefeitura          = request.form.get("prefeitura", "").strip()
-        entidade_favorecida = request.form.get("entidade_favorecida", "").strip()
+        # Campos de localização, entidade e CNPJs (podem ser vazios para usuários antigos)
+        uf                       = request.form.get("uf", "").strip()
+        cidade                   = request.form.get("cidade", "").strip()
+        prefeitura               = request.form.get("prefeitura", "").strip()
+        cnpj_prefeitura          = request.form.get("cnpj_prefeitura", "").strip()
+        entidade_favorecida      = request.form.get("entidade_favorecida", "").strip()
+        cnpj_entidade_favorecida = request.form.get("cnpj_entidade_favorecida", "").strip()
 
         try:
-            # Atualiza os dados cadastrais incluindo os novos campos de localização.
+            # Atualiza os dados cadastrais incluindo localização e CNPJs.
             # A senha permanece intocada — alteração segue fluxo separado via token.
             cursor.execute("""
                 UPDATE usuarios
                 SET nome = ?, email = ?, cpf = ?, telefone = ?, data_nascimento = ?,
-                    uf = ?, cidade = ?, prefeitura = ?, entidade_favorecida = ?
+                    uf = ?, cidade = ?, prefeitura = ?, cnpj_prefeitura = ?,
+                    entidade_favorecida = ?, cnpj_entidade_favorecida = ?
                 WHERE id = ?
             """, (nome, email, cpf, telefone, data_nascimento,
-                  uf, cidade, prefeitura, entidade_favorecida,
+                  uf, cidade, prefeitura, cnpj_prefeitura,
+                  entidade_favorecida, cnpj_entidade_favorecida,
                   session["usuario_id"]))
             conn.commit()
             # Atualiza o nome na sessão para refletir imediatamente no dashboard
@@ -1678,12 +1688,15 @@ def meu_perfil():
 
         return redirect("/meu-perfil")
 
-    # GET: busca os dados atuais do usuário incluindo os novos campos de localização.
-    # u[0]=id  u[1]=nome  u[2]=email  u[3]=cpf  u[4]=telefone  u[5]=data_nascimento
-    # u[6]=uf  u[7]=cidade  u[8]=prefeitura  u[9]=entidade_favorecida
+    # GET: busca os dados atuais do usuário incluindo localização e CNPJs.
+    # u[0]=id  u[1]=nome       u[2]=email           u[3]=cpf
+    # u[4]=telefone  u[5]=data_nascimento
+    # u[6]=uf  u[7]=cidade  u[8]=prefeitura  u[9]=cnpj_prefeitura
+    # u[10]=entidade_favorecida  u[11]=cnpj_entidade_favorecida
     cursor.execute("""
         SELECT id, nome, email, cpf, telefone, data_nascimento,
-               uf, cidade, prefeitura, entidade_favorecida
+               uf, cidade, prefeitura, cnpj_prefeitura,
+               entidade_favorecida, cnpj_entidade_favorecida
         FROM usuarios WHERE id = ?
     """, (session["usuario_id"],))
     usuario = cursor.fetchone()
