@@ -6,6 +6,7 @@ import re
 import uuid
 import smtplib
 import qrcode
+import requests as http_req   # renomeado para não colidir com flask.request
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -167,6 +168,67 @@ def enviar_qrcode_email(destinatario, razao_social, cnpj):
         return True
     except Exception:
         return False
+
+
+# ===================== API: BUSCAR CNPJ POR CIDADE =====================
+# Recebe UF + cidade e retorna CNPJ + razão social da Prefeitura e da APAE.
+# Usa a Brasil.io (dados abertos da Receita Federal) como fonte — gratuita,
+# sem autenticação para uso básico (até ~20 req/s sem token).
+# Chamada pelo front-end quando o usuário seleciona a cidade no cadastro/perfil.
+@app.route("/api/cnpj-cidade")
+def api_cnpj_cidade():
+    uf     = request.args.get("uf", "").strip().upper()
+    cidade = request.args.get("cidade", "").strip().upper()
+
+    if not uf or not cidade:
+        return jsonify({}), 400
+
+    # Formata 14 dígitos brutos no padrão XX.XXX.XXX/XXXX-XX
+    def formatar_cnpj(raw):
+        c = re.sub(r"\D", "", str(raw or ""))
+        if len(c) == 14:
+            return f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:]}"
+        return raw
+
+    # Tenta encontrar a empresa na Brasil.io pelo nome e UF.
+    # Retorna o primeiro resultado encontrado ou None.
+    def buscar_empresa(nome_busca):
+        try:
+            resp = http_req.get(
+                "https://brasil.io/api/dataset/socios-brasil/empresas/data/",
+                params={"search": nome_busca, "uf": uf},
+                headers={"User-Agent": "PlantandoVida/1.0",
+                         "Accept":     "application/json"},
+                timeout=8,
+            )
+            if resp.status_code == 200:
+                items = resp.json().get("results", [])
+                if items:
+                    return items[0]
+        except Exception:
+            pass
+        return None
+
+    resultado = {
+        "cnpj_prefeitura": "", "nome_prefeitura": "",
+        "cnpj_apae": "",       "nome_apae": "",
+    }
+
+    # Busca Prefeitura — tenta "PREFEITURA MUNICIPAL DE X" e "PREFEITURA DE X"
+    emp = buscar_empresa(f"PREFEITURA MUNICIPAL DE {cidade}") \
+       or buscar_empresa(f"PREFEITURA DE {cidade}")
+    if emp:
+        resultado["cnpj_prefeitura"] = formatar_cnpj(emp.get("cnpj", ""))
+        resultado["nome_prefeitura"] = emp.get("razao_social", "")
+
+    # Busca APAE — tenta "APAE DE X" e "ASSOCIACAO DE PAIS X"
+    emp = buscar_empresa(f"APAE DE {cidade}") \
+       or buscar_empresa(f"ASSOCIACAO DE PAIS E AMIGOS DOS EXCEPCIONAIS DE {cidade}")
+    if emp:
+        resultado["cnpj_apae"] = formatar_cnpj(emp.get("cnpj", ""))
+        resultado["nome_apae"] = emp.get("razao_social", "")
+
+    return jsonify(resultado)
 
 
 # ===================== ROTA HOME =====================
