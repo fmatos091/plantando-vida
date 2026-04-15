@@ -1481,6 +1481,11 @@ def admin_painel():
     cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios_entidade LIMIT 1")
     dados_bancarios_entidade = cursor.fetchone()
 
+    # ---- Consulta Entidades Favorecidas cadastradas (lista) ----
+    # e[0]=id  e[1]=razao_social  e[2]=cnpj  e[3]=whatsapp  e[4]=criado_em
+    cursor.execute("SELECT id, razao_social, cnpj, whatsapp, criado_em FROM entidades ORDER BY razao_social")
+    entidades = cursor.fetchall()
+
     # ---- Consulta Percentuais de Vigência — tabela de distribuição do valor das plantas ----
     # p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin
     cursor.execute("""
@@ -1545,6 +1550,7 @@ def admin_painel():
                            especies=especies,
                            dados_bancarios=dados_bancarios,
                            dados_bancarios_entidade=dados_bancarios_entidade,
+                           entidades=entidades,
                            percentuais=percentuais,
                            fechamento_pendente=fechamento_pendente,
                            fechamento_entidade_pendente=fechamento_entidade_pendente,
@@ -1986,6 +1992,53 @@ def admin_salvar_dados_bancarios_entidade():
     conn.close()
 
     flash("Dados bancários da entidade salvos com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=fechamento_entidade")
+
+
+# ===================== ROTA ADMIN: SALVAR ENTIDADE FAVORECIDA =====================
+# Insere uma nova entidade na tabela entidades.
+# Acesso restrito ao administrador (session["admin"]).
+@app.route("/admin/entidade/salvar", methods=["POST"])
+def admin_salvar_entidade():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    razao_social = request.form.get("razao_social", "").strip()
+    cnpj         = request.form.get("cnpj", "").strip()
+    whatsapp     = request.form.get("whatsapp", "").strip()
+
+    if not razao_social:
+        flash("O campo Razão Social é obrigatório.", "erro")
+        return redirect("/admin/painel?tipo=fechamento_entidade")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO entidades (razao_social, cnpj, whatsapp) VALUES (?, ?, ?)",
+        (razao_social, cnpj, whatsapp)
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Entidade cadastrada com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=fechamento_entidade")
+
+
+# ===================== ROTA ADMIN: EXCLUIR ENTIDADE FAVORECIDA =====================
+# Remove permanentemente a entidade do banco.
+# Acesso restrito ao administrador (session["admin"]).
+@app.route("/admin/entidade/<int:eid>/excluir", methods=["POST"])
+def admin_excluir_entidade(eid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM entidades WHERE id = ?", (eid,))
+    conn.commit()
+    conn.close()
+
+    flash("Entidade excluída.", "sucesso")
     return redirect("/admin/painel?tipo=fechamento_entidade")
 
 

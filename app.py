@@ -157,6 +157,18 @@ def init_db():
     )
     """)
 
+    # Tabela de entidades favorecidas cadastradas (lista de APAEs ou similares).
+    # Exibida e gerenciada na aba fechamento_entidade do painel admin.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS entidades (
+        id           {pk},
+        razao_social TEXT NOT NULL,
+        cnpj         TEXT,
+        whatsapp     TEXT,
+        criado_em    TEXT DEFAULT ({ts})
+    )
+    """)
+
     # Tabela de compras de mudas: registra intenção de compra antes do plantio.
     # comprovante: nome do arquivo de pagamento salvo em static/uploads/.
     # status evolui: em_analise → aprovado | reprovado (ação do admin).

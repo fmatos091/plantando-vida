@@ -1689,6 +1689,114 @@
         </div>
         <!-- fim dados bancários entidade -->
 
+        <!-- ---- Cadastro de Entidades (accordion colapsível) ---- -->
+        <div class="bg-white rounded-2xl shadow overflow-hidden mb-6">
+
+            <button type="button" onclick="toggleCadastroEntidades()"
+                class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-blue-50 transition">
+                <div class="flex items-center gap-3">
+                    <span class="text-lg">🏛️</span>
+                    <div>
+                        <p class="font-bold text-gray-800 text-sm">Cadastro de Entidades</p>
+                        <p class="text-xs text-gray-400 mt-0.5">{{ entidades|length }} entidade(s) cadastrada(s)</p>
+                    </div>
+                </div>
+                <svg id="seta-entidades" class="w-4 h-4 text-gray-400 transition-transform duration-200"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            <div id="conteudo-entidades" class="hidden border-t border-gray-100">
+                <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- Formulário de cadastro de nova entidade -->
+                    <div>
+                        <h4 class="font-semibold text-gray-700 text-sm mb-4">➕ Nova Entidade</h4>
+                        <form method="POST" action="/admin/entidade/salvar" class="space-y-4">
+
+                            <!-- Razão Social -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">
+                                    Razão Social <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" name="razao_social" required
+                                    placeholder="Ex: APAE de Arapoti"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- CNPJ com máscara -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">CNPJ</label>
+                                <input type="text" name="cnpj" maxlength="18" inputmode="numeric"
+                                    placeholder="00.000.000/0001-00"
+                                    oninput="mascaraCnpjEnt(this)"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- WhatsApp com máscara -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Fone WhatsApp</label>
+                                <input type="text" name="whatsapp" maxlength="15" inputmode="numeric"
+                                    placeholder="(00) 00000-0000"
+                                    oninput="mascaraFoneEnt(this)"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <button type="submit"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
+                                💾 Cadastrar Entidade
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Lista de entidades cadastradas -->
+                    <div>
+                        <h4 class="font-semibold text-gray-700 text-sm mb-4">
+                            📋 Entidades Cadastradas
+                            <span class="text-gray-400 font-normal">({{ entidades|length }})</span>
+                        </h4>
+
+                        {% if entidades %}
+                        <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
+                            {% for e in entidades %}
+                            <!-- e[0]=id  e[1]=razao_social  e[2]=cnpj  e[3]=whatsapp -->
+                            <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-semibold text-gray-800 truncate">{{ e[1] }}</p>
+                                    <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                        {% if e[2] %}
+                                        <p class="text-xs text-gray-400">CNPJ: {{ e[2] }}</p>
+                                        {% endif %}
+                                        {% if e[3] %}
+                                        <p class="text-xs text-gray-400">📱 {{ e[3] }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <!-- Botão excluir com confirmação -->
+                                <form method="POST" action="/admin/entidade/{{ e[0] }}/excluir"
+                                    onsubmit="return confirm('Excluir {{ e[1] }}?')">
+                                    <button type="submit"
+                                        class="text-red-400 hover:text-red-600 text-xs font-semibold shrink-0 transition">
+                                        🗑️
+                                    </button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="bg-gray-50 rounded-xl p-8 text-center text-gray-400">
+                            <div class="text-3xl mb-2">🏛️</div>
+                            <p class="text-sm">Nenhuma entidade cadastrada ainda.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        <!-- fim cadastro entidades -->
+
         <script>
         // Abre/fecha o accordion de Dados Bancários da Entidade
         function toggleDadosBancariosEnt() {
@@ -1706,6 +1814,34 @@
                 document.getElementById('seta-dados-ent').style.transform = 'rotate(180deg)';
             }
         })();
+
+        // Abre/fecha o accordion de Cadastro de Entidades
+        function toggleCadastroEntidades() {
+            const conteudo = document.getElementById('conteudo-entidades');
+            const seta     = document.getElementById('seta-entidades');
+            const aberto   = !conteudo.classList.contains('hidden');
+            conteudo.classList.toggle('hidden', aberto);
+            seta.style.transform = aberto ? '' : 'rotate(180deg)';
+        }
+
+        // ── Máscara CNPJ: 00.000.000/0000-00 ──
+        function mascaraCnpjEnt(input) {
+            let v = input.value.replace(/\D/g, '').slice(0, 14);
+            if (v.length > 12)     v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
+            else if (v.length > 8) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{0,4})/, '$1.$2.$3/$4');
+            else if (v.length > 5) v = v.replace(/(\d{2})(\d{3})(\d{0,3})/, '$1.$2.$3');
+            else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,3})/, '$1.$2');
+            input.value = v;
+        }
+
+        // ── Máscara telefone: (00) 00000-0000 ──
+        function mascaraFoneEnt(input) {
+            let v = input.value.replace(/\D/g, '').slice(0, 11);
+            if (v.length >= 11)     v = v.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+            else if (v.length >= 7) v = v.replace(/^(\d{2})(\d{4,5})(\d{0,4})/, '($1) $2-$3');
+            else if (v.length >= 3) v = v.replace(/^(\d{2})(\d+)/, '($1) $2');
+            input.value = v;
+        }
         </script>
 
         <!-- ---- Saldos Pendentes Entidade ---- -->
