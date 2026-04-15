@@ -1644,19 +1644,28 @@ def meu_perfil():
     cursor = conn.cursor()
 
     if request.method == "POST":
-        nome            = request.form.get("nome", "").strip()
-        email           = request.form.get("email", "").strip()
-        cpf             = request.form.get("cpf", "").strip()
-        telefone        = request.form.get("telefone", "").strip()
-        data_nascimento = request.form.get("data_nascimento", "").strip()
+        nome                = request.form.get("nome", "").strip()
+        email               = request.form.get("email", "").strip()
+        cpf                 = request.form.get("cpf", "").strip()
+        telefone            = request.form.get("telefone", "").strip()
+        data_nascimento     = request.form.get("data_nascimento", "").strip()
+        # Campos de localização e entidade (podem ser vazios para usuários antigos)
+        uf                  = request.form.get("uf", "").strip()
+        cidade              = request.form.get("cidade", "").strip()
+        prefeitura          = request.form.get("prefeitura", "").strip()
+        entidade_favorecida = request.form.get("entidade_favorecida", "").strip()
 
         try:
-            # Atualiza os dados cadastrais — senha permanece intocada
+            # Atualiza os dados cadastrais incluindo os novos campos de localização.
+            # A senha permanece intocada — alteração segue fluxo separado via token.
             cursor.execute("""
                 UPDATE usuarios
-                SET nome = ?, email = ?, cpf = ?, telefone = ?, data_nascimento = ?
+                SET nome = ?, email = ?, cpf = ?, telefone = ?, data_nascimento = ?,
+                    uf = ?, cidade = ?, prefeitura = ?, entidade_favorecida = ?
                 WHERE id = ?
-            """, (nome, email, cpf, telefone, data_nascimento, session["usuario_id"]))
+            """, (nome, email, cpf, telefone, data_nascimento,
+                  uf, cidade, prefeitura, entidade_favorecida,
+                  session["usuario_id"]))
             conn.commit()
             # Atualiza o nome na sessão para refletir imediatamente no dashboard
             session["usuario_nome"] = nome
@@ -1669,9 +1678,12 @@ def meu_perfil():
 
         return redirect("/meu-perfil")
 
-    # GET: busca os dados atuais do usuário
+    # GET: busca os dados atuais do usuário incluindo os novos campos de localização.
+    # u[0]=id  u[1]=nome  u[2]=email  u[3]=cpf  u[4]=telefone  u[5]=data_nascimento
+    # u[6]=uf  u[7]=cidade  u[8]=prefeitura  u[9]=entidade_favorecida
     cursor.execute("""
-        SELECT id, nome, email, cpf, telefone, data_nascimento
+        SELECT id, nome, email, cpf, telefone, data_nascimento,
+               uf, cidade, prefeitura, entidade_favorecida
         FROM usuarios WHERE id = ?
     """, (session["usuario_id"],))
     usuario = cursor.fetchone()

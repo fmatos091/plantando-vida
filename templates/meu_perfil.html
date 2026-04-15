@@ -41,12 +41,13 @@
 
         <!-- ===================== SEÇÃO 1: DADOS CADASTRAIS =====================
              Formulário com os dados do usuário logado pré-preenchidos.
-             Permite editar nome, email, CPF, telefone e data de nascimento.
+             Permite editar nome, email, CPF, telefone, data de nascimento,
+             UF, Cidade, Prefeitura e Entidade Favorecida (APAE).
              Índices da tupla usuario:
-               usuario[0] = id
-               usuario[1] = nome
-               usuario[2] = email
-               usuario[3] = cpf
+               usuario[0] = id              usuario[6] = uf
+               usuario[1] = nome            usuario[7] = cidade
+               usuario[2] = email           usuario[8] = prefeitura
+               usuario[3] = cpf             usuario[9] = entidade_favorecida
                usuario[4] = telefone
                usuario[5] = data_nascimento
         -->
@@ -94,6 +95,70 @@
                         class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400" />
                 </div>
 
+                <!-- Separador visual antes dos campos de localização -->
+                <div class="border-t border-gray-100 pt-3">
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">📍 Localização e Entidade</p>
+                </div>
+
+                <!-- UF e Cidade: select UF pré-selecionado; Cidade carregada via IBGE API -->
+                <div class="flex gap-3">
+
+                    <!-- Select UF: ao mudar, dispara carregarCidades() -->
+                    <div class="w-28">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">UF</label>
+                        <select id="uf" name="uf" onchange="carregarCidades()"
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
+                            <option value="">--</option>
+                            {% set uf_atual = usuario[6] or '' %}
+                            {% for uf in ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
+                            <option value="{{ uf }}" {{ 'selected' if uf == uf_atual }}>{{ uf }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Select Cidade: populado via JS após seleção da UF.
+                         Pré-seleciona a cidade salva no banco via JS após carregamento. -->
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+                        <select id="cidade" name="cidade" onchange="preencheCamposAuto()"
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white disabled:bg-gray-100 disabled:text-gray-400"
+                            {{ 'disabled' if not (usuario[6]) }}>
+                            <option value="{{ usuario[7] or '' }}">
+                                {{ usuario[7] or 'Selecione a UF primeiro' }}
+                            </option>
+                        </select>
+                        <!-- Indicador de carregamento enquanto a API do IBGE responde -->
+                        <p id="loading-cidades" class="text-xs text-green-600 mt-1 hidden">⏳ Carregando cidades...</p>
+                    </div>
+
+                </div>
+
+                <!-- Prefeitura: auto-preenchida com "Prefeitura Municipal de {CIDADE}".
+                     Fica editável para o usuário corrigir se necessário. -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Prefeitura
+                        <span class="text-xs text-gray-400 font-normal">— preenchida automaticamente</span>
+                    </label>
+                    <input id="prefeitura" name="prefeitura"
+                        placeholder="Selecione a cidade acima"
+                        value="{{ usuario[8] or '' }}"
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-gray-50" />
+                </div>
+
+                <!-- Entidade Favorecida: auto-preenchida com "APAE de {CIDADE}".
+                     Editável para confirmar ou corrigir o nome exato da entidade local. -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Entidade Favorecida (APAE)
+                        <span class="text-xs text-gray-400 font-normal">— confirme o nome</span>
+                    </label>
+                    <input id="entidade_favorecida" name="entidade_favorecida"
+                        placeholder="Selecione a cidade acima"
+                        value="{{ usuario[9] or '' }}"
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-gray-50" />
+                </div>
+
                 <!-- Botão salvar dados -->
                 <button type="submit"
                     class="w-full py-2 rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white transition">
@@ -138,7 +203,66 @@
          mascaraTelefone(): formata o campo telefone no padrão (00) 00000-0000.
     -->
     <script>
-        // Máscara CPF: insere pontos e traço automaticamente
+        // ── UF / Cidade / Prefeitura / APAE ──
+        // Busca municípios via API pública do IBGE ao selecionar a UF.
+        // Ao selecionar a cidade, preenche automaticamente Prefeitura e APAE.
+
+        async function carregarCidades() {
+            const uf          = document.getElementById('uf').value;
+            const selectCidade = document.getElementById('cidade');
+            const loading     = document.getElementById('loading-cidades');
+            if (!uf) return;
+
+            // Indica carregamento e desabilita o select durante a busca
+            selectCidade.disabled = true;
+            selectCidade.innerHTML = '<option value="">Carregando...</option>';
+            if (loading) loading.classList.remove('hidden');
+
+            try {
+                // API gratuita do IBGE — retorna municípios ordenados por nome
+                const resp  = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`);
+                const dados = await resp.json();
+
+                selectCidade.innerHTML = '<option value="">Selecione a cidade</option>';
+                dados.forEach(c => {
+                    const opt       = document.createElement('option');
+                    opt.value       = c.nome;
+                    opt.textContent = c.nome;
+                    selectCidade.appendChild(opt);
+                });
+
+                selectCidade.disabled = false;
+                // Pré-seleciona a cidade já salva no banco
+                const cidadeSalva = '{{ usuario[7] or "" }}';
+                if (cidadeSalva) selectCidade.value = cidadeSalva;
+
+            } catch (e) {
+                selectCidade.innerHTML = '<option value="">Erro ao carregar cidades</option>';
+            } finally {
+                if (loading) loading.classList.add('hidden');
+            }
+        }
+
+        // Preenche Prefeitura e APAE com base na cidade selecionada.
+        // Só preenche se o campo ainda estiver vazio (não sobrescreve edição manual).
+        function preencheCamposAuto() {
+            const cidade = document.getElementById('cidade').value;
+            if (!cidade) return;
+
+            const campoPref = document.getElementById('prefeitura');
+            const campoApae = document.getElementById('entidade_favorecida');
+
+            if (campoPref && !campoPref.value) campoPref.value = `Prefeitura Municipal de ${cidade}`;
+            if (campoApae && !campoApae.value) campoApae.value = `APAE de ${cidade}`;
+        }
+
+        // Se a UF já estiver preenchida no banco, carrega as cidades ao abrir a página
+        window.addEventListener('DOMContentLoaded', function () {
+            const uf = document.getElementById('uf');
+            if (uf && uf.value) carregarCidades();
+        });
+
+        // ── Máscara CPF: insere pontos e traço automaticamente
         function mascaraCpf(input) {
             let v = input.value.replace(/\D/g, '').substring(0, 11);
             v = v.replace(/(\d{3})(\d)/, '$1.$2');
