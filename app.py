@@ -143,6 +143,20 @@ def init_db():
     )
     """)
 
+    # Tabela de dados bancários da Entidade Favorecida (registro único).
+    # Mesma estrutura de dados_bancarios — exibida na aba de Fechamento Entidade.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS dados_bancarios_entidade (
+        id               {pk},
+        nome_empresarial TEXT,
+        banco            TEXT,
+        conta            TEXT,
+        agencia          TEXT,
+        chave_pix        TEXT,
+        qrcode_pix       TEXT
+    )
+    """)
+
     # Tabela de compras de mudas: registra intenção de compra antes do plantio.
     # comprovante: nome do arquivo de pagamento salvo em static/uploads/.
     # status evolui: em_analise → aprovado | reprovado (ação do admin).

@@ -1473,9 +1473,13 @@ def admin_painel():
     cursor.execute("SELECT id, nome, tipo, valor FROM especies_plantas ORDER BY nome")
     especies = cursor.fetchall()
 
-    # ---- Consulta Dados Bancários (registro único) ----
+    # ---- Consulta Dados Bancários — Admin (registro único) ----
     cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios LIMIT 1")
     dados_bancarios = cursor.fetchone()
+
+    # ---- Consulta Dados Bancários — Entidade Favorecida (registro único) ----
+    cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios_entidade LIMIT 1")
+    dados_bancarios_entidade = cursor.fetchone()
 
     # ---- Consulta Percentuais de Vigência — tabela de distribuição do valor das plantas ----
     # p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin
@@ -1540,6 +1544,7 @@ def admin_painel():
                            compras=compras,
                            especies=especies,
                            dados_bancarios=dados_bancarios,
+                           dados_bancarios_entidade=dados_bancarios_entidade,
                            percentuais=percentuais,
                            fechamento_pendente=fechamento_pendente,
                            fechamento_entidade_pendente=fechamento_entidade_pendente,
@@ -1930,6 +1935,58 @@ def admin_salvar_dados_bancarios():
 
     flash("Dados bancários salvos com sucesso.", "sucesso")
     return redirect("/admin/painel?tipo=dados_bancarios")
+
+
+# ===================== ROTA ADMIN: SALVAR DADOS BANCÁRIOS DA ENTIDADE FAVORECIDA =====================
+# Upsert: atualiza o registro existente ou cria um novo (registro único).
+# O QR Code PIX é salvo em static/pix/ com prefixo 'entidade_' para não colidir.
+@app.route("/admin/dados-bancarios-entidade/salvar", methods=["POST"])
+def admin_salvar_dados_bancarios_entidade():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    nome_empresarial = request.form.get("nome_empresarial_ent", "").strip()
+    banco            = request.form.get("banco_ent", "").strip()
+    conta            = request.form.get("conta_ent", "").strip()
+    agencia          = request.form.get("agencia_ent", "").strip()
+    chave_pix        = request.form.get("chave_pix_ent", "").strip()
+
+    # Upload do QR Code — salvo como entidade_qrcode.{ext} em static/pix/
+    os.makedirs(PIX_FOLDER, exist_ok=True)
+    qrcode_novo = None
+    arquivo_qr  = request.files.get("qrcode_pix_ent")
+    if arquivo_qr and arquivo_qr.filename:
+        ext = arquivo_qr.filename.rsplit(".", 1)[-1].lower()
+        if ext in {"jpg", "jpeg", "png"}:
+            nome_arquivo = f"entidade_qrcode.{ext}"
+            arquivo_qr.save(os.path.join(PIX_FOLDER, nome_arquivo))
+            qrcode_novo = nome_arquivo
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, qrcode_pix FROM dados_bancarios_entidade LIMIT 1")
+    existente = cursor.fetchone()
+
+    # Mantém o QR Code anterior se nenhum novo foi enviado
+    qrcode_final = qrcode_novo or (existente[1] if existente else None)
+
+    if existente:
+        cursor.execute("""
+            UPDATE dados_bancarios_entidade
+            SET nome_empresarial=?, banco=?, conta=?, agencia=?, chave_pix=?, qrcode_pix=?
+            WHERE id=?
+        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final, existente[0]))
+    else:
+        cursor.execute("""
+            INSERT INTO dados_bancarios_entidade (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final))
+
+    conn.commit()
+    conn.close()
+
+    flash("Dados bancários da entidade salvos com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=fechamento_entidade")
 
 
 # ===================== API: BUSCA DE ESPÉCIES (AJAX) =====================
