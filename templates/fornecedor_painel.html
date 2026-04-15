@@ -89,7 +89,14 @@
         <div class="bg-green-700 px-6 py-4 flex justify-between items-center">
             <div>
                 <h2 class="text-white font-bold text-base">📊 Minhas Estatísticas</h2>
-                <p class="text-green-200 text-xs mt-0.5">Mudas validadas e saldo por período</p>
+                <!-- Badge com o percentual da vigência ativa hoje, preenchido via JS -->
+                <p class="text-green-200 text-xs mt-0.5">
+                    Mudas validadas e saldo por período
+                    &nbsp;·&nbsp;
+                    <span id="badge-vigencia" class="bg-green-600 text-white font-semibold px-2 py-0.5 rounded-full text-xs">
+                        carregando...
+                    </span>
+                </p>
             </div>
             <!-- Dropdown Mês/Ano: gerado dinamicamente via JS com os meses disponíveis -->
             <select id="filtro-mes" onchange="atualizarStats()"
@@ -101,23 +108,33 @@
 
         <div class="p-6">
 
-            <!-- Grid 2 colunas: quantidade e saldo -->
-            <div class="grid grid-cols-2 gap-4 mb-6">
+            <!-- Grid 3 colunas: quantidade, saldo pendente e total histórico -->
+            <div class="grid grid-cols-3 gap-3 mb-6">
 
-                <!-- Card: Quantidade de plantas validadas -->
-                <div class="bg-green-50 rounded-xl p-4 text-center border border-green-100">
+                <!-- Card: Quantidade de mudas validadas no período -->
+                <div class="bg-green-50 rounded-xl p-3 text-center border border-green-100">
                     <p class="text-xs text-green-600 font-semibold uppercase tracking-wider mb-1">
-                        Plantas Validadas
+                        Mudas
                     </p>
-                    <p id="stat-quantidade" class="text-3xl font-extrabold text-green-700">0</p>
+                    <p id="stat-quantidade" class="text-2xl font-extrabold text-green-700">0</p>
                 </div>
 
-                <!-- Card: Saldo total das validações -->
-                <div class="bg-emerald-50 rounded-xl p-4 text-center border border-emerald-100">
-                    <p class="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-1">
-                        Saldo Total
+                <!-- Card: Saldo líquido PENDENTE (ainda não faturado pelo admin) -->
+                <div class="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
+                    <p class="text-xs text-amber-600 font-semibold uppercase tracking-wider mb-1">
+                        A Receber
                     </p>
-                    <p id="stat-saldo" class="text-2xl font-extrabold text-emerald-700">R$ 0,00</p>
+                    <p id="stat-saldo-pendente" class="text-lg font-extrabold text-amber-700">R$ 0,00</p>
+                    <p class="text-xs text-amber-400 mt-0.5">pendente</p>
+                </div>
+
+                <!-- Card: Total histórico líquido (faturado + pendente) -->
+                <div class="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
+                    <p class="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-1">
+                        Total
+                    </p>
+                    <p id="stat-saldo-total" class="text-lg font-extrabold text-emerald-700">R$ 0,00</p>
+                    <p class="text-xs text-emerald-400 mt-0.5">histórico</p>
                 </div>
 
             </div>
@@ -424,11 +441,20 @@
         // inicio_vigencia seja <= à data da compra. Se não encontrar, retorna 100%.
         function getPercFornecedor(dataValidacao) {
             const data = (dataValidacao || '9999-12-31').slice(0, 10);
-            // percentuais está ordenado ASC, iterar do fim para o início
+            // percentuais ordenado ASC: iterar do fim para o início
             for (let i = percentuais.length - 1; i >= 0; i--) {
                 if (percentuais[i][1] <= data) return percentuais[i][2];
             }
             return 100; // sem regra cadastrada: 100% vai para o fornecedor
+        }
+
+        // Exibe no cabeçalho da seção o percentual da vigência ativa hoje.
+        // Isso confirma visualmente ao fornecedor qual parâmetro está em uso.
+        function exibirVigenciaAtiva() {
+            const hoje = new Date().toISOString().slice(0, 10);
+            const perc = getPercFornecedor(hoje);
+            const el   = document.getElementById('badge-vigencia');
+            if (el) el.textContent = perc + '% p/ fornecedor';
         }
 
         // ===================== GRID DE ESTATÍSTICAS =====================
@@ -454,30 +480,40 @@
         }
 
         // Atualiza os cards de quantidade e saldo líquido conforme o filtro selecionado.
-        // O saldo é calculado aplicando o percentual do fornecedor vigente em cada validação.
+        // r[5] = faturamento_id: NULL = pendente de faturamento; preenchido = já faturado.
+        // Saldo Pendente = apenas compras ainda não faturadas (r[5] nulo/zero).
+        // Total Histórico = todas as compras validadas (faturadas + pendentes).
         function atualizarStats() {
-            const filtro   = document.getElementById('filtro-mes').value;
-            const lista    = document.getElementById('lista-retiradas');
-            const semMsg   = document.getElementById('sem-retiradas');
+            const filtro = document.getElementById('filtro-mes').value;
+            const lista  = document.getElementById('lista-retiradas');
+            const semMsg = document.getElementById('sem-retiradas');
 
-            // Filtra os dados pelo período selecionado (ou todos)
+            // Filtra pelo período selecionado (ou todos)
             const filtradas = filtro
                 ? retiradas.filter(r => (r[4] || '').startsWith(filtro))
                 : retiradas;
 
-            // Calcula totais aplicando o percentual vigente em cada validação
-            const quantidade   = filtradas.length;
-            const saldoLiquido = filtradas.reduce((acc, r) => {
-                const perc = getPercFornecedor(r[4]) / 100;
-                return acc + (r[3] || 0) * perc;
+            // Separa pendentes (não faturadas) das já faturadas pelo faturamento_id
+            const pendentes = filtradas.filter(r => !r[5]);
+
+            // Saldo pendente: aplica o percentual da vigência em cada validação
+            const saldoPendente = pendentes.reduce((acc, r) => {
+                return acc + (r[3] || 0) * getPercFornecedor(r[4]) / 100;
             }, 0);
 
-            // Atualiza os cards
-            document.getElementById('stat-quantidade').textContent = quantidade;
-            document.getElementById('stat-saldo').textContent =
-                'R$ ' + saldoLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            // Total histórico: todas as retiradas com percentual vigente
+            const totalHistorico = filtradas.reduce((acc, r) => {
+                return acc + (r[3] || 0) * getPercFornecedor(r[4]) / 100;
+            }, 0);
 
-            // Monta a lista de registros com valor bruto e valor líquido do fornecedor
+            // Atualiza os três cards: quantidade, saldo pendente e total histórico
+            document.getElementById('stat-quantidade').textContent = filtradas.length;
+            document.getElementById('stat-saldo-pendente').textContent =
+                'R$ ' + saldoPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            document.getElementById('stat-saldo-total').textContent =
+                'R$ ' + totalHistorico.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+            // Monta a lista de registros — cada item exibe o percentual da vigência aplicado
             lista.innerHTML = '';
             if (!filtradas.length) {
                 semMsg.classList.remove('hidden');
@@ -486,16 +522,23 @@
             semMsg.classList.add('hidden');
 
             filtradas.forEach(r => {
-                const icone      = (r[2] || '').toLowerCase().includes('frut') ? '🍎' : '🌳';
-                const data       = r[4] ? r[4].slice(0, 10) : '—';
-                const perc       = getPercFornecedor(r[4]);
-                const liquido    = (r[3] || 0) * perc / 100;
-                const div        = document.createElement('div');
-                div.className    = 'flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2 text-sm';
-                div.innerHTML    = `
+                const icone    = (r[2] || '').toLowerCase().includes('frut') ? '🍎' : '🌳';
+                const data     = r[4] ? r[4].slice(0, 10) : '—';
+                const perc     = getPercFornecedor(r[4]);
+                const liquido  = (r[3] || 0) * perc / 100;
+                // Badge: diferencia pendente de faturado
+                const badgeFat = r[5]
+                    ? `<span class="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">Faturado</span>`
+                    : `<span class="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Pendente</span>`;
+                const div      = document.createElement('div');
+                div.className  = 'flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2 text-sm';
+                div.innerHTML  = `
                     <div>
-                        <span class="font-semibold text-gray-700">${icone} ${r[1]}</span>
-                        <span class="text-xs text-gray-400 ml-2">#${String(r[0]).padStart(6,'0')}</span>
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="font-semibold text-gray-700">${icone} ${r[1]}</span>
+                            <span class="text-xs text-gray-400">#${String(r[0]).padStart(6,'0')}</span>
+                            ${badgeFat}
+                        </div>
                         <p class="text-xs text-gray-400">${data}</p>
                     </div>
                     <div class="text-right">
@@ -510,6 +553,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             popularDropdown();
             atualizarStats();
+            exibirVigenciaAtiva(); // mostra o percentual ativo no badge do cabeçalho
         });
 
         // ===================== CÂMERA — VALIDAR VOUCHER =====================

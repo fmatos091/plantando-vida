@@ -1125,8 +1125,9 @@ def fornecedor_painel():
 
     # Busca todas as compras já retiradas por este fornecedor para o grid de estatísticas.
     # r[0]=id  r[1]=especie_nome  r[2]=tipo_planta  r[3]=valor  r[4]=data_validacao
+    # r[5]=faturamento_id (NULL = pendente de faturamento; preenchido = já faturado)
     cursor.execute("""
-        SELECT id, especie_nome, tipo_planta, valor, data_validacao
+        SELECT id, especie_nome, tipo_planta, valor, data_validacao, faturamento_id
         FROM compras
         WHERE fornecedor_id = ? AND status = 'retirado'
         ORDER BY data_validacao DESC
