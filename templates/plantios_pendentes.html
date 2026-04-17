@@ -141,6 +141,8 @@
                                     {% endif %}
                                 </p>
                                 <div class="flex gap-3 flex-col sm:flex-row">
+
+                                    <!-- Campo de data do acompanhamento -->
                                     <div class="flex-1">
                                         <label class="block text-xs text-gray-400 mb-1">Data</label>
                                         <input type="date" name="acompanhamento_{{ n }}"
@@ -148,22 +150,39 @@
                                             class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                                    focus:outline-none focus:ring-2 focus:ring-green-400" />
                                     </div>
+
+                                    <!-- Foto via câmera: input file oculto + botão + preview -->
                                     <div class="flex-1">
-                                        <label class="block text-xs text-gray-400 mb-1">
-                                            Foto (jpg/png)
-                                            {% if foto_val %}
-                                            <span class="text-green-600">— já cadastrada</span>
-                                            {% endif %}
-                                        </label>
-                                        <input type="file" name="foto_{{ n }}" accept=".jpg,.jpeg,.png"
-                                            class="w-full text-sm text-gray-500 file:mr-2 file:py-1 file:px-2
-                                                   file:rounded file:border-0 file:bg-green-100
-                                                   file:text-green-700 file:font-medium hover:file:bg-green-200" />
+                                        <label class="block text-xs text-gray-400 mb-1">Foto</label>
+
+                                        <!-- Input file oculto — preenchido via JS com o blob da câmera -->
+                                        <input type="file" name="foto_{{ n }}"
+                                            id="foto-input-{{ p[0] }}-{{ n }}"
+                                            accept="image/*" class="hidden" />
+
+                                        <!-- Botão que abre a câmera -->
+                                        <button type="button"
+                                            onclick="abrirCamera({{ p[0] }}, {{ n }})"
+                                            class="w-full flex items-center justify-center gap-2
+                                                   bg-green-600 hover:bg-green-700 text-white
+                                                   text-sm font-semibold py-2 px-3 rounded-lg transition">
+                                            📷 Tirar Foto
+                                        </button>
+
+                                        <!-- Preview: foto salva anteriormente (substituída após nova captura) -->
                                         {% if foto_val %}
-                                        <img src="/static/uploads/{{ foto_val }}" alt="Foto {{ n }}"
-                                            class="mt-2 w-20 h-20 object-cover rounded-lg shadow-sm" />
+                                        <img id="foto-preview-{{ p[0] }}-{{ n }}"
+                                            src="/static/uploads/{{ foto_val }}"
+                                            alt="Foto {{ n }}"
+                                            class="mt-2 w-full max-h-40 object-cover rounded-lg shadow-sm" />
+                                        {% else %}
+                                        <!-- Preview vazio: exibido somente após captura nova -->
+                                        <img id="foto-preview-{{ p[0] }}-{{ n }}"
+                                            src="" alt="Foto {{ n }}"
+                                            class="mt-2 w-full max-h-40 object-cover rounded-lg shadow-sm hidden" />
                                         {% endif %}
                                     </div>
+
                                 </div>
                             </div>
                             {% endfor %}
@@ -319,6 +338,42 @@
     </div>
 
 
+    <!-- ===================== MODAL DA CÂMERA =====================
+         Overlay em tela cheia que exibe o feed da câmera traseira.
+         Permanece oculto até abrirCamera() ser chamado.
+         Elementos:
+           #camera-modal  — container principal (z-50, fundo preto)
+           #camera-video  — stream de vídeo ao vivo
+           #camera-canvas — canvas oculto usado para capturar o frame
+    -->
+    <div id="camera-modal" class="hidden fixed inset-0 bg-black z-50 flex flex-col">
+
+        <!-- Feed de vídeo ao vivo: ocupa todo o espaço disponível -->
+        <video id="camera-video" autoplay playsinline
+            class="w-full flex-1 object-cover"></video>
+
+        <!-- Canvas oculto: usado apenas para renderizar o frame capturado -->
+        <canvas id="camera-canvas" class="hidden"></canvas>
+
+        <!-- Botões de ação na parte inferior -->
+        <div class="p-4 flex gap-3 bg-black bg-opacity-70">
+            <!-- Captura o frame atual e fecha o modal -->
+            <button type="button" onclick="capturarFoto()"
+                class="flex-1 flex items-center justify-center gap-2
+                       bg-white text-gray-900 font-bold text-sm py-3 rounded-xl transition
+                       hover:bg-gray-100">
+                📸 Capturar
+            </button>
+            <!-- Cancela sem salvar foto -->
+            <button type="button" onclick="fecharCamera()"
+                class="px-6 flex items-center justify-center
+                       bg-red-600 hover:bg-red-700 text-white font-bold text-sm
+                       py-3 rounded-xl transition">
+                ✕ Cancelar
+            </button>
+        </div>
+    </div>
+
     <!-- ===================== JAVASCRIPT: AUTO-REFRESH =====================
          Recarrega a página automaticamente a cada 60 segundos para refletir
          atualizações de status feitas pelo administrador sem ação manual.
@@ -333,6 +388,84 @@
             const aberto   = !conteudo.classList.contains('hidden');
             conteudo.classList.toggle('hidden', aberto);
             seta.style.transform = aberto ? '' : 'rotate(180deg)';
+        }
+
+        // ===================== CÂMERA =====================
+        // Variáveis globais que rastreiam o stream ativo e qual
+        // acompanhamento está sendo fotografado.
+        let _stream     = null;  // MediaStream retornado por getUserMedia
+        let _targetPid  = null;  // pk do plantio alvo (ex: 42)
+        let _targetN    = null;  // número do acompanhamento alvo (1, 2 ou 3)
+
+        // Abre o modal da câmera e inicia o stream de vídeo.
+        // pid: pk do plantio | n: número do acompanhamento (1-3)
+        async function abrirCamera(pid, n) {
+            _targetPid = pid;
+            _targetN   = n;
+
+            try {
+                // Solicita acesso à câmera traseira (environment) com fallback para qualquer câmera
+                _stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: 'environment' } },
+                    audio: false
+                });
+
+                const video = document.getElementById('camera-video');
+                video.srcObject = _stream;
+
+                // Exibe o modal
+                document.getElementById('camera-modal').classList.remove('hidden');
+            } catch (err) {
+                alert('Não foi possível acessar a câmera: ' + err.message);
+            }
+        }
+
+        // Captura o frame atual do vídeo, converte para JPEG e anexa ao
+        // input file oculto correspondente ao acompanhamento selecionado.
+        function capturarFoto() {
+            const video  = document.getElementById('camera-video');
+            const canvas = document.getElementById('camera-canvas');
+
+            // Ajusta o canvas ao tamanho real do frame de vídeo
+            canvas.width  = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Desenha o frame atual no canvas
+            canvas.getContext('2d').drawImage(video, 0, 0);
+
+            // Converte o canvas para blob JPEG e injeta no input file oculto
+            canvas.toBlob(blob => {
+                const fileName  = `acomp_${_targetPid}_${_targetN}.jpg`;
+                const file      = new File([blob], fileName, { type: 'image/jpeg' });
+
+                // DataTransfer é o único meio de definir programaticamente files em um input
+                const dt = new DataTransfer();
+                dt.items.add(file);
+
+                const input = document.getElementById(`foto-input-${_targetPid}-${_targetN}`);
+                input.files = dt.files;
+
+                // Exibe preview imediato da foto capturada
+                const preview = document.getElementById(`foto-preview-${_targetPid}-${_targetN}`);
+                preview.src = URL.createObjectURL(blob);
+                preview.classList.remove('hidden');
+
+                // Encerra a câmera após captura
+                fecharCamera();
+            }, 'image/jpeg', 0.85);   // qualidade 85% — bom equilíbrio tamanho/detalhe
+        }
+
+        // Para o stream da câmera e oculta o modal.
+        // Chamado tanto pelo botão "Cancelar" quanto após captura bem-sucedida.
+        function fecharCamera() {
+            if (_stream) {
+                // Para cada faixa (vídeo) do stream para liberar a câmera do dispositivo
+                _stream.getTracks().forEach(track => track.stop());
+                _stream = null;
+            }
+            document.getElementById('camera-modal').classList.add('hidden');
+            _targetPid = null;
+            _targetN   = null;
         }
 
         // Inicia contador regressivo de 60 segundos

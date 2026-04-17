@@ -1071,7 +1071,7 @@
 
             <!-- Formulário de dados bancários -->
             <div class="bg-white rounded-xl shadow p-6">
-                <h3 class="font-bold text-gray-800 mb-5">🏦 Dados Bancários da Entidade</h3>
+                <h3 class="font-bold text-gray-800 mb-5">🏦 Dados Bancários da Administração</h3>
                 <form method="POST" action="/admin/dados-bancarios/salvar" enctype="multipart/form-data"
                     class="space-y-4">
 
@@ -1227,12 +1227,18 @@
         </div>
         {% endif %}
 
-        <!-- Formulário para cadastrar nova vigência -->
+        <!-- Formulário para cadastrar nova vigência ou editar uma existente.
+             O campo oculto "id" controla o modo: vazio = INSERT, preenchido = UPDATE.
+        -->
         <div class="bg-white rounded-2xl shadow p-6 mb-6">
-            <h3 class="text-sm font-bold text-gray-700 mb-4">➕ Nova Vigência de Percentuais</h3>
+            <h3 id="form-titulo-perc" class="text-sm font-bold text-gray-700 mb-4">➕ Nova Vigência de Percentuais</h3>
 
             <form method="POST" action="/admin/percentual/salvar" id="form-percentual"
                 onsubmit="return validarPercentuais()">
+
+                <!-- Campo oculto: preenchido via JS ao clicar em Editar; vazio ao cadastrar novo -->
+                <input type="hidden" name="id" id="perc-id" value="">
+
                 <div class="grid grid-cols-2 gap-4 mb-4">
 
                     <!-- Data de início da vigência -->
@@ -1240,7 +1246,8 @@
                         <label class="text-xs font-semibold text-gray-600 block mb-1">
                             📅 Início da Vigência
                         </label>
-                        <input type="date" name="inicio_vigencia" required class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                        <input type="date" name="inicio_vigencia" id="inicio_vigencia_perc" required
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                    focus:outline-none focus:ring-2 focus:ring-green-400">
                     </div>
 
@@ -1251,7 +1258,8 @@
                         </label>
                         <div class="flex items-center gap-1">
                             <input type="number" name="perc_fornecedor" id="perc_fornecedor" min="0" max="100"
-                                step="0.01" required placeholder="80" oninput="atualizarSoma()" class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                step="0.01" required placeholder="80" oninput="atualizarSoma()"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                        focus:outline-none focus:ring-2 focus:ring-green-400">
                             <span class="text-gray-500 text-sm">%</span>
                         </div>
@@ -1264,7 +1272,8 @@
                         </label>
                         <div class="flex items-center gap-1">
                             <input type="number" name="perc_entidade" id="perc_entidade" min="0" max="100" step="0.01"
-                                required placeholder="10" oninput="atualizarSoma()" class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                required placeholder="10" oninput="atualizarSoma()"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                        focus:outline-none focus:ring-2 focus:ring-green-400">
                             <span class="text-gray-500 text-sm">%</span>
                         </div>
@@ -1277,7 +1286,8 @@
                         </label>
                         <div class="flex items-center gap-1">
                             <input type="number" name="perc_admin" id="perc_admin" min="0" max="100" step="0.01"
-                                required placeholder="10" oninput="atualizarSoma()" class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                required placeholder="10" oninput="atualizarSoma()"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                        focus:outline-none focus:ring-2 focus:ring-green-400">
                             <span class="text-gray-500 text-sm">%</span>
                         </div>
@@ -1293,10 +1303,21 @@
 
                 </div>
 
-                <button type="submit" class="w-full bg-green-700 hover:bg-green-800 text-white font-semibold
-                           py-2.5 rounded-xl transition text-sm">
-                    💾 Cadastrar Vigência
-                </button>
+                <!-- Botões: Salvar e Cancelar Edição (cancelar só aparece no modo edição) -->
+                <div class="flex gap-3">
+                    <button type="submit" id="btn-submit-perc"
+                        class="flex-1 bg-green-700 hover:bg-green-800 text-white font-semibold
+                               py-2.5 rounded-xl transition text-sm">
+                        💾 Cadastrar Vigência
+                    </button>
+                    <!-- Botão cancelar: só visível quando formulário está em modo edição -->
+                    <button type="button" id="btn-cancelar-perc"
+                        onclick="cancelarEdicaoVigencia()"
+                        class="hidden px-5 bg-gray-100 hover:bg-gray-200 text-gray-600
+                               font-semibold py-2.5 rounded-xl transition text-sm">
+                        ✕ Cancelar
+                    </button>
+                </div>
             </form>
         </div>
 
@@ -1339,16 +1360,29 @@
                         </div>
                     </div>
 
-                    <!-- Botão excluir (não aparece para o vigente para evitar exclusão acidental) -->
-                    {% if not loop.first %}
-                    <form method="POST" action="/admin/percentual/{{ p[0] }}/excluir"
-                        onsubmit="return confirm('Excluir esta vigência?')">
-                        <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-semibold px-3 py-1.5
-                                   rounded-lg bg-red-50 hover:bg-red-100 transition whitespace-nowrap">
-                            🗑️ Excluir
+                    <!-- Botões de ação: Editar (todos) e Excluir (apenas histórico, não o vigente) -->
+                    <div class="flex gap-2 shrink-0">
+
+                        <!-- Editar: disponível para qualquer vigência, incluindo a vigente -->
+                        <button type="button"
+                            onclick="editarVigencia({{ p[0] }}, '{{ p[1] }}', {{ p[2] }}, {{ p[3] }}, {{ p[4] }})"
+                            class="text-blue-600 hover:text-blue-800 text-xs font-semibold px-3 py-1.5
+                                   rounded-lg bg-blue-50 hover:bg-blue-100 transition whitespace-nowrap">
+                            ✏️ Editar
                         </button>
-                    </form>
-                    {% endif %}
+
+                        <!-- Excluir: bloqueado para o registro vigente (loop.first) para evitar exclusão acidental -->
+                        {% if not loop.first %}
+                        <form method="POST" action="/admin/percentual/{{ p[0] }}/excluir"
+                            onsubmit="return confirm('Excluir esta vigência?')">
+                            <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-semibold px-3 py-1.5
+                                       rounded-lg bg-red-50 hover:bg-red-100 transition whitespace-nowrap">
+                                🗑️ Excluir
+                            </button>
+                        </form>
+                        {% endif %}
+
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -2253,6 +2287,45 @@
                 return false;
             }
             return true;
+        }
+
+        // ===================== PERCENTUAIS: EDIÇÃO DE VIGÊNCIA =====================
+
+        // Preenche o formulário com os dados de uma vigência existente e entra em modo edição.
+        // id: pk do registro | data: inicio_vigencia | f/e/a: percentuais do fornecedor/entidade/admin
+        function editarVigencia(id, data, f, e, a) {
+            // Preenche os campos do formulário com os valores da vigência selecionada
+            document.getElementById('perc-id').value            = id;
+            document.getElementById('inicio_vigencia_perc').value = data;
+            document.getElementById('perc_fornecedor').value    = f;
+            document.getElementById('perc_entidade').value      = e;
+            document.getElementById('perc_admin').value         = a;
+
+            // Atualiza o indicador de soma
+            atualizarSoma();
+
+            // Muda visual do formulário para modo edição
+            document.getElementById('form-titulo-perc').textContent   = '✏️ Editar Vigência';
+            document.getElementById('btn-submit-perc').textContent     = '💾 Salvar Alterações';
+            document.getElementById('btn-cancelar-perc').classList.remove('hidden');
+
+            // Rola suavemente até o formulário para o admin ver o que está editando
+            document.getElementById('form-percentual').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Cancela o modo edição e restaura o formulário para cadastro de nova vigência.
+        function cancelarEdicaoVigencia() {
+            // Limpa campo oculto de id e reseta todos os campos do formulário
+            document.getElementById('perc-id').value = '';
+            document.getElementById('form-percentual').reset();
+
+            // Restaura visual do formulário para modo criação
+            document.getElementById('form-titulo-perc').textContent   = '➕ Nova Vigência de Percentuais';
+            document.getElementById('btn-submit-perc').textContent     = '💾 Cadastrar Vigência';
+            document.getElementById('btn-cancelar-perc').classList.add('hidden');
+
+            // Zera o indicador de soma
+            atualizarSoma();
         }
     </script>
 

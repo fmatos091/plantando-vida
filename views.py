@@ -2584,16 +2584,35 @@ def admin_percentual_salvar():
         flash("Informe a data de início da vigência.", "erro")
         return redirect("/admin/painel?tipo=percentuais")
 
+    # Campo oculto "id" vem preenchido quando o admin clicou em ✏️ Editar → UPDATE.
+    # Caso contrário (campo vazio ou ausente) → INSERT de nova vigência.
+    registro_id = request.form.get("id", "").strip()
+
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO percentuais_vigencia (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin)
-        VALUES (?, ?, ?, ?)
-    """, (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin))
+
+    if registro_id:
+        # Atualiza vigência existente mantendo o mesmo id
+        cursor.execute("""
+            UPDATE percentuais_vigencia
+            SET inicio_vigencia = ?,
+                perc_fornecedor = ?,
+                perc_entidade   = ?,
+                perc_admin      = ?
+            WHERE id = ?
+        """, (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin, int(registro_id)))
+        flash(f"Vigência atualizada com sucesso (a partir de {inicio_vigencia}).", "sucesso")
+    else:
+        # Insere nova vigência
+        cursor.execute("""
+            INSERT INTO percentuais_vigencia (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin)
+            VALUES (?, ?, ?, ?)
+        """, (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin))
+        flash(f"Vigência a partir de {inicio_vigencia} cadastrada com sucesso.", "sucesso")
+
     conn.commit()
     conn.close()
 
-    flash(f"Vigência a partir de {inicio_vigencia} cadastrada com sucesso.", "sucesso")
     return redirect("/admin/painel?tipo=percentuais")
 
 
