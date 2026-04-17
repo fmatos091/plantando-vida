@@ -552,14 +552,22 @@ def plantios_pendentes():
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Busca plantios em análise ou reprovados do usuário (aprovados ficam em /plantios/aprovados)
+    # Busca todos os plantios do usuário (todos os status).
+    # Plantios aprovados exibem o formulário de acompanhamentos inline.
+    # p[0]=id  p[1]=data_plantio  p[2]=especie  p[3]=municipio  p[4]=bairro
+    # p[5]=status  p[6]=justificativa  p[7]=criado_em  p[8]=fornecedor_nome
+    # p[9]=acompanhamento_1  p[10]=foto_1  p[11]=acompanhamento_2  p[12]=foto_2
+    # p[13]=acompanhamento_3  p[14]=foto_3
     cursor.execute("""
         SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio, pg.bairro,
                pg.status, pg.justificativa, pg.criado_em,
-               COALESCE(f.razao_social, 'Fornecedor não informado') AS fornecedor_nome
+               COALESCE(f.razao_social, 'Fornecedor não informado') AS fornecedor_nome,
+               pg.acompanhamento_1, pg.foto_1,
+               pg.acompanhamento_2, pg.foto_2,
+               pg.acompanhamento_3, pg.foto_3
         FROM plantas_go pg
         LEFT JOIN fornecedores f ON f.id = pg.fornecedor_id
-        WHERE pg.responsavel_id = ? AND pg.status != 'aprovado'
+        WHERE pg.responsavel_id = ?
         ORDER BY pg.criado_em DESC
     """, (session["usuario_id"],))
     plantios = cursor.fetchall()
@@ -581,6 +589,71 @@ def plantios_pendentes():
     conn.close()
 
     return render_template("plantios_pendentes.html", plantios=plantios, compras=compras)
+
+
+# ===================== ROTA ACOMPANHAMENTOS DO PLANTIO =====================
+# Salva as datas e fotos dos 3 acompanhamentos de um plantio aprovado.
+# Condição: plantio deve pertencer ao usuário logado E ter status 'aprovado'.
+# Acesso restrito a usuários autenticados (session["usuario_id"]).
+@app.route("/plantio/<int:pid>/acompanhamentos", methods=["POST"])
+def salvar_acompanhamentos(pid):
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Verifica posse e status: somente plantios 'aprovado' do próprio usuário
+    cursor.execute(
+        "SELECT id FROM plantas_go WHERE id = ? AND responsavel_id = ? AND status = 'aprovado'",
+        (pid, session["usuario_id"])
+    )
+    if not cursor.fetchone():
+        conn.close()
+        flash("Acompanhamento disponível apenas para plantios aprovados.", "erro")
+        return redirect("/plantios/pendentes")
+
+    # Lê datas dos acompanhamentos (campos opcionais)
+    acomp_1 = request.form.get("acompanhamento_1") or None
+    acomp_2 = request.form.get("acompanhamento_2") or None
+    acomp_3 = request.form.get("acompanhamento_3") or None
+
+    # Processa uploads de foto — salva em static/uploads/ e mantém nome atual se não enviado
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+    def _salvar_foto(campo_nome, campo_atual):
+        """Salva nova foto se enviada; caso contrário mantém o arquivo já gravado."""
+        arquivo = request.files.get(campo_nome)
+        if arquivo and arquivo.filename:
+            ext = arquivo.filename.rsplit(".", 1)[-1].lower()
+            if ext in EXTENSOES_PERMITIDAS:
+                nome = f"acomp_{pid}_{campo_nome}_{uuid.uuid4().hex[:8]}.{ext}"
+                arquivo.save(os.path.join(UPLOAD_FOLDER, nome))
+                return nome
+        return campo_atual  # mantém foto anterior
+
+    # Carrega fotos atuais para não apagar ao omitir o upload
+    cursor.execute(
+        "SELECT foto_1, foto_2, foto_3 FROM plantas_go WHERE id = ?", (pid,)
+    )
+    row      = cursor.fetchone()
+    foto_1   = _salvar_foto("foto_1", row[0] if row else None)
+    foto_2   = _salvar_foto("foto_2", row[1] if row else None)
+    foto_3   = _salvar_foto("foto_3", row[2] if row else None)
+
+    # Atualiza os 3 acompanhamentos no registro de plantio
+    cursor.execute("""
+        UPDATE plantas_go
+        SET acompanhamento_1 = ?, foto_1 = ?,
+            acompanhamento_2 = ?, foto_2 = ?,
+            acompanhamento_3 = ?, foto_3 = ?
+        WHERE id = ?
+    """, (acomp_1, foto_1, acomp_2, foto_2, acomp_3, foto_3, pid))
+    conn.commit()
+    conn.close()
+
+    flash("Acompanhamentos salvos com sucesso.", "sucesso")
+    return redirect("/plantios/pendentes")
 
 
 # ===================== ROTA PLANTIOS APROVADOS =====================
