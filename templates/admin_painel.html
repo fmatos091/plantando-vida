@@ -1572,153 +1572,27 @@
         {% endfor %}
         {% endwith %}
 
-        <!-- ---- Dados Bancários da Entidade (accordion colapsível) ---- -->
-        <!-- Botão de cabeçalho: abre/fecha o formulário de dados bancários -->
+        <!-- =====================================================================
+             CADASTRO DE ENTIDADES FAVORECIDAS (Formulário Unificado)
+             Substitui os dois accordions anteriores ("Dados Bancários da Entidade"
+             e "Cadastro de Entidades") em uma única interface.
+             Cada entidade guarda: dados de identificação + dados bancários + ativa (SIM/NÃO).
+             Campo oculto "id" vazio = novo cadastro | preenchido = edição.
+             Abas: Formulário (esq.) | Grid de entidades (dir.)
+        ===================================================================== -->
         <div class="bg-white rounded-2xl shadow overflow-hidden mb-6">
 
-            <button type="button" onclick="toggleDadosBancariosEnt()"
-                class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-blue-50 transition">
-                <div class="flex items-center gap-3">
-                    <span class="text-lg">🏦</span>
-                    <div>
-                        <p class="font-bold text-gray-800 text-sm">Dados Bancários da Entidade</p>
-                        {% if dados_bancarios_entidade %}
-                        <p class="text-xs text-gray-400 mt-0.5">{{ dados_bancarios_entidade[0] or 'Cadastrado' }}</p>
-                        {% else %}
-                        <p class="text-xs text-amber-500 mt-0.5">Não cadastrado ainda</p>
-                        {% endif %}
-                    </div>
-                </div>
-                <!-- Seta rotaciona ao abrir -->
-                <svg id="seta-dados-ent" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none"
-                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
-
-            <!-- Conteúdo colapsível: oculto por padrão, abre via JS -->
-            <div id="conteudo-dados-ent" class="hidden border-t border-gray-100">
-                <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                    <!-- Formulário de dados bancários da entidade -->
-                    {% set dbe = dados_bancarios_entidade %}
-                    <div>
-                        <h4 class="font-semibold text-gray-700 text-sm mb-4">📋 Preencher / Atualizar</h4>
-                        <form method="POST" action="/admin/dados-bancarios-entidade/salvar"
-                            enctype="multipart/form-data" class="space-y-4">
-
-                            <!-- Nome Empresarial -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-600 mb-1">Nome Empresarial da
-                                    Conta</label>
-                                <input type="text" name="nome_empresarial_ent" value="{{ dbe[0] if dbe else '' }}"
-                                    placeholder="Razão social da conta bancária"
-                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                            </div>
-
-                            <!-- Banco -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-600 mb-1">Banco</label>
-                                <input type="text" name="banco_ent" value="{{ dbe[1] if dbe else '' }}"
-                                    placeholder="Ex: Nubank, Bradesco, Itaú..."
-                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                            </div>
-
-                            <!-- Agência e Conta lado a lado -->
-                            <div class="flex gap-3">
-                                <div class="w-32">
-                                    <label class="block text-sm font-medium text-gray-600 mb-1">Agência</label>
-                                    <input type="text" name="agencia_ent" value="{{ dbe[3] if dbe else '' }}"
-                                        placeholder="0001"
-                                        class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                                </div>
-                                <div class="flex-1">
-                                    <label class="block text-sm font-medium text-gray-600 mb-1">Conta Corrente</label>
-                                    <input type="text" name="conta_ent" value="{{ dbe[2] if dbe else '' }}"
-                                        placeholder="00000-0"
-                                        class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                                </div>
-                            </div>
-
-                            <!-- Chave PIX -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-600 mb-1">Chave PIX</label>
-                                <input type="text" name="chave_pix_ent" value="{{ dbe[4] if dbe else '' }}"
-                                    placeholder="CNPJ, email, telefone ou chave aleatória"
-                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                            </div>
-
-                            <!-- Upload QR Code PIX -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-600 mb-1">QR Code da Chave PIX</label>
-                                <input type="file" name="qrcode_pix_ent" accept=".jpg,.jpeg,.png"
-                                    class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded
-                                           file:border-0 file:bg-blue-100 file:text-blue-700 file:font-medium hover:file:bg-blue-200" />
-                                {% if dbe and dbe[5] %}
-                                <p class="text-xs text-gray-400 mt-1">✅ QR Code já cadastrado — envie novo para
-                                    substituir.</p>
-                                {% endif %}
-                            </div>
-
-                            <button type="submit"
-                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
-                                💾 Salvar Dados Bancários
-                            </button>
-                        </form>
-                    </div>
-
-                    <!-- Prévia dos dados salvos + QR Code -->
-                    <div class="flex flex-col gap-4">
-                        {% if dbe %}
-                        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
-                            <h4 class="font-semibold text-gray-700 mb-3 text-sm">📋 Dados Salvos</h4>
-                            <div class="space-y-2 text-sm">
-                                <p><span class="text-gray-400">Empresa:</span>
-                                    <strong class="text-gray-800">{{ dbe[0] or '—' }}</strong>
-                                </p>
-                                <p><span class="text-gray-400">Banco:</span>
-                                    <strong class="text-gray-800">{{ dbe[1] or '—' }}</strong>
-                                </p>
-                                <p><span class="text-gray-400">Agência:</span>
-                                    <strong class="text-gray-800">{{ dbe[3] or '—' }}</strong> &nbsp;
-                                    <span class="text-gray-400">Conta:</span>
-                                    <strong class="text-gray-800">{{ dbe[2] or '—' }}</strong>
-                                </p>
-                                <p><span class="text-gray-400">Chave PIX:</span>
-                                    <strong class="text-gray-800 break-all">{{ dbe[4] or '—' }}</strong>
-                                </p>
-                            </div>
-                        </div>
-                        {% if dbe[5] %}
-                        <div class="bg-white border border-blue-200 rounded-xl p-5 text-center">
-                            <p class="text-xs text-gray-500 mb-3">QR Code para pagamento via PIX</p>
-                            <img src="/static/pix/{{ dbe[5] }}" alt="QR Code PIX"
-                                class="mx-auto w-44 h-44 object-contain rounded-lg shadow" />
-                        </div>
-                        {% endif %}
-                        {% else %}
-                        <div class="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-400">
-                            <div class="text-4xl mb-3">🏦</div>
-                            <p class="text-sm">Nenhum dado bancário cadastrado ainda.</p>
-                        </div>
-                        {% endif %}
-                    </div>
-
-                </div>
-            </div>
-        </div>
-        <!-- fim dados bancários entidade -->
-
-        <!-- ---- Cadastro de Entidades (accordion colapsível) ---- -->
-        <div class="bg-white rounded-2xl shadow overflow-hidden mb-6">
-
+            <!-- Cabeçalho accordion -->
             <button type="button" onclick="toggleCadastroEntidades()"
                 class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-blue-50 transition">
                 <div class="flex items-center gap-3">
                     <span class="text-lg">🏛️</span>
                     <div>
-                        <p class="font-bold text-gray-800 text-sm">Cadastro de Entidades</p>
-                        <p class="text-xs text-gray-400 mt-0.5">{{ entidades|length }} entidade(s) cadastrada(s)</p>
+                        <p id="titulo-cadastro-ent" class="font-bold text-gray-800 text-sm">Cadastro de Entidades</p>
+                        <p class="text-xs text-gray-400 mt-0.5">
+                            {{ entidades|length }} entidade(s) ·
+                            {{ entidades_ativas|length }} ativa(s) no projeto
+                        </p>
                     </div>
                 </div>
                 <svg id="seta-entidades" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none"
@@ -1728,46 +1602,134 @@
             </button>
 
             <div id="conteudo-entidades" class="hidden border-t border-gray-100">
-                <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="p-6 grid grid-cols-1 xl:grid-cols-2 gap-8">
 
-                    <!-- Formulário de cadastro de nova entidade -->
+                    <!-- ── Lado esquerdo: Formulário unificado ── -->
                     <div>
-                        <h4 class="font-semibold text-gray-700 text-sm mb-4">➕ Nova Entidade</h4>
-                        <form method="POST" action="/admin/entidade/salvar" class="space-y-4">
+                        <h4 id="titulo-form-ent" class="font-semibold text-gray-700 text-sm mb-4">
+                            ➕ Nova Entidade
+                        </h4>
+
+                        <form method="POST" action="/admin/entidade/salvar"
+                            enctype="multipart/form-data" class="space-y-4" id="form-entidade">
+
+                            <!-- Campo oculto: vazio = INSERT; preenchido = UPDATE -->
+                            <input type="hidden" name="id" id="ent-id" value="">
+
+                            <!-- ── Identificação ── -->
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Identificação</p>
 
                             <!-- Razão Social -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-600 mb-1">
                                     Razão Social <span class="text-red-500">*</span>
                                 </label>
-                                <input type="text" name="razao_social" required placeholder="Ex: APAE de Arapoti"
-                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                <input type="text" name="razao_social" id="ent-razao" required
+                                    placeholder="Ex: APAE de Arapoti"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
 
                             <!-- CNPJ com máscara -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-600 mb-1">CNPJ</label>
-                                <input type="text" name="cnpj" maxlength="18" inputmode="numeric"
+                                <input type="text" name="cnpj" id="ent-cnpj" maxlength="18" inputmode="numeric"
                                     placeholder="00.000.000/0001-00" oninput="mascaraCnpjEnt(this)"
-                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
 
                             <!-- WhatsApp com máscara -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-600 mb-1">Fone WhatsApp</label>
-                                <input type="text" name="whatsapp" maxlength="15" inputmode="numeric"
+                                <input type="text" name="whatsapp" id="ent-whatsapp" maxlength="15" inputmode="numeric"
                                     placeholder="(00) 00000-0000" oninput="mascaraFoneEnt(this)"
-                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
 
-                            <button type="submit"
-                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition">
-                                💾 Cadastrar Entidade
-                            </button>
+                            <!-- Status ativa no projeto -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">
+                                    Entidade Ativa no Projeto
+                                </label>
+                                <select name="ativa" id="ent-ativa"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                    <option value="nao">NÃO — Inativa</option>
+                                    <option value="sim">SIM — Ativa (recebe fechamentos)</option>
+                                </select>
+                            </div>
+
+                            <!-- ── Dados Bancários ── -->
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider pt-2">Dados Bancários</p>
+
+                            <!-- Banco -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Banco</label>
+                                <input type="text" name="banco" id="ent-banco"
+                                    placeholder="Ex: Nubank, Bradesco, Itaú..."
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- Agência e Conta lado a lado -->
+                            <div class="flex gap-3">
+                                <div class="w-32">
+                                    <label class="block text-sm font-medium text-gray-600 mb-1">Agência</label>
+                                    <input type="text" name="agencia" id="ent-agencia" placeholder="0001"
+                                        class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                               focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block text-sm font-medium text-gray-600 mb-1">Conta Corrente</label>
+                                    <input type="text" name="conta" id="ent-conta" placeholder="00000-0"
+                                        class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                               focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                </div>
+                            </div>
+
+                            <!-- Chave PIX -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Chave PIX</label>
+                                <input type="text" name="chave_pix" id="ent-chave-pix"
+                                    placeholder="CNPJ, email, telefone ou chave aleatória"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            </div>
+
+                            <!-- QR Code PIX -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">QR Code PIX</label>
+                                <input type="file" name="qrcode_pix" id="ent-qrcode"
+                                    accept=".jpg,.jpeg,.png"
+                                    class="w-full text-sm text-gray-500
+                                           file:mr-3 file:py-1.5 file:px-3 file:rounded
+                                           file:border-0 file:bg-blue-100 file:text-blue-700
+                                           file:font-medium hover:file:bg-blue-200" />
+                                <p id="ent-qr-aviso" class="hidden text-xs text-gray-400 mt-1">
+                                    ✅ QR Code já cadastrado — envie novo para substituir.
+                                </p>
+                            </div>
+
+                            <!-- Botões: Salvar + Cancelar edição -->
+                            <div class="flex gap-3 pt-1">
+                                <button type="submit" id="btn-submit-ent"
+                                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white
+                                           font-semibold py-2 rounded-lg transition text-sm">
+                                    💾 Cadastrar Entidade
+                                </button>
+                                <button type="button" id="btn-cancelar-ent"
+                                    onclick="cancelarEdicaoEntidade()"
+                                    class="hidden px-5 bg-gray-100 hover:bg-gray-200 text-gray-600
+                                           font-semibold py-2 rounded-lg transition text-sm">
+                                    ✕ Cancelar
+                                </button>
+                            </div>
                         </form>
                     </div>
 
-                    <!-- Lista de entidades cadastradas -->
+                    <!-- ── Lado direito: Grid de entidades cadastradas ── -->
                     <div>
                         <h4 class="font-semibold text-gray-700 text-sm mb-4">
                             📋 Entidades Cadastradas
@@ -1775,33 +1737,92 @@
                         </h4>
 
                         {% if entidades %}
-                        <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
+                        <!-- Grid: 1 coluna em mobile, 2 colunas em telas maiores -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
                             {% for e in entidades %}
-                            <!-- e[0]=id  e[1]=razao_social  e[2]=cnpj  e[3]=whatsapp -->
-                            <div
-                                class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                                <div class="min-w-0">
-                                    <p class="text-sm font-semibold text-gray-800 truncate">{{ e[1] }}</p>
-                                    <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                                        {% if e[2] %}
-                                        <p class="text-xs text-gray-400">CNPJ: {{ e[2] }}</p>
-                                        {% endif %}
-                                        {% if e[3] %}
-                                        <p class="text-xs text-gray-400">📱 {{ e[3] }}</p>
-                                        {% endif %}
-                                    </div>
+                            <!-- e[0]=id  e[1]=razao_social  e[2]=cnpj  e[3]=whatsapp
+                                 e[4]=criado_em  e[5]=banco  e[6]=conta  e[7]=agencia
+                                 e[8]=chave_pix  e[9]=qrcode_pix  e[10]=ativa -->
+                            <div class="rounded-xl border p-4 flex flex-col gap-3
+                                {{ 'bg-blue-50 border-blue-200' if e[10] == 1 else 'bg-gray-50 border-gray-100' }}">
+
+                                <!-- Cabeçalho: nome + badge ativa/inativa -->
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="text-sm font-bold text-gray-800 leading-tight">{{ e[1] }}</p>
+                                    {% if e[10] == 1 %}
+                                    <span class="shrink-0 text-xs font-semibold bg-blue-600 text-white
+                                                 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                        ✅ Ativa
+                                    </span>
+                                    {% else %}
+                                    <span class="shrink-0 text-xs font-semibold bg-gray-200 text-gray-500
+                                                 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                        ⏸️ Inativa
+                                    </span>
+                                    {% endif %}
                                 </div>
-                                <!-- Botão excluir com confirmação -->
-                                <form method="POST" action="/admin/entidade/{{ e[0] }}/excluir"
-                                    onsubmit="return confirm('Excluir {{ e[1] }}?')">
-                                    <button type="submit"
-                                        class="text-red-400 hover:text-red-600 text-xs font-semibold shrink-0 transition">
-                                        🗑️
+
+                                <!-- Dados de identificação -->
+                                <div class="text-xs text-gray-500 space-y-0.5">
+                                    {% if e[2] %}<p>CNPJ: {{ e[2] }}</p>{% endif %}
+                                    {% if e[3] %}<p>📱 {{ e[3] }}</p>{% endif %}
+                                </div>
+
+                                <!-- Dados bancários (somente se preenchidos) -->
+                                {% if e[5] or e[6] or e[8] %}
+                                <div class="text-xs text-gray-500 border-t border-gray-200 pt-2 space-y-0.5">
+                                    {% if e[5] %}<p>🏦 {{ e[5] }}</p>{% endif %}
+                                    {% if e[7] or e[6] %}
+                                    <p>Ag. {{ e[7] or '—' }} / Cc. {{ e[6] or '—' }}</p>
+                                    {% endif %}
+                                    {% if e[8] %}<p>PIX: <span class="break-all">{{ e[8] }}</span></p>{% endif %}
+                                </div>
+                                {% endif %}
+
+                                <!-- QR Code (miniatura) -->
+                                {% if e[9] %}
+                                <img src="/static/pix/{{ e[9] }}" alt="QR Code"
+                                    class="w-16 h-16 object-contain rounded border border-gray-200 self-center" />
+                                {% endif %}
+
+                                <!-- Botões de ação.
+                                     data-* attributes: forma segura de passar dados para JS
+                                     sem problemas com aspas ou caracteres especiais no nome.
+                                     Jinja2 auto-escapa os valores (ex: & → &amp;, " → &quot;).
+                                -->
+                                <div class="flex gap-2 mt-auto pt-1">
+                                    <!-- Editar: dados passados via data-* para evitar problema de aspas -->
+                                    <button type="button"
+                                        onclick="editarEntidadeBtn(this)"
+                                        data-eid="{{ e[0] }}"
+                                        data-razao="{{ e[1] }}"
+                                        data-cnpj="{{ e[2] or '' }}"
+                                        data-whatsapp="{{ e[3] or '' }}"
+                                        data-ativa="{{ e[10] }}"
+                                        data-banco="{{ e[5] or '' }}"
+                                        data-agencia="{{ e[7] or '' }}"
+                                        data-conta="{{ e[6] or '' }}"
+                                        data-pix="{{ e[8] or '' }}"
+                                        data-temqr="{{ 'true' if e[9] else 'false' }}"
+                                        class="flex-1 text-blue-600 hover:text-blue-800 text-xs font-semibold
+                                               px-2 py-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 transition text-center">
+                                        ✏️ Editar
                                     </button>
-                                </form>
+                                    <!-- Excluir: nome passado via data-nome para o confirm -->
+                                    <form method="POST" action="/admin/entidade/{{ e[0] }}/excluir"
+                                        data-nome="{{ e[1] }}"
+                                        onsubmit="return confirm('Excluir ' + this.dataset.nome + '?')">
+                                        <button type="submit"
+                                            class="text-red-400 hover:text-red-600 text-xs font-semibold
+                                                   px-2 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition">
+                                            🗑️
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                             {% endfor %}
                         </div>
+
                         {% else %}
                         <div class="bg-gray-50 rounded-xl p-8 text-center text-gray-400">
                             <div class="text-3xl mb-2">🏛️</div>
@@ -1813,33 +1834,97 @@
                 </div>
             </div>
         </div>
-        <!-- fim cadastro entidades -->
+        <!-- fim cadastro entidades unificado -->
 
         <script>
-            // Abre/fecha o accordion de Dados Bancários da Entidade
-            function toggleDadosBancariosEnt() {
-                const conteudo = document.getElementById('conteudo-dados-ent');
-                const seta = document.getElementById('seta-dados-ent');
-                const aberto = !conteudo.classList.contains('hidden');
-                conteudo.classList.toggle('hidden', aberto);
-                seta.style.transform = aberto ? '' : 'rotate(180deg)';
-            }
-            // Abre automaticamente se há flash (retorno após salvar)
-            (function () {
-                const temFlash = document.querySelector('.bg-green-100, .bg-red-100');
-                if (temFlash) {
-                    document.getElementById('conteudo-dados-ent').classList.remove('hidden');
-                    document.getElementById('seta-dados-ent').style.transform = 'rotate(180deg)';
-                }
-            })();
-
             // Abre/fecha o accordion de Cadastro de Entidades
             function toggleCadastroEntidades() {
                 const conteudo = document.getElementById('conteudo-entidades');
-                const seta = document.getElementById('seta-entidades');
-                const aberto = !conteudo.classList.contains('hidden');
+                const seta     = document.getElementById('seta-entidades');
+                const aberto   = !conteudo.classList.contains('hidden');
                 conteudo.classList.toggle('hidden', aberto);
                 seta.style.transform = aberto ? '' : 'rotate(180deg)';
+            }
+            // Abre automaticamente se há flash após salvar
+            (function () {
+                const temFlash = document.querySelector('.bg-green-100, .bg-red-100');
+                if (temFlash) {
+                    document.getElementById('conteudo-entidades').classList.remove('hidden');
+                    document.getElementById('seta-entidades').style.transform = 'rotate(180deg)';
+                }
+            })();
+
+            // Wrapper chamado pelo botão Editar.
+            // Lê os valores de data-* attributes (seguros contra aspas/caracteres especiais)
+            // e delega para editarEntidade() que preenche o formulário.
+            function editarEntidadeBtn(btn) {
+                editarEntidade(
+                    btn.dataset.eid,
+                    btn.dataset.razao,
+                    btn.dataset.cnpj,
+                    btn.dataset.whatsapp,
+                    parseInt(btn.dataset.ativa),
+                    btn.dataset.banco,
+                    btn.dataset.agencia,
+                    btn.dataset.conta,
+                    btn.dataset.pix,
+                    btn.dataset.temqr === 'true'
+                );
+            }
+
+            // Preenche o formulário com os dados de uma entidade existente (modo edição).
+            function editarEntidade(id, razao, cnpj, whatsapp, ativa, banco, agencia, conta, pix, temQr) {
+                document.getElementById('ent-id').value         = id;
+                document.getElementById('ent-razao').value      = razao;
+                document.getElementById('ent-cnpj').value       = cnpj;
+                document.getElementById('ent-whatsapp').value   = whatsapp;
+                document.getElementById('ent-ativa').value      = ativa === 1 ? 'sim' : 'nao';
+                document.getElementById('ent-banco').value      = banco;
+                document.getElementById('ent-agencia').value    = agencia;
+                document.getElementById('ent-conta').value      = conta;
+                document.getElementById('ent-chave-pix').value  = pix;
+
+                // Exibe aviso de QR Code existente se aplicável
+                const qrAviso = document.getElementById('ent-qr-aviso');
+                temQr ? qrAviso.classList.remove('hidden') : qrAviso.classList.add('hidden');
+
+                // Troca visual para modo edição
+                document.getElementById('titulo-form-ent').textContent     = '✏️ Editar Entidade';
+                document.getElementById('btn-submit-ent').textContent      = '💾 Salvar Alterações';
+                document.getElementById('btn-cancelar-ent').classList.remove('hidden');
+
+                // Rola até o formulário
+                document.getElementById('form-entidade').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            // Cancela edição e restaura o formulário para modo criação.
+            function cancelarEdicaoEntidade() {
+                document.getElementById('ent-id').value = '';
+                document.getElementById('form-entidade').reset();
+                document.getElementById('ent-qr-aviso').classList.add('hidden');
+                document.getElementById('titulo-form-ent').textContent     = '➕ Nova Entidade';
+                document.getElementById('btn-submit-ent').textContent      = '💾 Cadastrar Entidade';
+                document.getElementById('btn-cancelar-ent').classList.add('hidden');
+            }
+
+            // Exibe confirm de faturamento com nome do fornecedor, período e entidade selecionada.
+            // Impede envio se nenhuma entidade foi selecionada.
+            function confirmarFaturarEntidade(form) {
+                const select    = form.querySelector('select[name="entidade_id"]');
+                const entNome   = select ? select.options[select.selectedIndex].text : '—';
+                const fornecedor = form.dataset.fornecedor || '';
+                const periodo    = form.dataset.periodo    || '';
+                if (!select || !select.value) {
+                    alert('Selecione a Entidade Favorecida antes de faturar.');
+                    return false;
+                }
+                return confirm(
+                    'Faturar Entidade\n\n' +
+                    'Fornecedor: ' + fornecedor + '\n' +
+                    'Período: ' + periodo + '\n' +
+                    'Entidade: ' + entNome + '\n\n' +
+                    'Esta ação é irreversível.'
+                );
             }
 
             // ── Máscara CNPJ: 00.000.000/0000-00 ──
@@ -1907,20 +1992,44 @@
                         </div>
                     </div>
 
-                    <!-- Valor líquido da entidade e botão Faturar -->
-                    <div class="flex flex-col items-end gap-2 shrink-0">
+                    <!-- Valor líquido + seleção de entidade ativa + botão Faturar -->
+                    <div class="flex flex-col items-end gap-2 shrink-0 min-w-[180px]">
                         <p class="text-base font-extrabold text-blue-700">
                             R$ {{ "%.2f"|format(g.valor_liquido) }}
                         </p>
-                        <!-- Formulário POST: gera faturamento para a entidade favorecida -->
+
+                        <!-- Formulário POST: gera faturamento vinculado à entidade selecionada -->
                         <form method="POST" action="/admin/faturamento-entidade/criar"
-                            onsubmit="return confirm('Faturar Entidade — {{ g.razao_social }} — {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}?\n\nEsta ação é irreversível.')">
+                            data-fornecedor="{{ g.razao_social }}"
+                            data-periodo="{{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}"
+                            onsubmit="return confirmarFaturarEntidade(this)"
+                            class="w-full flex flex-col gap-2">
                             <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
                             <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
-                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold
+
+                            {% if entidades_ativas %}
+                            <!-- Dropdown: lista apenas entidades com ativa=SIM para seleção -->
+                            <select name="entidade_id" required
+                                class="w-full p-1.5 border border-blue-300 rounded-lg text-xs
+                                       focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700">
+                                <option value="">— Selecionar Entidade —</option>
+                                {% for ea in entidades_ativas %}
+                                <option value="{{ ea[0] }}">{{ ea[1] }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold
                                        px-4 py-2 rounded-xl transition whitespace-nowrap shadow">
                                 💳 Faturar
                             </button>
+
+                            {% else %}
+                            <!-- Nenhuma entidade ativa: bloqueia faturamento com aviso -->
+                            <div class="text-xs text-amber-600 bg-amber-50 border border-amber-200
+                                        rounded-lg px-3 py-2 text-center">
+                                ⚠️ Cadastre uma entidade ativa para faturar.
+                            </div>
+                            {% endif %}
                         </form>
                     </div>
                 </div>
@@ -1947,12 +2056,13 @@
             </div>
 
             {% if faturamentos_entidade_hist %}
-            <!-- Cabeçalho da tabela -->
+            <!-- Cabeçalho da tabela — fat[10]=entidade_nome adicionado -->
             <div
-                class="hidden sm:grid grid-cols-6 gap-2 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                class="hidden sm:grid grid-cols-7 gap-2 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div>nº Baixa</div>
                 <div>Período</div>
                 <div>Fornecedor</div>
+                <div>Entidade</div>
                 <div class="text-center">Mudas</div>
                 <div class="text-right">Valor Líquido</div>
                 <div class="text-right">Data</div>
@@ -1961,8 +2071,9 @@
                 {% for fat in faturamentos_entidade_hist %}
                 <!-- fat[0]=id  fat[1]=fornecedor_id  fat[2]=mes_ref  fat[3]=numero_baixa
                      fat[4]=quantidade  fat[5]=valor_bruto  fat[6]=perc_entidade
-                     fat[7]=valor_liquido  fat[8]=data_faturamento  fat[9]=razao_social -->
-                <div class="px-6 py-3 grid grid-cols-2 sm:grid-cols-6 gap-2 items-center text-sm">
+                     fat[7]=valor_liquido  fat[8]=data_faturamento  fat[9]=razao_social (fornecedor)
+                     fat[10]=entidade_nome -->
+                <div class="px-6 py-3 grid grid-cols-2 sm:grid-cols-7 gap-2 items-center text-sm">
                     <!-- nº Baixa em destaque com cor azul (entidade) -->
                     <div>
                         <span class="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg text-xs">
@@ -1974,6 +2085,10 @@
                     </div>
                     <div class="col-span-2 sm:col-span-1 font-semibold text-gray-800 truncate">
                         {{ fat[9] }}
+                    </div>
+                    <!-- Nome da entidade favorecida vinculada ao fechamento -->
+                    <div class="text-xs text-blue-700 truncate">
+                        {{ fat[10] }}
                     </div>
                     <div class="text-center text-gray-500 text-xs">{{ fat[4] }} muda(s)</div>
                     <div class="text-right font-bold text-blue-700">

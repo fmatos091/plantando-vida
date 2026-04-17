@@ -278,6 +278,18 @@ def init_db():
             "faturamento_entidade_id INTEGER",
             "faturamento_admin_id INTEGER",
         ],
+        # banco/conta/agencia/chave_pix/qrcode_pix: dados bancários da entidade (unificados ao cadastro).
+        # ativa: 1 = entidade ativa no projeto (exibida para seleção no fechamento); 0 = inativa.
+        "entidades": [
+            "banco TEXT",
+            "conta TEXT",
+            "agencia TEXT",
+            "chave_pix TEXT",
+            "qrcode_pix TEXT",
+            "ativa INTEGER DEFAULT 0",
+        ],
+        # entidade_id: referência à entidade favorecida vinculada neste fechamento.
+        "faturamentos_entidade": ["entidade_id INTEGER"],
     }
 
     for tabela, colunas in migracoes.items():

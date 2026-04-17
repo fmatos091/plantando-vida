@@ -1593,14 +1593,19 @@ def admin_painel():
     cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios LIMIT 1")
     dados_bancarios = cursor.fetchone()
 
-    # ---- Consulta Dados Bancários — Entidade Favorecida (registro único) ----
-    cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios_entidade LIMIT 1")
-    dados_bancarios_entidade = cursor.fetchone()
-
-    # ---- Consulta Entidades Favorecidas cadastradas (lista) ----
+    # ---- Consulta Entidades Favorecidas cadastradas (lista unificada com dados bancários) ----
     # e[0]=id  e[1]=razao_social  e[2]=cnpj  e[3]=whatsapp  e[4]=criado_em
-    cursor.execute("SELECT id, razao_social, cnpj, whatsapp, criado_em FROM entidades ORDER BY razao_social")
+    # e[5]=banco  e[6]=conta  e[7]=agencia  e[8]=chave_pix  e[9]=qrcode_pix  e[10]=ativa
+    cursor.execute("""
+        SELECT id, razao_social, cnpj, whatsapp, criado_em,
+               banco, conta, agencia, chave_pix, qrcode_pix, ativa
+        FROM entidades
+        ORDER BY ativa DESC, razao_social
+    """)
     entidades = cursor.fetchall()
+
+    # Lista de entidades com ativa=1 (usada no template de Saldos Pendentes para seleção)
+    entidades_ativas = [e for e in entidades if e[10] == 1]
 
     # ---- Consulta Percentuais de Vigência — tabela de distribuição do valor das plantas ----
     # p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin
@@ -1635,12 +1640,15 @@ def admin_painel():
     faturamentos_hist = cursor.fetchall()
 
     # ---- Histórico de Faturamentos — Entidade Favorecida ----
+    # fat[10] = entidade_nome: nome da entidade favorecida vinculada ao fechamento
     cursor.execute("""
         SELECT fat.id, fat.fornecedor_id, fat.mes_ref, fat.numero_baixa,
                fat.quantidade, fat.valor_bruto, fat.perc_entidade,
-               fat.valor_liquido, fat.data_faturamento, f.razao_social
+               fat.valor_liquido, fat.data_faturamento, f.razao_social,
+               COALESCE(e.razao_social, '—') AS entidade_nome
         FROM faturamentos_entidade fat
         JOIN fornecedores f ON f.id = fat.fornecedor_id
+        LEFT JOIN entidades e ON e.id = fat.entidade_id
         ORDER BY fat.mes_ref DESC, f.razao_social
     """)
     faturamentos_entidade_hist = cursor.fetchall()
@@ -1665,8 +1673,8 @@ def admin_painel():
                            compras=compras,
                            especies=especies,
                            dados_bancarios=dados_bancarios,
-                           dados_bancarios_entidade=dados_bancarios_entidade,
                            entidades=entidades,
+                           entidades_ativas=entidades_ativas,
                            percentuais=percentuais,
                            fechamento_pendente=fechamento_pendente,
                            fechamento_entidade_pendente=fechamento_entidade_pendente,
@@ -2111,17 +2119,24 @@ def admin_salvar_dados_bancarios_entidade():
     return redirect("/admin/painel?tipo=fechamento_entidade")
 
 
-# ===================== ROTA ADMIN: SALVAR ENTIDADE FAVORECIDA =====================
-# Insere uma nova entidade na tabela entidades.
-# Acesso restrito ao administrador (session["admin"]).
+# ===================== ROTA ADMIN: SALVAR ENTIDADE FAVORECIDA (UNIFICADO) =====================
+# Cria ou atualiza uma entidade, incluindo dados bancários e status de ativa.
+# Campo oculto "id" vazio → INSERT; preenchido → UPDATE.
+# O QR Code PIX é salvo em static/pix/ com prefixo "ent_" + uuid.
 @app.route("/admin/entidade/salvar", methods=["POST"])
 def admin_salvar_entidade():
     if not session.get("admin"):
         return redirect("/admin/login")
 
+    eid          = request.form.get("id", "").strip()
     razao_social = request.form.get("razao_social", "").strip()
     cnpj         = request.form.get("cnpj", "").strip()
     whatsapp     = request.form.get("whatsapp", "").strip()
+    banco        = request.form.get("banco", "").strip()
+    agencia      = request.form.get("agencia", "").strip()
+    conta        = request.form.get("conta", "").strip()
+    chave_pix    = request.form.get("chave_pix", "").strip()
+    ativa        = 1 if request.form.get("ativa") == "sim" else 0
 
     if not razao_social:
         flash("O campo Razão Social é obrigatório.", "erro")
@@ -2129,14 +2144,48 @@ def admin_salvar_entidade():
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO entidades (razao_social, cnpj, whatsapp) VALUES (?, ?, ?)",
-        (razao_social, cnpj, whatsapp)
-    )
+
+    # --- QR Code PIX ---
+    # Busca QR code atual (se for edição) para manter caso nenhum novo seja enviado.
+    qrcode_atual = None
+    if eid:
+        cursor.execute("SELECT qrcode_pix FROM entidades WHERE id = ?", (int(eid),))
+        row = cursor.fetchone()
+        qrcode_atual = row[0] if row else None
+
+    qrcode_final = qrcode_atual
+    qrfile = request.files.get("qrcode_pix")
+    if qrfile and qrfile.filename:
+        ext        = os.path.splitext(secure_filename(qrfile.filename))[1].lower() or ".png"
+        nome_arq   = f"ent_{uuid.uuid4().hex}{ext}"
+        pix_dir    = os.path.join(app.root_path, "static", "pix")
+        os.makedirs(pix_dir, exist_ok=True)
+        qrfile.save(os.path.join(pix_dir, nome_arq))
+        qrcode_final = nome_arq
+
+    if eid:
+        # Atualiza entidade existente
+        cursor.execute("""
+            UPDATE entidades
+            SET razao_social=?, cnpj=?, whatsapp=?,
+                banco=?, agencia=?, conta=?, chave_pix=?, qrcode_pix=?, ativa=?
+            WHERE id=?
+        """, (razao_social, cnpj, whatsapp,
+              banco, agencia, conta, chave_pix, qrcode_final, ativa,
+              int(eid)))
+        flash("Entidade atualizada com sucesso.", "sucesso")
+    else:
+        # Insere nova entidade
+        cursor.execute("""
+            INSERT INTO entidades
+                (razao_social, cnpj, whatsapp, banco, agencia, conta, chave_pix, qrcode_pix, ativa)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (razao_social, cnpj, whatsapp,
+              banco, agencia, conta, chave_pix, qrcode_final, ativa))
+        flash("Entidade cadastrada com sucesso.", "sucesso")
+
     conn.commit()
     conn.close()
-
-    flash("Entidade cadastrada com sucesso.", "sucesso")
     return redirect("/admin/painel?tipo=fechamento_entidade")
 
 
@@ -2742,7 +2791,7 @@ def admin_faturamento_criar():
 # perc_col: nome da coluna de percentual na tabela de destino
 # fat_col: coluna de faturamento em compras que será marcada
 # campo_idx: índice do percentual na tupla de vigências (2=entidade, 3=admin)
-def _criar_faturamento_tipo(fornecedor_id, mes_ref, tipo, tabela, perc_col, fat_col, campo_idx):
+def _criar_faturamento_tipo(fornecedor_id, mes_ref, tipo, tabela, perc_col, fat_col, campo_idx, entidade_id=None):
     conn   = get_db()
     cursor = conn.cursor()
 
@@ -2784,12 +2833,21 @@ def _criar_faturamento_tipo(fornecedor_id, mes_ref, tipo, tabela, perc_col, fat_
     except ValueError:
         numero_baixa = mes_ref.replace("-", "")
 
-    cursor.execute(f"""
-        INSERT INTO {tabela}
-            (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, {perc_col}, valor_liquido)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (int(fornecedor_id), mes_ref, numero_baixa,
-          quantidade, valor_bruto, perc_usado, valor_liquido))
+    # Inclui entidade_id no INSERT quando fornecido (faturamento de entidade favorecida)
+    if entidade_id:
+        cursor.execute(f"""
+            INSERT INTO {tabela}
+                (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, {perc_col}, valor_liquido, entidade_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (int(fornecedor_id), mes_ref, numero_baixa,
+              quantidade, valor_bruto, perc_usado, valor_liquido, int(entidade_id)))
+    else:
+        cursor.execute(f"""
+            INSERT INTO {tabela}
+                (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, {perc_col}, valor_liquido)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (int(fornecedor_id), mes_ref, numero_baixa,
+              quantidade, valor_bruto, perc_usado, valor_liquido))
 
     cursor.execute(f"""
         SELECT id FROM {tabela} WHERE fornecedor_id = ? AND mes_ref = ?
@@ -2815,18 +2873,26 @@ def admin_faturamento_entidade_criar():
 
     fornecedor_id = request.form.get("fornecedor_id", "").strip()
     mes_ref       = request.form.get("mes_ref", "").strip()
+    # entidade_id: pk da entidade favorecida selecionada no formulário de Saldos Pendentes.
+    entidade_id_raw = request.form.get("entidade_id", "").strip()
+    entidade_id     = int(entidade_id_raw) if entidade_id_raw else None
 
     if not fornecedor_id or not mes_ref:
         flash("Dados inválidos para faturamento.", "erro")
         return redirect("/admin/painel?tipo=fechamento_entidade")
 
+    if not entidade_id:
+        flash("Selecione a Entidade Favorecida antes de faturar.", "erro")
+        return redirect("/admin/painel?tipo=fechamento_entidade")
+
     ok, msg = _criar_faturamento_tipo(
         fornecedor_id, mes_ref,
-        tipo      = 'entidade',
-        tabela    = 'faturamentos_entidade',
-        perc_col  = 'perc_entidade',
-        fat_col   = 'faturamento_entidade_id',
-        campo_idx = 2
+        tipo        = 'entidade',
+        tabela      = 'faturamentos_entidade',
+        perc_col    = 'perc_entidade',
+        fat_col     = 'faturamento_entidade_id',
+        campo_idx   = 2,
+        entidade_id = entidade_id
     )
     flash(f"Faturamento Entidade gerado — {msg}" if ok else msg, "sucesso" if ok else "erro")
     return redirect("/admin/painel?tipo=fechamento_entidade")
