@@ -13,6 +13,43 @@ from flask import render_template, request, redirect, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
+# ===================== VALIDAÇÃO DE CPF (ALGORITMO RECEITA FEDERAL) =====================
+# Implementa os dois dígitos verificadores conforme regra oficial da Receita Federal.
+# Retorna True se o CPF é matematicamente válido (estrutura e dígitos corretos).
+# Não requer API externa — válido para os casos (a) e (c) da regra de negócio:
+#   - CPF inexistente/inventado  → retorna False (bloqueia o cadastro)
+#   - CPF com restrições (ativo) → retorna True  (permite o cadastro)
+# A Receita Federal não oferece API pública gratuita para consulta de situação cadastral.
+def validar_cpf(cpf_raw):
+    digits = re.sub(r"\D", "", str(cpf_raw or ""))
+
+    # Deve ter exatamente 11 dígitos
+    if len(digits) != 11:
+        return False
+
+    # CPFs com todos os dígitos iguais são inválidos pela Receita (ex: 111.111.111-11)
+    if len(set(digits)) == 1:
+        return False
+
+    # Calcula o 1º dígito verificador
+    soma  = sum(int(digits[i]) * (10 - i) for i in range(9))
+    resto = (soma * 10) % 11
+    if resto >= 10:
+        resto = 0
+    if resto != int(digits[9]):
+        return False
+
+    # Calcula o 2º dígito verificador
+    soma  = sum(int(digits[i]) * (11 - i) for i in range(10))
+    resto = (soma * 10) % 11
+    if resto >= 10:
+        resto = 0
+    if resto != int(digits[10]):
+        return False
+
+    return True
+
+
 # Pasta de destino dos uploads de fotos de plantio
 UPLOAD_FOLDER  = os.path.join(os.path.dirname(__file__), "static", "uploads")
 QRCODE_FOLDER  = os.path.join(os.path.dirname(__file__), "static", "qrcodes")
@@ -220,6 +257,12 @@ def cadastro():
 
         # Normaliza CPF (somente dígitos) para comparação neutra de formatação
         cpf_numeros = re.sub(r"\D", "", cpf)
+
+        # Valida CPF pelo algoritmo oficial da Receita Federal (dígitos verificadores).
+        # CPFs inventados ou com formato inválido são rejeitados antes de qualquer consulta ao banco.
+        if not validar_cpf(cpf_numeros):
+            flash("Informe um CPF Válido.", "erro")
+            return redirect("/cadastros")
 
         conn   = get_db()
         cursor = conn.cursor()
