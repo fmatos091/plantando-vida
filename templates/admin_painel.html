@@ -1907,6 +1907,18 @@
                 document.getElementById('btn-cancelar-ent').classList.add('hidden');
             }
 
+            // Exibe confirm de faturamento da Administração com dados do fornecedor e período.
+            function confirmarFaturarAdmin(form) {
+                const fornecedor = form.dataset.fornecedor || '';
+                const periodo    = form.dataset.periodo    || '';
+                return confirm(
+                    'Faturar Administração\n\n' +
+                    'Fornecedor: ' + fornecedor + '\n' +
+                    'Período: '    + periodo    + '\n\n' +
+                    'Esta ação é irreversível.'
+                );
+            }
+
             // Exibe confirm de faturamento com nome do fornecedor, período e entidade selecionada.
             // Impede envio se nenhuma entidade foi selecionada.
             function confirmarFaturarEntidade(form) {
@@ -1975,16 +1987,64 @@
                 </div>
                 {% endif %}
 
-                <!-- Card do fornecedor com saldo pendente para a entidade -->
-                <div class="px-6 py-4 flex items-center justify-between gap-4">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-gray-800 truncate">🏪 {{ g.razao_social }}</p>
-                        <div class="flex flex-wrap gap-2 mt-1.5">
+                <!-- Card de saldo pendente — layout vertical:
+                     1º Entidade (seleção + faturar) · 2º Fornecedor (dados do período) -->
+                <div class="px-6 py-5 flex flex-col gap-4">
+
+                    <!-- ── 1. Entidade: seleção + valor líquido + botão Faturar ── -->
+                    <form method="POST" action="/admin/faturamento-entidade/criar"
+                        data-fornecedor="{{ g.razao_social }}"
+                        data-periodo="{{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}"
+                        onsubmit="return confirmarFaturarEntidade(this)">
+                        <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
+                        <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
+
+                        <!-- Rótulo + valor líquido lado a lado -->
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-xs font-bold text-blue-700 uppercase tracking-wider">
+                                🏛️ Entidade Favorecida
+                            </p>
+                            <p class="text-lg font-extrabold text-blue-700">
+                                R$ {{ "%.2f"|format(g.valor_liquido) }}
+                            </p>
+                        </div>
+
+                        {% if entidades_ativas %}
+                        <!-- Dropdown de entidades ativas + botão Faturar na mesma linha -->
+                        <div class="flex gap-2">
+                            <select name="entidade_id" required
+                                class="flex-1 p-2 border border-blue-300 rounded-xl text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 bg-white">
+                                <option value="">— Selecionar Entidade —</option>
+                                {% for ea in entidades_ativas %}
+                                <option value="{{ ea[0] }}">{{ ea[1] }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit"
+                                class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold
+                                       px-5 py-2 rounded-xl transition shadow whitespace-nowrap">
+                                💳 Faturar
+                            </button>
+                        </div>
+
+                        {% else %}
+                        <!-- Aviso: nenhuma entidade ativa cadastrada -->
+                        <div class="text-xs text-amber-700 bg-amber-50 border border-amber-200
+                                    rounded-xl px-4 py-2.5 text-center">
+                            ⚠️ Cadastre uma entidade ativa para faturar.
+                        </div>
+                        {% endif %}
+                    </form>
+
+                    <!-- ── 2. Fornecedor: nome + tags do período ── -->
+                    <div class="border-t border-gray-100 pt-3 flex items-center justify-between gap-3">
+                        <p class="text-sm font-semibold text-gray-700 truncate">🏪 {{ g.razao_social }}</p>
+                        <div class="flex flex-wrap gap-1.5 justify-end">
                             <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                                 🌱 {{ g.quantidade }} muda{{ 's' if g.quantidade != 1 else '' }}
                             </span>
                             <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                📦 Bruto: R$ {{ "%.2f"|format(g.valor_bruto) }}
+                                📦 R$ {{ "%.2f"|format(g.valor_bruto) }}
                             </span>
                             <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
                                 % {{ g.perc_display }}
@@ -1992,46 +2052,6 @@
                         </div>
                     </div>
 
-                    <!-- Valor líquido + seleção de entidade ativa + botão Faturar -->
-                    <div class="flex flex-col items-end gap-2 shrink-0 min-w-[180px]">
-                        <p class="text-base font-extrabold text-blue-700">
-                            R$ {{ "%.2f"|format(g.valor_liquido) }}
-                        </p>
-
-                        <!-- Formulário POST: gera faturamento vinculado à entidade selecionada -->
-                        <form method="POST" action="/admin/faturamento-entidade/criar"
-                            data-fornecedor="{{ g.razao_social }}"
-                            data-periodo="{{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}"
-                            onsubmit="return confirmarFaturarEntidade(this)"
-                            class="w-full flex flex-col gap-2">
-                            <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
-                            <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
-
-                            {% if entidades_ativas %}
-                            <!-- Dropdown: lista apenas entidades com ativa=SIM para seleção -->
-                            <select name="entidade_id" required
-                                class="w-full p-1.5 border border-blue-300 rounded-lg text-xs
-                                       focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700">
-                                <option value="">— Selecionar Entidade —</option>
-                                {% for ea in entidades_ativas %}
-                                <option value="{{ ea[0] }}">{{ ea[1] }}</option>
-                                {% endfor %}
-                            </select>
-                            <button type="submit"
-                                class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold
-                                       px-4 py-2 rounded-xl transition whitespace-nowrap shadow">
-                                💳 Faturar
-                            </button>
-
-                            {% else %}
-                            <!-- Nenhuma entidade ativa: bloqueia faturamento com aviso -->
-                            <div class="text-xs text-amber-600 bg-amber-50 border border-amber-200
-                                        rounded-lg px-3 py-2 text-center">
-                                ⚠️ Cadastre uma entidade ativa para faturar.
-                            </div>
-                            {% endif %}
-                        </form>
-                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -2157,16 +2177,79 @@
                 </div>
                 {% endif %}
 
-                <!-- Card do fornecedor com saldo pendente para a administração -->
-                <div class="px-6 py-4 flex items-center justify-between gap-4">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-gray-800 truncate">🏪 {{ g.razao_social }}</p>
-                        <div class="flex flex-wrap gap-2 mt-1.5">
+                <!-- Card de saldo pendente — layout vertical:
+                     1º Administração (dados bancários + valor + faturar) · 2º Fornecedor -->
+                <div class="px-6 py-5 flex flex-col gap-4">
+
+                    <!-- ── 1. Administração: dados bancários + valor líquido + Faturar ── -->
+                    <div>
+                        <!-- Rótulo + valor líquido lado a lado -->
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-xs font-bold text-purple-700 uppercase tracking-wider">
+                                ⚙️ Administração
+                            </p>
+                            <p class="text-lg font-extrabold text-purple-700">
+                                R$ {{ "%.2f"|format(g.valor_liquido) }}
+                            </p>
+                        </div>
+
+                        <!-- Dados bancários da administração (se cadastrados) -->
+                        {% if dados_bancarios %}
+                        {% set db = dados_bancarios %}
+                        <div class="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 mb-3
+                                    flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div class="flex-1 text-xs text-gray-600 space-y-0.5">
+                                <p class="font-semibold text-gray-800">{{ db[0] or '—' }}</p>
+                                {% if db[1] %}
+                                <p>🏦 {{ db[1] }}
+                                    {% if db[3] %} · Ag. {{ db[3] }}{% endif %}
+                                    {% if db[2] %} / Cc. {{ db[2] }}{% endif %}
+                                </p>
+                                {% endif %}
+                                {% if db[4] %}
+                                <p>PIX: <span class="break-all text-purple-700">{{ db[4] }}</span></p>
+                                {% endif %}
+                            </div>
+                            {% if db[5] %}
+                            <img src="/static/pix/{{ db[5] }}" alt="QR PIX"
+                                class="w-14 h-14 object-contain rounded border border-purple-200 shrink-0 self-center" />
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <!-- Aviso: dados bancários não configurados -->
+                        <div class="text-xs text-amber-700 bg-amber-50 border border-amber-200
+                                    rounded-xl px-4 py-2.5 mb-3 text-center">
+                            ⚠️ <a href="/admin/painel?tipo=dados_bancarios"
+                                class="underline hover:text-amber-900 transition">
+                                Configure os Dados Bancários da Administração
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <!-- Botão Faturar — data-* para confirm seguro -->
+                        <form method="POST" action="/admin/faturamento-admin/criar"
+                            data-fornecedor="{{ g.razao_social }}"
+                            data-periodo="{{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}"
+                            onsubmit="return confirmarFaturarAdmin(this)">
+                            <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
+                            <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
+                            <button type="submit"
+                                class="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold
+                                       px-4 py-2 rounded-xl transition shadow">
+                                💳 Faturar
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- ── 2. Fornecedor: nome + tags do período ── -->
+                    <div class="border-t border-gray-100 pt-3 flex items-center justify-between gap-3">
+                        <p class="text-sm font-semibold text-gray-700 truncate">🏪 {{ g.razao_social }}</p>
+                        <div class="flex flex-wrap gap-1.5 justify-end">
                             <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                                 🌱 {{ g.quantidade }} muda{{ 's' if g.quantidade != 1 else '' }}
                             </span>
                             <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                📦 Bruto: R$ {{ "%.2f"|format(g.valor_bruto) }}
+                                📦 R$ {{ "%.2f"|format(g.valor_bruto) }}
                             </span>
                             <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">
                                 % {{ g.perc_display }}
@@ -2174,22 +2257,6 @@
                         </div>
                     </div>
 
-                    <!-- Valor líquido da administração e botão Faturar -->
-                    <div class="flex flex-col items-end gap-2 shrink-0">
-                        <p class="text-base font-extrabold text-purple-700">
-                            R$ {{ "%.2f"|format(g.valor_liquido) }}
-                        </p>
-                        <!-- Formulário POST: gera faturamento para a administração -->
-                        <form method="POST" action="/admin/faturamento-admin/criar"
-                            onsubmit="return confirm('Faturar Admin — {{ g.razao_social }} — {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}?\n\nEsta ação é irreversível.')">
-                            <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
-                            <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
-                            <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold
-                                       px-4 py-2 rounded-xl transition whitespace-nowrap shadow">
-                                💳 Faturar
-                            </button>
-                        </form>
-                    </div>
                 </div>
                 {% endfor %}
             </div>
