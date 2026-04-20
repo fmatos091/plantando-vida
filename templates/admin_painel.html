@@ -814,11 +814,23 @@
 
             </div>
             {% else %}
-            <!-- Nenhum plantio com o status selecionado -->
+            <!-- contagem_plantios já soma plantas_go + compras; se > 0 aqui, os registros estão em Compras -->
+            {% if contagem_plantios[plantio_status] > 0 %}
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 text-center">
+                <div class="text-3xl mb-2">📦</div>
+                <p class="text-sm font-semibold text-blue-700">
+                    {{ contagem_plantios[plantio_status] }} compra{{ 's' if contagem_plantios[plantio_status] > 1 else '' }}
+                    com status
+                    <strong>{{ plantio_status | replace('em_analise','Em Análise') | replace('aprovado','Aprovado') | replace('reprovado','Reprovado') | replace('retirado','Retirado') }}</strong>
+                    — listada{{ 's' if contagem_plantios[plantio_status] > 1 else '' }} em <strong>Compras de Mudas</strong> abaixo ↓
+                </p>
+            </div>
+            {% else %}
             <div class="bg-white rounded-xl shadow p-8 text-center text-gray-400">
                 <div class="text-4xl mb-3">🌿</div>
-                <p class="text-sm">Nenhum plantio com este status.</p>
+                <p class="text-sm">Nenhum registro com este status.</p>
             </div>
+            {% endif %}
             {% endfor %}
         </div>
 
