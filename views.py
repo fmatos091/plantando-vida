@@ -1521,8 +1521,9 @@ def admin_painel():
     cursor = conn.cursor()
 
     # Parâmetros de filtro vindos da URL (query string)
-    busca = request.args.get("busca", "").strip()
-    tipo  = request.args.get("tipo", "fornecedores")  # aba ativa padrão
+    busca           = request.args.get("busca", "").strip()
+    tipo            = request.args.get("tipo", "fornecedores")  # aba ativa padrão
+    plantio_status  = request.args.get("plantio_status", "").strip()  # filtro de status na aba plantios
 
     # ---- Consulta Fornecedores com filtro por razão social, CNPJ ou cidade ----
     # Inclui ativo e maps_link para permitir edição e exibir status no painel
@@ -1568,6 +1569,14 @@ def admin_painel():
         ORDER BY pg.criado_em DESC
     """)
     plantios = cursor.fetchall()
+
+    # Contagem de plantios por status para exibir nos botões de filtro da aba plantios
+    contagem_plantios = {
+        'em_analise': sum(1 for p in plantios if p[4] == 'em_analise'),
+        'aprovado':   sum(1 for p in plantios if p[4] == 'aprovado'),
+        'reprovado':  sum(1 for p in plantios if p[4] == 'reprovado'),
+        'retirado':   sum(1 for p in plantios if p[4] == 'retirado'),
+    }
 
     # ---- Consulta Compras de Mudas (todas, para o admin gerenciar) ----
     # c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
@@ -1684,7 +1693,9 @@ def admin_painel():
                            faturamentos_entidade_hist=faturamentos_entidade_hist,
                            faturamentos_admin_hist=faturamentos_admin_hist,
                            busca=busca,
-                           tipo=tipo)
+                           tipo=tipo,
+                           plantio_status=plantio_status,
+                           contagem_plantios=contagem_plantios)
 
 
 # ===================== ROTA ADMIN: SALVAR / EDITAR FORNECEDOR =====================

@@ -556,9 +556,88 @@
         {% endfor %}
         {% endwith %}
 
-        {% if plantios %}
+        <!-- ===================== FILTROS DE STATUS =====================
+             Botões de filtro: cada um carrega apenas os plantios daquele status.
+             Sem filtro ativo: exibe somente os contadores (interface compacta).
+             Com filtro ativo: exibe os cards filtrados abaixo.
+        -->
+        <div class="flex flex-wrap gap-2 mb-5">
+
+            <!-- Botão: Todos -->
+            <a href="/admin/painel?tipo=plantios&busca={{ busca }}">
+                <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition
+                    {{ 'bg-gray-700 text-white border-gray-700' if not plantio_status else 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100' }}">
+                    📋 Todos
+                    <span class="bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full
+                        {{ 'bg-gray-500 text-white' if not plantio_status else '' }}">
+                        {{ plantios|length }}
+                    </span>
+                </button>
+            </a>
+
+            <!-- Botão: Em Análise -->
+            <a href="/admin/painel?tipo=plantios&busca={{ busca }}&plantio_status=em_analise">
+                <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition
+                    {{ 'bg-yellow-500 text-white border-yellow-500' if plantio_status == 'em_analise' else 'bg-white text-yellow-700 border-yellow-300 hover:bg-yellow-50' }}">
+                    🕐 Em Análise
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full
+                        {{ 'bg-yellow-300 text-yellow-900' if plantio_status == 'em_analise' else 'bg-yellow-100 text-yellow-700' }}">
+                        {{ contagem_plantios['em_analise'] }}
+                    </span>
+                </button>
+            </a>
+
+            <!-- Botão: Aprovado -->
+            <a href="/admin/painel?tipo=plantios&busca={{ busca }}&plantio_status=aprovado">
+                <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition
+                    {{ 'bg-green-600 text-white border-green-600' if plantio_status == 'aprovado' else 'bg-white text-green-700 border-green-300 hover:bg-green-50' }}">
+                    ✅ Aprovado
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full
+                        {{ 'bg-green-300 text-green-900' if plantio_status == 'aprovado' else 'bg-green-100 text-green-700' }}">
+                        {{ contagem_plantios['aprovado'] }}
+                    </span>
+                </button>
+            </a>
+
+            <!-- Botão: Reprovado -->
+            <a href="/admin/painel?tipo=plantios&busca={{ busca }}&plantio_status=reprovado">
+                <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition
+                    {{ 'bg-red-600 text-white border-red-600' if plantio_status == 'reprovado' else 'bg-white text-red-700 border-red-300 hover:bg-red-50' }}">
+                    ❌ Reprovado
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full
+                        {{ 'bg-red-300 text-red-900' if plantio_status == 'reprovado' else 'bg-red-100 text-red-700' }}">
+                        {{ contagem_plantios['reprovado'] }}
+                    </span>
+                </button>
+            </a>
+
+            <!-- Botão: Retirado -->
+            <a href="/admin/painel?tipo=plantios&busca={{ busca }}&plantio_status=retirado">
+                <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition
+                    {{ 'bg-blue-600 text-white border-blue-600' if plantio_status == 'retirado' else 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50' }}">
+                    📦 Retirado
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full
+                        {{ 'bg-blue-300 text-blue-900' if plantio_status == 'retirado' else 'bg-blue-100 text-blue-700' }}">
+                        {{ contagem_plantios['retirado'] }}
+                    </span>
+                </button>
+            </a>
+
+        </div>
+
+        <!-- Sem filtro ativo: exibe mensagem orientativa -->
+        {% if not plantio_status %}
+        <div class="bg-white rounded-xl shadow p-8 text-center text-gray-400">
+            <div class="text-4xl mb-3">🌱</div>
+            <p class="text-sm">Selecione um filtro acima para listar os plantios.</p>
+        </div>
+
+        <!-- Com filtro ativo: exibe cards do status selecionado -->
+        {% else %}
+
+        <!-- Jinja2: for-else executa o bloco else quando nenhum item passa no filtro -->
         <div class="flex flex-col gap-4">
-            {% for p in plantios %}
+            {% for p in plantios if p[4] == plantio_status %}
             <!-- Card de cada plantio — exibe dados, badge de status e ações do admin -->
             <div class="bg-white rounded-xl shadow p-5">
 
@@ -728,15 +807,17 @@
                 <p class="text-xs text-gray-300 mt-3">#{{ p[0] }} · {{ p[6] }}</p>
 
             </div>
+            {% else %}
+            <!-- Nenhum plantio com o status selecionado -->
+            <div class="bg-white rounded-xl shadow p-8 text-center text-gray-400">
+                <div class="text-4xl mb-3">🌿</div>
+                <p class="text-sm">Nenhum plantio com este status.</p>
+            </div>
             {% endfor %}
         </div>
 
-        {% else %}
-        <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
-            <div class="text-4xl mb-3">🌱</div>
-            <p>Nenhum plantio registrado ainda.</p>
-        </div>
         {% endif %}
+        <!-- fim bloco filtro ativo -->
 
         <!-- ===================== SEÇÃO COMPRAS DE MUDAS =====================
              Lista todas as compras finalizadas pelos usuários com botões de ação.
