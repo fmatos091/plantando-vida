@@ -1574,18 +1574,21 @@ def admin_painel():
     usuarios = cursor.fetchall()
 
     # ---- Consulta Plantios com dados do usuário, fornecedor, fotos e localização ----
-    # p[0]=id  p[1]=data_plantio  p[2]=especie  p[3]=municipio  p[4]=status
-    # p[5]=justificativa  p[6]=criado_em  p[7]=nome_usuario  p[8]=fornecedor_nome
+    # p[0]=id(plantas_go)  p[1]=data_plantio  p[2]=especie  p[3]=municipio  p[4]=status
+    # p[5]=justificativa   p[6]=criado_em     p[7]=nome_usuario  p[8]=fornecedor_nome
     # p[9]=bairro  p[10]=latitude  p[11]=longitude  p[12]=foto_plantio  p[13]=foto_1
+    # p[14]=compra_id  (ID original da compra — mesmo número exibido ao usuário)
     cursor.execute("""
         SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio,
                pg.status, pg.justificativa, pg.criado_em,
                u.nome, COALESCE(f.razao_social, 'Não informado') AS fornecedor_nome,
                pg.bairro, pg.latitude, pg.longitude,
-               pg.foto_plantio, pg.foto_1
+               pg.foto_plantio, pg.foto_1,
+               c.id AS compra_id
         FROM plantas_go pg
         JOIN usuarios u ON u.id = pg.responsavel_id
         LEFT JOIN fornecedores f ON f.id = pg.fornecedor_id
+        LEFT JOIN compras c ON c.plantio_id = pg.id
         ORDER BY pg.criado_em DESC
     """)
     plantios = cursor.fetchall()

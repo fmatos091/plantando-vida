@@ -646,7 +646,13 @@
                     <div>
                         <!-- Número do pedido de plantio em destaque -->
                         <p class="text-xs font-bold text-gray-400 mb-0.5 tracking-wider">
-                            Nº Pedido <span class="text-green-700">#{{ "%06d"|format(p[0]) }}</span>
+                            <!-- p[14]=compra_id: mesmo número que o usuário vê em "Meus Plantios" -->
+                            {% if p[14] %}
+                            Nº Pedido <span class="text-green-700">#{{ "%06d"|format(p[14]) }}</span>
+                            <span class="text-gray-300 font-normal ml-1">(plantio #{{ p[0] }})</span>
+                            {% else %}
+                            Plantio <span class="text-green-700">#{{ "%06d"|format(p[0]) }}</span>
+                            {% endif %}
                         </p>
                         <h2 class="text-base font-semibold text-green-800">🌳 {{ p[2] }}</h2>
                         <!-- Usuário responsável e fornecedor -->
@@ -803,8 +809,8 @@
                 </div>
                 {% endif %}
 
-                <!-- ID e data de registro -->
-                <p class="text-xs text-gray-300 mt-3">#{{ p[0] }} · {{ p[6] }}</p>
+                <!-- ID interno do plantio e data de registro -->
+                <p class="text-xs text-gray-300 mt-3">plantio #{{ p[0] }} · {{ p[6] }}</p>
 
             </div>
             {% else %}
