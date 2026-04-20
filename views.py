@@ -1625,8 +1625,8 @@ def admin_painel():
     vigencias_asc = cursor.fetchall()
 
     fechamento_pendente          = _calcular_fechamento_pendente(cursor, vigencias_asc, 'fornecedor')
-    fechamento_entidade_pendente = _calcular_fechamento_pendente(cursor, vigencias_asc, 'entidade')
-    # Admin usa função própria: totaliza por mês (não por fornecedor) para exibir 1 card por período.
+    # Entidade e Admin usam função própria: totaliza por mês para exibir 1 card por período.
+    fechamento_entidade_pendente = _calcular_fechamento_entidade_por_mes(cursor, vigencias_asc)
     fechamento_admin_pendente    = _calcular_fechamento_admin_por_mes(cursor, vigencias_asc)
 
     # ---- Histórico de Faturamentos — Fornecedor ----
@@ -2607,6 +2607,76 @@ def _calcular_fechamento_pendente(cursor, vigencias, tipo='fornecedor'):
     return resultado
 
 
+# ===================== HELPER: FECHAMENTO ENTIDADE TOTALIZADO POR MÊS =====================
+# Mesma lógica do helper de Admin, mas usa perc_entidade (índice 2) e faturamento_entidade_id.
+# Retorna lista ordenada por mes_ref ASC com totais do mês e lista de fornecedores contribuintes.
+def _calcular_fechamento_entidade_por_mes(cursor, vigencias):
+    cursor.execute("""
+        SELECT c.id, c.fornecedor_id, c.valor, c.data_validacao,
+               SUBSTR(COALESCE(c.data_validacao, ''), 1, 7) AS mes_ref,
+               f.razao_social
+        FROM compras c
+        JOIN fornecedores f ON f.id = c.fornecedor_id
+        WHERE c.status = 'retirado'
+          AND (c.faturamento_entidade_id IS NULL OR c.faturamento_entidade_id = 0)
+        ORDER BY mes_ref, c.fornecedor_id
+    """)
+    rows = cursor.fetchall()
+
+    meses = {}
+    for row in rows:
+        _id, forn_id, valor, data_valid, mes_ref, razao = row
+        if not mes_ref:
+            mes_ref = "sem_data"
+
+        if mes_ref not in meses:
+            try:
+                ano, mes  = mes_ref.split("-")
+                num_baixa = f"{mes}{ano}"
+            except ValueError:
+                num_baixa = "000000"
+            meses[mes_ref] = {
+                "mes_ref":       mes_ref,
+                "numero_baixa":  num_baixa,
+                "quantidade":    0,
+                "valor_bruto":   0.0,
+                "valor_liquido": 0.0,
+                "percs":         set(),
+                "fornecedores":  {},
+            }
+
+        perc = _perc_vigente(data_valid, vigencias, 2)   # índice 2 = perc_entidade
+        val  = valor or 0.0
+
+        meses[mes_ref]["quantidade"]    += 1
+        meses[mes_ref]["valor_bruto"]   += val
+        meses[mes_ref]["valor_liquido"] += val * perc / 100
+        meses[mes_ref]["percs"].add(perc)
+
+        if forn_id not in meses[mes_ref]["fornecedores"]:
+            meses[mes_ref]["fornecedores"][forn_id] = {
+                "fornecedor_id": forn_id,
+                "razao_social":  razao,
+                "quantidade":    0,
+                "valor_bruto":   0.0,
+                "valor_liquido": 0.0,
+            }
+        meses[mes_ref]["fornecedores"][forn_id]["quantidade"]    += 1
+        meses[mes_ref]["fornecedores"][forn_id]["valor_bruto"]   += val
+        meses[mes_ref]["fornecedores"][forn_id]["valor_liquido"] += val * perc / 100
+
+    resultado = []
+    for m in meses.values():
+        percs = sorted(m["percs"])
+        m["perc_display"] = "/".join(f"{p:.0f}%" for p in percs)
+        del m["percs"]
+        m["fornecedores"] = sorted(m["fornecedores"].values(), key=lambda x: x["razao_social"])
+        resultado.append(m)
+
+    resultado.sort(key=lambda x: x["mes_ref"])
+    return resultado
+
+
 # ===================== HELPER: FECHAMENTO ADMIN TOTALIZADO POR MÊS =====================
 # Agrupa todas as compras pendentes de admin por mês (ignorando fornecedor na chave),
 # totalizando quantidade, valor_bruto e valor_liquido de todos os fornecedores do período.
@@ -2972,6 +3042,82 @@ def admin_faturamento_entidade_criar():
         entidade_id = entidade_id
     )
     flash(f"Faturamento Entidade gerado — {msg}" if ok else msg, "sucesso" if ok else "erro")
+    return redirect("/admin/painel?tipo=fechamento_entidade")
+
+
+# ===================== ROTA ADMIN: CRIAR FATURAMENTO — ENTIDADE (POR MÊS) =====================
+# Fatura TODOS os fornecedores com compras pendentes para o mês informado,
+# vinculando cada registro à entidade selecionada no dropdown.
+@app.route("/admin/faturamento-entidade/criar-mes", methods=["POST"])
+def admin_faturamento_entidade_criar_mes():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    mes_ref         = request.form.get("mes_ref", "").strip()
+    entidade_id_raw = request.form.get("entidade_id", "").strip()
+    entidade_id     = int(entidade_id_raw) if entidade_id_raw else None
+
+    if not mes_ref:
+        flash("Mês inválido para faturamento.", "erro")
+        return redirect("/admin/painel?tipo=fechamento_entidade")
+
+    if not entidade_id:
+        flash("Selecione a Entidade Favorecida antes de faturar.", "erro")
+        return redirect("/admin/painel?tipo=fechamento_entidade")
+
+    # Busca todos os fornecedores distintos com compras pendentes no mês
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT fornecedor_id FROM compras
+        WHERE status = 'retirado'
+          AND (faturamento_entidade_id IS NULL OR faturamento_entidade_id = 0)
+          AND SUBSTR(COALESCE(data_validacao, ''), 1, 7) = ?
+    """, (mes_ref,))
+    fornecedores_ids = [row[0] for row in cursor.fetchall()]
+    conn.close()
+
+    if not fornecedores_ids:
+        flash("Nenhuma compra pendente para faturar neste período.", "erro")
+        return redirect("/admin/painel?tipo=fechamento_entidade")
+
+    total_liquido = 0.0
+    total_mudas   = 0
+    erros         = []
+
+    for forn_id in fornecedores_ids:
+        ok, msg = _criar_faturamento_tipo(
+            forn_id, mes_ref,
+            tipo        = 'entidade',
+            tabela      = 'faturamentos_entidade',
+            perc_col    = 'perc_entidade',
+            fat_col     = 'faturamento_entidade_id',
+            campo_idx   = 2,
+            entidade_id = entidade_id
+        )
+        if ok:
+            partes = msg.split("·")
+            try:
+                total_mudas   += int(partes[1].strip().split()[0])
+                total_liquido += float(partes[2].strip().replace("R$", "").replace(",", ".").strip())
+            except (IndexError, ValueError):
+                pass
+        else:
+            erros.append(msg)
+
+    if erros:
+        flash(f"Atenção: alguns faturamentos falharam — {'; '.join(erros)}", "erro")
+    else:
+        try:
+            ano, mes = mes_ref.split("-")
+            num_baixa = f"{mes}{ano}"
+        except ValueError:
+            num_baixa = mes_ref
+        flash(
+            f"Faturamento Entidade — nº Baixa {num_baixa} · "
+            f"{total_mudas} muda(s) · R$ {total_liquido:.2f} (total do mês)",
+            "sucesso"
+        )
     return redirect("/admin/painel?tipo=fechamento_entidade")
 
 

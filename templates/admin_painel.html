@@ -1921,23 +1921,25 @@
                 );
             }
 
-            // Exibe confirm de faturamento com nome do fornecedor, período e entidade selecionada.
-            // Impede envio se nenhuma entidade foi selecionada.
+            // Exibe confirm de faturamento da Entidade com período, total e entidade selecionada.
+            // Impede envio se nenhuma entidade foi selecionada no dropdown.
             function confirmarFaturarEntidade(form) {
-                const select    = form.querySelector('select[name="entidade_id"]');
-                const entNome   = select ? select.options[select.selectedIndex].text : '—';
-                const fornecedor = form.dataset.fornecedor || '';
-                const periodo    = form.dataset.periodo    || '';
+                const select       = form.querySelector('select[name="entidade_id"]');
+                const entNome      = select ? select.options[select.selectedIndex].text : '—';
+                const periodo      = form.dataset.periodo      || '';
+                const total        = form.dataset.total        || '';
+                const fornecedores = form.dataset.fornecedores || '';
                 if (!select || !select.value) {
                     alert('Selecione a Entidade Favorecida antes de faturar.');
                     return false;
                 }
                 return confirm(
-                    'Faturar Entidade\n\n' +
-                    'Fornecedor: ' + fornecedor + '\n' +
-                    'Período: ' + periodo + '\n' +
-                    'Entidade: ' + entNome + '\n\n' +
-                    'Esta ação é irreversível.'
+                    'Faturar Entidade Favorecida\n\n' +
+                    'Período: '      + periodo      + '\n' +
+                    'Entidade: '     + entNome      + '\n' +
+                    'Fornecedores: ' + fornecedores + '\n' +
+                    'Total líquido: ' + total       + '\n\n' +
+                    'Esta ação é irreversível e fatura todos os fornecedores do período.'
                 );
             }
 
@@ -1972,86 +1974,89 @@
 
             {% if fechamento_entidade_pendente %}
 
-            <!-- Agrupa visualmente por mês -->
-            {% set ns = namespace(mes_atual='') %}
+            <!-- Um card por mês — todos os fornecedores do período totalizados -->
             <div class="divide-y divide-gray-100">
                 {% for g in fechamento_entidade_pendente %}
-
-                <!-- Separador de mês: exibido apenas quando o mês muda -->
-                {% if g.mes_ref != ns.mes_atual %}
-                {% set ns.mes_atual = g.mes_ref %}
-                <div class="bg-gray-50 px-6 py-2 flex items-center gap-2">
-                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        📅 nº Baixa {{ g.numero_baixa }}
-                        &nbsp;·&nbsp;
-                        {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}
-                    </span>
-                </div>
-                {% endif %}
-
-                <!-- Card de saldo pendente — layout vertical:
-                     1º Entidade (seleção + faturar) · 2º Fornecedor (dados do período) -->
                 <div class="px-6 py-5 flex flex-col gap-4">
 
-                    <!-- ── 1. Entidade: seleção + valor líquido + botão Faturar ── -->
-                    <form method="POST" action="/admin/faturamento-entidade/criar"
-                        data-fornecedor="{{ g.razao_social }}"
-                        data-periodo="{{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}"
-                        onsubmit="return confirmarFaturarEntidade(this)">
-                        <input type="hidden" name="fornecedor_id" value="{{ g.fornecedor_id }}">
-                        <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
+                    <!-- ── Cabeçalho do período ── -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                            📅 nº Baixa {{ g.numero_baixa }}
+                            &nbsp;·&nbsp;
+                            {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}
+                        </span>
+                        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                            % {{ g.perc_display }}
+                        </span>
+                    </div>
 
-                        <!-- Rótulo + valor líquido lado a lado -->
-                        <div class="flex items-center justify-between mb-2">
+                    <!-- ── 1. Entidade: seleção + total do mês + botão Faturar ── -->
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
                             <p class="text-xs font-bold text-blue-700 uppercase tracking-wider">
                                 🏛️ Entidade Favorecida
                             </p>
-                            <p class="text-lg font-extrabold text-blue-700">
+                            <p class="text-xl font-extrabold text-blue-700">
                                 R$ {{ "%.2f"|format(g.valor_liquido) }}
                             </p>
                         </div>
 
                         {% if entidades_ativas %}
-                        <!-- Dropdown de entidades ativas + botão Faturar na mesma linha -->
-                        <div class="flex gap-2">
-                            <select name="entidade_id" required
-                                class="flex-1 p-2 border border-blue-300 rounded-xl text-sm
-                                       focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 bg-white">
-                                <option value="">— Selecionar Entidade —</option>
-                                {% for ea in entidades_ativas %}
-                                <option value="{{ ea[0] }}">{{ ea[1] }}</option>
-                                {% endfor %}
-                            </select>
+                        <!-- Formulário único: dropdown + botão fatura todo o mês em lote -->
+                        <form method="POST" action="/admin/faturamento-entidade/criar-mes"
+                            data-periodo="{{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}"
+                            data-total="R$ {{ '%.2f'|format(g.valor_liquido) }}"
+                            data-fornecedores="{{ g.fornecedores|length }}"
+                            onsubmit="return confirmarFaturarEntidade(this)">
+                            <input type="hidden" name="mes_ref" value="{{ g.mes_ref }}">
+                            <div class="flex gap-2 mb-2">
+                                <select name="entidade_id" required
+                                    class="flex-1 p-2 border border-blue-300 rounded-xl text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 bg-white">
+                                    <option value="">— Selecionar Entidade —</option>
+                                    {% for ea in entidades_ativas %}
+                                    <option value="{{ ea[0] }}">{{ ea[1] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                             <button type="submit"
-                                class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold
-                                       px-5 py-2 rounded-xl transition shadow whitespace-nowrap">
-                                💳 Faturar
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold
+                                       px-4 py-2 rounded-xl transition shadow">
+                                💳 Faturar {{ g.mes_ref[5:7] }}/{{ g.mes_ref[:4] }}
+                                &nbsp;·&nbsp; R$ {{ "%.2f"|format(g.valor_liquido) }}
                             </button>
-                        </div>
+                        </form>
 
                         {% else %}
-                        <!-- Aviso: nenhuma entidade ativa cadastrada -->
                         <div class="text-xs text-amber-700 bg-amber-50 border border-amber-200
                                     rounded-xl px-4 py-2.5 text-center">
                             ⚠️ Cadastre uma entidade ativa para faturar.
                         </div>
                         {% endif %}
-                    </form>
+                    </div>
 
-                    <!-- ── 2. Fornecedor: nome + tags do período ── -->
-                    <div class="border-t border-gray-100 pt-3 flex items-center justify-between gap-3">
-                        <p class="text-sm font-semibold text-gray-700 truncate">🏪 {{ g.razao_social }}</p>
-                        <div class="flex flex-wrap gap-1.5 justify-end">
-                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                🌱 {{ g.quantidade }} muda{{ 's' if g.quantidade != 1 else '' }}
-                            </span>
-                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                📦 R$ {{ "%.2f"|format(g.valor_bruto) }}
-                            </span>
-                            <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
-                                % {{ g.perc_display }}
-                            </span>
+                    <!-- ── 2. Fornecedores contribuintes do período ── -->
+                    <div class="border-t border-gray-100 pt-3 space-y-2">
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                            🏪 Fornecedores ({{ g.fornecedores|length }})
+                            &nbsp;·&nbsp; {{ g.quantidade }} muda{{ 's' if g.quantidade != 1 else '' }}
+                            &nbsp;·&nbsp; Bruto R$ {{ "%.2f"|format(g.valor_bruto) }}
+                        </p>
+                        {% for f in g.fornecedores %}
+                        <div class="flex items-center justify-between gap-3 bg-gray-50
+                                    rounded-lg px-3 py-2">
+                            <p class="text-sm font-medium text-gray-700 truncate">{{ f.razao_social }}</p>
+                            <div class="flex gap-2 shrink-0">
+                                <span class="text-xs text-gray-400">
+                                    {{ f.quantidade }} muda{{ 's' if f.quantidade != 1 else '' }}
+                                </span>
+                                <span class="text-xs font-semibold text-blue-700">
+                                    R$ {{ "%.2f"|format(f.valor_liquido) }}
+                                </span>
+                            </div>
                         </div>
+                        {% endfor %}
                     </div>
 
                 </div>
