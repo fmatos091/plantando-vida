@@ -1570,14 +1570,6 @@ def admin_painel():
     """)
     plantios = cursor.fetchall()
 
-    # Contagem de plantios por status para exibir nos botões de filtro da aba plantios
-    contagem_plantios = {
-        'em_analise': sum(1 for p in plantios if p[4] == 'em_analise'),
-        'aprovado':   sum(1 for p in plantios if p[4] == 'aprovado'),
-        'reprovado':  sum(1 for p in plantios if p[4] == 'reprovado'),
-        'retirado':   sum(1 for p in plantios if p[4] == 'retirado'),
-    }
-
     # ---- Consulta Compras de Mudas (todas, para o admin gerenciar) ----
     # c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
     # c[4]=comprovante  c[5]=status  c[6]=criado_em
@@ -1593,6 +1585,15 @@ def admin_painel():
         ORDER BY c.criado_em DESC
     """)
     compras = cursor.fetchall()
+
+    # Contagem unificada por status: soma plantas_go + compras de cada status.
+    # Exibida nos botões de filtro da aba plantios para dar visibilidade total ao admin.
+    contagem_plantios = {
+        'em_analise': sum(1 for p in plantios if p[4] == 'em_analise') + sum(1 for c in compras if c[5] == 'em_analise'),
+        'aprovado':   sum(1 for p in plantios if p[4] == 'aprovado')   + sum(1 for c in compras if c[5] == 'aprovado'),
+        'reprovado':  sum(1 for p in plantios if p[4] == 'reprovado')  + sum(1 for c in compras if c[5] == 'reprovado'),
+        'retirado':   sum(1 for p in plantios if p[4] == 'retirado')   + sum(1 for c in compras if c[5] == 'retirado'),
+    }
 
     # ---- Consulta Espécies de Plantas ----
     cursor.execute("SELECT id, nome, tipo, valor FROM especies_plantas ORDER BY nome")

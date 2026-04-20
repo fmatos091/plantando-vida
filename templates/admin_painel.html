@@ -820,7 +820,8 @@
         <!-- fim bloco filtro ativo -->
 
         <!-- ===================== SEÇÃO COMPRAS DE MUDAS =====================
-             Lista todas as compras finalizadas pelos usuários com botões de ação.
+             Quando um filtro de status está ativo, exibe apenas compras daquele status.
+             Sem filtro: exibe todas as compras.
              c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
              c[4]=comprovante  c[5]=status  c[6]=criado_em
              c[7]=usuario_nome  c[8]=usuario_email  c[9]=fornecedor_nome
@@ -831,11 +832,13 @@
                 <span class="bg-gray-200 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">
                     {{ compras|length }}
                 </span>
+                {% if plantio_status %}
+                <span class="text-xs text-gray-400 font-normal">— exibindo: {{ plantio_status | replace('em_analise','Em Análise') | replace('aprovado','Aprovado') | replace('reprovado','Reprovado') | replace('retirado','Retirado') }}</span>
+                {% endif %}
             </h3>
 
-            {% if compras %}
             <div class="flex flex-col gap-4">
-                {% for c in compras %}
+                {% for c in compras if not plantio_status or c[5] == plantio_status %}
                 <!-- Cor da borda esquerda: amarelo=em análise, verde=aprovado, emerald=retirado, vermelho=reprovado -->
                 <div class="bg-white rounded-xl shadow p-5 border-l-4
                     {% if c[5] == 'em_analise' %}border-yellow-400
@@ -932,14 +935,14 @@
                     {% endif %}
 
                 </div>
-                {% endfor %}
-            </div>
             {% else %}
             <div class="bg-white rounded-xl shadow p-8 text-center text-gray-400">
                 <div class="text-3xl mb-2">🛒</div>
-                <p class="text-sm">Nenhuma compra realizada ainda.</p>
+                <p class="text-sm">
+                    {% if plantio_status %}Nenhuma compra com este status.{% else %}Nenhuma compra realizada ainda.{% endif %}
+                </p>
             </div>
-            {% endif %}
+            {% endfor %}
         </div>
         <!-- fim seção compras -->
 
