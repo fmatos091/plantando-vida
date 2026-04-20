@@ -170,7 +170,7 @@
 
                                         <!-- Preview: foto salva anteriormente (substituída após nova captura) -->
                                         {% if foto_val %}
-                                        <img id="foto-preview-{{ p[0] }}-{{ n }}" src="/static/uploads/{{ foto_val }}"
+                                        <img id="foto-preview-{{ p[0] }}-{{ n }}" src="{{ img_url(foto_val) }}"
                                             alt="Foto {{ n }}"
                                             class="mt-2 w-full max-h-40 object-cover rounded-lg shadow-sm" />
                                         {% else %}

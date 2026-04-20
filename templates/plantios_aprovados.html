@@ -58,8 +58,8 @@
                 <!-- Thumbnail da foto_1 — exibida quando disponível.
                      Ao clicar abre a imagem em tamanho completo numa nova aba. -->
                 {% if p[7] %}
-                <a href="/static/uploads/{{ p[7] }}" target="_blank" title="Ver foto em tamanho completo">
-                    <img src="/static/uploads/{{ p[7] }}"
+                <a href="{{ img_url(p[7]) }}" target="_blank" title="Ver foto em tamanho completo">
+                    <img src="{{ img_url(p[7]) }}"
                          alt="Foto do plantio de {{ p[2] }}"
                          class="w-full h-44 object-cover hover:opacity-90 transition" />
                 </a>

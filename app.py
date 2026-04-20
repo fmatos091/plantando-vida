@@ -12,8 +12,18 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "sua_chave_super_secreta")
 
 
-
-#app = Flask(__name__)
+# ===================== HELPER JINJA2: img_url =====================
+# Converte nome de arquivo legado OU URL do Cloudinary para URL final exibível.
+# Legado: apenas o nome (ex: "abc123.jpg") → montamos o caminho local.
+# Cloudinary: URL completa (começa com "http") → retorna como está.
+# pasta: subpasta local para arquivos legados ("uploads", "pix", "qrcodes").
+@app.template_global()
+def img_url(valor, pasta="uploads"):
+    if not valor:
+        return ""
+    if valor.startswith("http"):
+        return valor  # URL Cloudinary — usa diretamente
+    return f"/static/{pasta}/{valor}"  # arquivo legado local
 
 
 from views import *

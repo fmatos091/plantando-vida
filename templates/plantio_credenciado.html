@@ -202,7 +202,7 @@
                         <!-- QR Code PIX se disponível -->
                         {% if db[5] %}
                         <div class="text-center mt-2">
-                            <img src="/static/pix/{{ db[5] }}" alt="QR Code PIX"
+                            <img src="{{ img_url(db[5], 'pix') }}" alt="QR Code PIX"
                                 class="mx-auto w-32 h-32 object-contain rounded-lg shadow-sm" />
                             <p class="text-xs text-gray-400 mt-1">Escaneie para pagar via PIX</p>
                         </div>

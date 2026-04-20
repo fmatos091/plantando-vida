@@ -12,6 +12,18 @@ from email.mime.image import MIMEImage
 from flask import render_template, request, redirect, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+import cloudinary
+import cloudinary.uploader
+
+# ===================== CLOUDINARY: CONFIGURAÇÃO =====================
+# Credenciais lidas do ambiente (.env local ou variáveis do Railway em produção).
+# Variáveis necessárias: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+cloudinary.config(
+    cloud_name = os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    api_key    = os.environ.get("CLOUDINARY_API_KEY"),
+    api_secret = os.environ.get("CLOUDINARY_API_SECRET"),
+    secure     = True,
+)
 
 # ===================== VALIDAÇÃO DE CPF (ALGORITMO RECEITA FEDERAL) =====================
 # Implementa os dois dígitos verificadores conforme regra oficial da Receita Federal.
@@ -50,11 +62,24 @@ def validar_cpf(cpf_raw):
     return True
 
 
-# Pasta de destino dos uploads de fotos de plantio
+# Pastas locais — mantidas para compatibilidade com arquivos legados e QR codes gerados
 UPLOAD_FOLDER  = os.path.join(os.path.dirname(__file__), "static", "uploads")
 QRCODE_FOLDER  = os.path.join(os.path.dirname(__file__), "static", "qrcodes")
 PIX_FOLDER     = os.path.join(os.path.dirname(__file__), "static", "pix")
 EXTENSOES_PERMITIDAS = {"jpg", "jpeg", "png"}
+
+
+# ===================== HELPER: UPLOAD CLOUDINARY =====================
+# Faz upload de um objeto de arquivo (werkzeug FileStorage) para o Cloudinary.
+# Retorna a URL segura (https://res.cloudinary.com/...) do arquivo enviado.
+# pasta: subpasta dentro do projeto no Cloudinary (ex: 'plantios', 'pix').
+def upload_cloudinary(arquivo, pasta="plantando-vida"):
+    resultado = cloudinary.uploader.upload(
+        arquivo,
+        folder        = pasta,
+        resource_type = "image",
+    )
+    return resultado["secure_url"]
 
 from app import app
 
@@ -442,9 +467,8 @@ def logout():
 
 
 # ===================== HELPER: SALVAR FOTO =====================
-# Valida a extensão do arquivo enviado e salva em static/uploads/
-# com nome único (uuid) para evitar conflitos.
-# Retorna o nome do arquivo salvo ou None se inválido/vazio.
+# Valida a extensão do arquivo enviado e faz upload para o Cloudinary.
+# Retorna a URL segura (https://...) ou None se inválido/vazio.
 def salvar_foto(campo_arquivo):
     arquivo = request.files.get(campo_arquivo)
     if not arquivo or arquivo.filename == "":
@@ -452,9 +476,7 @@ def salvar_foto(campo_arquivo):
     ext = arquivo.filename.rsplit(".", 1)[-1].lower()
     if ext not in EXTENSOES_PERMITIDAS:
         return None
-    nome = f"{uuid.uuid4().hex}.{ext}"
-    arquivo.save(os.path.join(UPLOAD_FOLDER, nome))
-    return nome
+    return upload_cloudinary(arquivo, pasta="plantando-vida/plantios")
 
 
 # ===================== ROTA PLANTIO EM LOCAL CREDENCIADO =====================
@@ -627,10 +649,8 @@ def salvar_acompanhamentos(pid):
         if arquivo and arquivo.filename:
             ext = arquivo.filename.rsplit(".", 1)[-1].lower()
             if ext in EXTENSOES_PERMITIDAS:
-                nome = f"acomp_{pid}_{campo_nome}_{uuid.uuid4().hex[:8]}.{ext}"
-                arquivo.save(os.path.join(UPLOAD_FOLDER, nome))
-                return nome
-        return campo_atual  # mantém foto anterior
+                return upload_cloudinary(arquivo, pasta="plantando-vida/acompanhamentos")
+        return campo_atual  # mantém URL/nome já gravado
 
     # Carrega fotos atuais para não apagar ao omitir o upload
     cursor.execute(
@@ -2042,16 +2062,13 @@ def admin_salvar_dados_bancarios():
     agencia          = request.form.get("agencia", "").strip()
     chave_pix        = request.form.get("chave_pix", "").strip()
 
-    # Upload do QR Code PIX — salvo como pix_qrcode.{ext} em static/pix/
-    os.makedirs(PIX_FOLDER, exist_ok=True)
+    # Upload do QR Code PIX para o Cloudinary
     qrcode_novo = None
     arquivo_qr  = request.files.get("qrcode_pix")
     if arquivo_qr and arquivo_qr.filename:
         ext = arquivo_qr.filename.rsplit(".", 1)[-1].lower()
         if ext in {"jpg", "jpeg", "png"}:
-            nome_arquivo = f"pix_qrcode.{ext}"
-            arquivo_qr.save(os.path.join(PIX_FOLDER, nome_arquivo))
-            qrcode_novo = nome_arquivo
+            qrcode_novo = upload_cloudinary(arquivo_qr, pasta="plantando-vida/pix")
 
     conn   = get_db()
     cursor = conn.cursor()
@@ -2094,16 +2111,13 @@ def admin_salvar_dados_bancarios_entidade():
     agencia          = request.form.get("agencia_ent", "").strip()
     chave_pix        = request.form.get("chave_pix_ent", "").strip()
 
-    # Upload do QR Code — salvo como entidade_qrcode.{ext} em static/pix/
-    os.makedirs(PIX_FOLDER, exist_ok=True)
+    # Upload do QR Code da entidade favorecida para o Cloudinary
     qrcode_novo = None
     arquivo_qr  = request.files.get("qrcode_pix_ent")
     if arquivo_qr and arquivo_qr.filename:
         ext = arquivo_qr.filename.rsplit(".", 1)[-1].lower()
         if ext in {"jpg", "jpeg", "png"}:
-            nome_arquivo = f"entidade_qrcode.{ext}"
-            arquivo_qr.save(os.path.join(PIX_FOLDER, nome_arquivo))
-            qrcode_novo = nome_arquivo
+            qrcode_novo = upload_cloudinary(arquivo_qr, pasta="plantando-vida/pix")
 
     conn   = get_db()
     cursor = conn.cursor()
@@ -2166,15 +2180,13 @@ def admin_salvar_entidade():
         row = cursor.fetchone()
         qrcode_atual = row[0] if row else None
 
+    # Upload do QR Code PIX da entidade para o Cloudinary
     qrcode_final = qrcode_atual
     qrfile = request.files.get("qrcode_pix")
     if qrfile and qrfile.filename:
-        ext        = os.path.splitext(secure_filename(qrfile.filename))[1].lower() or ".png"
-        nome_arq   = f"ent_{uuid.uuid4().hex}{ext}"
-        pix_dir    = os.path.join(app.root_path, "static", "pix")
-        os.makedirs(pix_dir, exist_ok=True)
-        qrfile.save(os.path.join(pix_dir, nome_arq))
-        qrcode_final = nome_arq
+        ext = os.path.splitext(secure_filename(qrfile.filename))[1].lower()
+        if ext.lstrip(".") in {"jpg", "jpeg", "png"}:
+            qrcode_final = upload_cloudinary(qrfile, pasta="plantando-vida/pix")
 
     if eid:
         # Atualiza entidade existente
@@ -3285,9 +3297,7 @@ def plantio_concluir():
         if arq and arq.filename:
             ext = arq.filename.rsplit(".", 1)[-1].lower()
             if ext in EXTENSOES_PERMITIDAS:
-                nome = secure_filename(f"plantio_{session['usuario_id']}_{compra_id}_cova.{ext}")
-                arq.save(os.path.join(UPLOAD_FOLDER, nome))
-                foto_plantio = nome
+                foto_plantio = upload_cloudinary(arq, pasta="plantando-vida/plantios")
 
     # Salva foto com a planta na cova e regada (Etapa 4) — acompanhamento_1
     foto_1 = None
@@ -3296,9 +3306,7 @@ def plantio_concluir():
         if arq and arq.filename:
             ext = arq.filename.rsplit(".", 1)[-1].lower()
             if ext in EXTENSOES_PERMITIDAS:
-                nome = secure_filename(f"plantio_{session['usuario_id']}_{compra_id}_acomp1.{ext}")
-                arq.save(os.path.join(UPLOAD_FOLDER, nome))
-                foto_1 = nome
+                foto_1 = upload_cloudinary(arq, pasta="plantando-vida/acompanhamentos")
 
     from datetime import date
     data_hoje = date.today().isoformat()
