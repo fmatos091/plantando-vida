@@ -6,6 +6,7 @@ import re
 import uuid
 import smtplib
 import qrcode
+import resend
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -84,37 +85,32 @@ def upload_cloudinary(arquivo, pasta="plantando-vida"):
 from app import app
 
 
-# ===================== HELPER: ENVIAR EMAIL =====================
-# Envia um email HTML via Gmail SMTP usando as variáveis de ambiente
-# EMAIL_REMETENTE e EMAIL_SENHA (senha de app do Gmail, não a senha normal).
+# ===================== HELPER: ENVIAR EMAIL (Resend) =====================
+# Envia email HTML via Resend API (resend.com) — gratuito até 3.000/mês.
+# Requer variável RESEND_API_KEY no ambiente.
+# Remetente: RESEND_FROM (padrão: onboarding@resend.dev para testes sem domínio).
 # Retorna True se enviado com sucesso, False caso contrário.
 def enviar_email(destinatario, assunto, corpo_html):
     import sys
-    remetente   = os.environ.get("EMAIL_REMETENTE", "")
-    senha_email = os.environ.get("EMAIL_SENHA", "")
+    api_key  = os.environ.get("RESEND_API_KEY", "")
+    remetente = os.environ.get("RESEND_FROM", "Plantando Vida <onboarding@resend.dev>")
 
-    # Sem credenciais configuradas, retorna False sem tentar conectar
-    if not remetente or not senha_email:
-        print(f"[EMAIL] Credenciais ausentes: EMAIL_REMETENTE={bool(remetente)} EMAIL_SENHA={bool(senha_email)}", file=sys.stderr)
+    if not api_key:
+        print("[EMAIL] RESEND_API_KEY nao configurada.", file=sys.stderr)
         return False
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = assunto
-        msg["From"]    = remetente
-        msg["To"]      = destinatario
-        msg.attach(MIMEText(corpo_html, "html"))
-
-        # Conecta ao SMTP do Gmail com TLS na porta 587
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as smtp:
-            smtp.starttls()
-            smtp.login(remetente, senha_email)
-            smtp.sendmail(remetente, destinatario, msg.as_string())
-        print(f"[EMAIL] Enviado para {destinatario} | assunto: {assunto}", file=sys.stderr)
+        resend.api_key = api_key
+        resend.Emails.send({
+            "from":    remetente,
+            "to":      [destinatario],
+            "subject": assunto,
+            "html":    corpo_html,
+        })
+        print(f"[EMAIL] Enviado via Resend para {destinatario}", file=sys.stderr)
         return True
     except Exception as e:
-        # Loga o erro real nos logs do servidor (visível no Railway → Logs)
-        print(f"[EMAIL] ERRO ao enviar para {destinatario}: {type(e).__name__}: {e}", file=sys.stderr)
+        print(f"[EMAIL] ERRO Resend para {destinatario}: {type(e).__name__}: {e}", file=sys.stderr)
         return False
 
 
