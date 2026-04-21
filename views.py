@@ -89,11 +89,13 @@ from app import app
 # EMAIL_REMETENTE e EMAIL_SENHA (senha de app do Gmail, não a senha normal).
 # Retorna True se enviado com sucesso, False caso contrário.
 def enviar_email(destinatario, assunto, corpo_html):
-    remetente   = os.environ.get("EMAIL_REMETENTE", "projetoplantandovida@gmail.com")
+    import sys
+    remetente   = os.environ.get("EMAIL_REMETENTE", "")
     senha_email = os.environ.get("EMAIL_SENHA", "")
 
-    # Sem senha configurada, não tenta enviar (evita erro em desenvolvimento)
-    if not senha_email:
+    # Sem credenciais configuradas, retorna False sem tentar conectar
+    if not remetente or not senha_email:
+        print(f"[EMAIL] Credenciais ausentes: EMAIL_REMETENTE={bool(remetente)} EMAIL_SENHA={bool(senha_email)}", file=sys.stderr)
         return False
 
     try:
@@ -104,12 +106,15 @@ def enviar_email(destinatario, assunto, corpo_html):
         msg.attach(MIMEText(corpo_html, "html"))
 
         # Conecta ao SMTP do Gmail com TLS na porta 587
-        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as smtp:
             smtp.starttls()
             smtp.login(remetente, senha_email)
             smtp.sendmail(remetente, destinatario, msg.as_string())
+        print(f"[EMAIL] Enviado para {destinatario} | assunto: {assunto}", file=sys.stderr)
         return True
-    except Exception:
+    except Exception as e:
+        # Loga o erro real nos logs do servidor (visível no Railway → Logs)
+        print(f"[EMAIL] ERRO ao enviar para {destinatario}: {type(e).__name__}: {e}", file=sys.stderr)
         return False
 
 
@@ -139,7 +144,9 @@ def _enviar_token_cadastro(email_dest, nome):
       </p>
     </div>
     """
-    enviar_email(email_dest, "Código de verificação — Plantando Vida", corpo_html)
+    ok = enviar_email(email_dest, "Codigo de verificacao - Plantando Vida", corpo_html)
+    # Salva resultado na sessão para que a rota saiba se o envio foi bem-sucedido
+    session["cadastro_email_enviado"] = ok
     return token
 
 
@@ -319,12 +326,16 @@ def cadastro():
         session["cadastro_verificado"] = False
 
         token = _enviar_token_cadastro(email, nome)
+        email_ok = session.get("cadastro_email_enviado", False)
 
-        # Em produção envia email; localmente apenas informa que o código foi gerado
         if os.environ.get("FLASK_ENV") == "production":
-            flash(f"Código enviado para {email}. Verifique sua caixa de entrada.", "sucesso")
+            if email_ok:
+                flash(f"Codigo enviado para {email}. Verifique sua caixa de entrada (e o spam).", "sucesso")
+            else:
+                # Falha no envio — informa o usuário para contatar o suporte
+                flash("Nao foi possivel enviar o email de verificacao. Verifique o endereco ou tente novamente em instantes.", "erro")
         else:
-            flash("Código gerado. Veja o código exibido abaixo.", "sucesso")
+            flash("Codigo gerado. Veja o codigo exibido abaixo.", "sucesso")
 
         return redirect("/cadastros?etapa=token")
 
