@@ -85,32 +85,39 @@ def upload_cloudinary(arquivo, pasta="plantando-vida"):
 from app import app
 
 
-# ===================== HELPER: ENVIAR EMAIL (Resend) =====================
-# Envia email HTML via Resend API (resend.com) — gratuito até 3.000/mês.
-# Requer variável RESEND_API_KEY no ambiente.
-# Remetente: RESEND_FROM (padrão: onboarding@resend.dev para testes sem domínio).
+# ===================== HELPER: ENVIAR EMAIL (Brevo SMTP) =====================
+# Envia email HTML via Brevo (antigo Sendinblue) — 300 emails/dia gratuitos,
+# sem necessidade de domínio próprio verificado.
+# Variáveis necessárias: BREVO_LOGIN (email da conta) e BREVO_SMTP_KEY (chave SMTP do Brevo).
+# Remetente exibido: BREVO_FROM (padrão: projetoplantandovida2026@gmail.com).
 # Retorna True se enviado com sucesso, False caso contrário.
 def enviar_email(destinatario, assunto, corpo_html):
     import sys
-    api_key  = os.environ.get("RESEND_API_KEY", "")
-    remetente = os.environ.get("RESEND_FROM", "Plantando Vida <onboarding@resend.dev>")
+    login     = os.environ.get("BREVO_LOGIN", "")
+    smtp_key  = os.environ.get("BREVO_SMTP_KEY", "")
+    remetente = os.environ.get("BREVO_FROM", "Plantando Vida <projetoplantandovida2026@gmail.com>")
 
-    if not api_key:
-        print("[EMAIL] RESEND_API_KEY nao configurada.", file=sys.stderr)
+    if not login or not smtp_key:
+        print(f"[EMAIL] Credenciais Brevo ausentes: BREVO_LOGIN={bool(login)} BREVO_SMTP_KEY={bool(smtp_key)}", file=sys.stderr)
         return False
 
     try:
-        resend.api_key = api_key
-        resend.Emails.send({
-            "from":    remetente,
-            "to":      [destinatario],
-            "subject": assunto,
-            "html":    corpo_html,
-        })
-        print(f"[EMAIL] Enviado via Resend para {destinatario}", file=sys.stderr)
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = assunto
+        msg["From"]    = remetente
+        msg["To"]      = destinatario
+        msg.attach(MIMEText(corpo_html, "html"))
+
+        # Brevo SMTP: host smtp-relay.brevo.com, porta 587, autenticacao com login + chave SMTP
+        with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=10) as smtp:
+            smtp.starttls()
+            smtp.login(login, smtp_key)
+            smtp.sendmail(remetente, destinatario, msg.as_string())
+
+        print(f"[EMAIL] Enviado via Brevo para {destinatario}", file=sys.stderr)
         return True
     except Exception as e:
-        print(f"[EMAIL] ERRO Resend para {destinatario}: {type(e).__name__}: {e}", file=sys.stderr)
+        print(f"[EMAIL] ERRO Brevo para {destinatario}: {type(e).__name__}: {e}", file=sys.stderr)
         return False
 
 
