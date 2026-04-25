@@ -1,0 +1,17 @@
+================================================================================
+  RESUMO DIGITAL HASH — PROJETO PLANTANDO VIDA
+================================================================================
+  Data/Hora   : 2026-04-21 11:32:28
+  Algoritmo   : SHA-512
+  Arquivos    : 29 arquivos verificados
+  Ultimo commit: ed25fd4c3afd3268f8edfd112c3cf3bd658a0b82 | Migrar envio de email de Gmail SMTP para Resend API
+--------------------------------------------------------------------------------
+  HASH MASTER (SHA-512 de todos os hashes combinados):
+
+  0b02e2b3ea8cc8fb7250b7f95f8680b8325416ea87f5840f36b6d8417fbc3df1
+  a85e15353aeaa29dcba885ad0cec7400f1fa0797629e1687a0c1f5ac9cea6e3b
+
+================================================================================
+  Este hash representa o estado integro do projeto neste momento.
+  Qualquer alteracao em qualquer arquivo modifica completamente este valor.
+================================================================================
