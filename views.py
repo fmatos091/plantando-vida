@@ -10,6 +10,8 @@ import resend
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
+from email.header import Header
+from email.utils import formataddr, make_msgid
 from flask import render_template, request, redirect, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -86,16 +88,18 @@ from app import app
 
 
 # ===================== HELPER: ENVIAR EMAIL (Brevo SMTP) =====================
-# Envia email HTML via Brevo (antigo Sendinblue) — 300 emails/dia gratuitos,
-# sem necessidade de domínio próprio verificado.
-# Variáveis necessárias: BREVO_LOGIN (email da conta) e BREVO_SMTP_KEY (chave SMTP do Brevo).
-# Remetente exibido: BREVO_FROM (padrão: projetoplantandovida2026@gmail.com).
+# Envia email HTML transacional via Brevo SMTP — 300 emails/dia gratuitos.
+# Variáveis de ambiente necessárias:
+#   BREVO_LOGIN   — login SMTP fornecido pelo Brevo (ex: a93994001@smtp-brevo.com)
+#   BREVO_SMTP_KEY — chave SMTP gerada no painel Brevo
+#   BREVO_FROM    — endereço "De" exibido (ex: "Plantando Vida <noreply@seudominio.com.br>")
 # Retorna True se enviado com sucesso, False caso contrário.
 def enviar_email(destinatario, assunto, corpo_html):
     import sys
     login     = os.environ.get("BREVO_LOGIN", "")
     smtp_key  = os.environ.get("BREVO_SMTP_KEY", "")
     remetente = os.environ.get("BREVO_FROM", "Plantando Vida <projetoplantandovida2026@gmail.com>")
+    app_url   = os.environ.get("APP_URL", "https://plantando-vida.up.railway.app")
 
     if not login or not smtp_key:
         print(f"[EMAIL] Credenciais Brevo ausentes: BREVO_LOGIN={bool(login)} BREVO_SMTP_KEY={bool(smtp_key)}", file=sys.stderr)
@@ -103,52 +107,145 @@ def enviar_email(destinatario, assunto, corpo_html):
 
     try:
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = assunto
+        # Codifica assunto em UTF-8 para suporte a acentos e caracteres especiais
+        msg["Subject"] = Header(assunto, "utf-8")
         msg["From"]    = remetente
         msg["To"]      = destinatario
-        msg.attach(MIMEText(corpo_html, "html"))
+        # Message-ID único evita que provedores classifiquem como spam duplicado
+        msg["Message-ID"] = make_msgid(domain=app_url.replace("https://", "").replace("http://", ""))
+        # Reply-To direciona respostas para o remetente real, não o relay
+        msg["Reply-To"]   = remetente
+        # Indica que é email transacional (não marketing)
+        msg["X-Mailer"]   = "Plantando Vida Mailer"
 
-        # Brevo SMTP: host smtp-relay.brevo.com, porta 587, autenticacao com login + chave SMTP
-        with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=10) as smtp:
+        msg.attach(MIMEText(corpo_html, "html", "utf-8"))
+
+        # Brevo SMTP: host smtp-relay.brevo.com, porta 587, STARTTLS obrigatório
+        with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=15) as smtp:
+            smtp.ehlo()
             smtp.starttls()
+            smtp.ehlo()
             smtp.login(login, smtp_key)
             smtp.sendmail(remetente, destinatario, msg.as_string())
 
         print(f"[EMAIL] Enviado via Brevo para {destinatario}", file=sys.stderr)
         return True
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"[EMAIL] ERRO autenticacao Brevo — verifique BREVO_LOGIN e BREVO_SMTP_KEY: {e}", file=sys.stderr)
+        return False
+    except smtplib.SMTPRecipientsRefused as e:
+        print(f"[EMAIL] ERRO destinatario recusado {destinatario}: {e}", file=sys.stderr)
+        return False
     except Exception as e:
         print(f"[EMAIL] ERRO Brevo para {destinatario}: {type(e).__name__}: {e}", file=sys.stderr)
         return False
 
 
 # ===================== HELPER: ENVIAR TOKEN DE CADASTRO =====================
-# Gera um código de 6 dígitos, salva na sessão e envia por email.
-# Retorna o token gerado para que o chamador possa exibi-lo em flash
-# caso o envio de email falhe (dev sem EMAIL_SENHA configurado).
+# Gera um código de 6 dígitos, salva na sessão e envia por email HTML profissional.
+# Retorna o token gerado. session["cadastro_email_enviado"] indica se o envio teve sucesso.
 def _enviar_token_cadastro(email_dest, nome):
-    # Gera token numérico de 6 dígitos
+    # Gera token numérico de 6 dígitos separado em 2 grupos de 3 para leitura fácil
     token = "".join(random.choices("0123456789", k=6))
+    token_exibido = f"{token[:3]} {token[3:]}"  # ex: "482 917"
 
-    # Armazena token na sessão Flask (não expira até o servidor reiniciar)
+    # Armazena token sem espaço na sessão (validação compara sem espaço)
     session["cadastro_token"] = token
 
-    corpo_html = f"""
-    <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-      <h2 style="color:#166534;">🌱 Plantando Vida — Verificação de Cadastro</h2>
-      <p>Olá, <strong>{nome}</strong>!</p>
-      <p>Use o código abaixo para concluir seu cadastro na plataforma:</p>
-      <div style="font-size:42px;font-weight:bold;letter-spacing:14px;color:#166534;
-                  text-align:center;padding:24px;background:#f0fdf4;border-radius:12px;
-                  margin:20px 0;">
-        {token}
-      </div>
-      <p style="font-size:12px;color:#6b7280;">
-        Este código é válido para uso imediato e não deve ser compartilhado com ninguém.
-      </p>
-    </div>
-    """
-    ok = enviar_email(email_dest, "Codigo de verificacao - Plantando Vida", corpo_html)
-    # Salva resultado na sessão para que a rota saiba se o envio foi bem-sucedido
+    # Template de email responsivo e profissional com identidade visual do projeto
+    corpo_html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verificacao de Cadastro — Plantando Vida</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+
+  <!-- Wrapper -->
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+    <tr>
+      <td align="center">
+
+        <!-- Card principal -->
+        <table width="520" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:16px;overflow:hidden;
+                      box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:520px;width:100%;">
+
+          <!-- Header verde -->
+          <tr>
+            <td style="background:#166534;padding:32px 40px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:22px;font-weight:700;color:#ffffff;
+                        letter-spacing:0.5px;">Plantando Vida</p>
+              <p style="margin:0;font-size:13px;color:#bbf7d0;letter-spacing:1px;
+                        text-transform:uppercase;">Sistema de Gestao de Plantios</p>
+            </td>
+          </tr>
+
+          <!-- Corpo -->
+          <tr>
+            <td style="padding:36px 40px 28px;">
+              <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">
+                Ola, {nome}!
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#4b5563;line-height:1.6;">
+                Recebemos sua solicitacao de cadastro. Use o codigo abaixo para
+                confirmar seu email e ativar sua conta:
+              </p>
+
+              <!-- Bloco do token -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:#f0fdf4;border:2px solid #86efac;
+                              border-radius:12px;padding:24px;text-align:center;">
+                    <p style="margin:0 0 6px;font-size:12px;font-weight:600;
+                               color:#166534;letter-spacing:2px;text-transform:uppercase;">
+                      Codigo de Verificacao
+                    </p>
+                    <p style="margin:0;font-size:48px;font-weight:700;
+                               letter-spacing:10px;color:#14532d;font-family:monospace;">
+                      {token_exibido}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:24px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">
+                Digite este codigo na tela de verificacao para concluir seu cadastro.
+                <br>Se voce nao solicitou este cadastro, ignore este email.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Divisor -->
+          <tr>
+            <td style="padding:0 40px;">
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:0;">
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 40px 28px;text-align:center;">
+              <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.6;">
+                Este e um email automatico — nao responda a esta mensagem.<br>
+                &copy; 2026 Plantando Vida. Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Card -->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>"""
+
+    ok = enviar_email(email_dest, "Codigo de verificacao — Plantando Vida", corpo_html)
+    # Salva resultado na sessão para que a rota exiba o feedback correto ao usuário
     session["cadastro_email_enviado"] = ok
     return token
 
@@ -344,7 +441,8 @@ def cadastro():
 
     # ── Etapa 2: valida o token informado pelo usuário ──
     elif etapa == "token":
-        token_informado = request.form.get("token", "").strip()
+        # Remove espaços para aceitar tanto "482917" quanto "482 917" (formato do email)
+        token_informado = re.sub(r"\s+", "", request.form.get("token", "").strip())
         token_esperado  = session.get("cadastro_token", "")
 
         if not token_esperado or token_informado != token_esperado:
