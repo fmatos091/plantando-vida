@@ -1,0 +1,8 @@
+# Configuração de deploy Railway
+# healthcheckPath: Railway valida este endpoint antes de considerar o deploy bem-sucedido.
+# restartPolicyType: reinicia automaticamente em caso de crash, evitando downtime.
+[deploy]
+healthcheckPath    = "/health"
+healthcheckTimeout = 300
+restartPolicyType  = "on_failure"
+restartPolicyMaxRetries = 5

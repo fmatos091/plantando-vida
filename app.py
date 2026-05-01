@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 
 # Carrega variáveis do arquivo .env em desenvolvimento local.
 # Em produção (Railway) as variáveis já estão no ambiente — load_dotenv não sobrescreve.
@@ -24,6 +24,14 @@ def img_url(valor, pasta="uploads"):
     if valor.startswith("http"):
         return valor  # URL Cloudinary — usa diretamente
     return f"/static/{pasta}/{valor}"  # arquivo legado local
+
+
+# ===================== HEALTH CHECK =====================
+# Usado pelo Railway para verificar se o app está saudável após o deploy.
+# Também usado pelo UptimeRobot para pings a cada 5 min (evita inatividade).
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"}), 200
 
 
 from views import *
