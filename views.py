@@ -1814,8 +1814,17 @@ def admin_painel():
     """)
     faturamentos_admin_hist = cursor.fetchall()
 
-    # ---- Total de árvores efetivamente plantadas (status 'aprovado') ----
-    total_arvores = sum(1 for p in plantios if p[4] == 'aprovado')
+    # ---- Total de árvores plantadas: aprovadas pelo admin com data_plantio >= 2026-03-01 ----
+    # Usa COUNT direto no banco para evitar iteração da lista e garantir precisão da data.
+    # data_plantio é coluna DATE em PostgreSQL e TEXT (ISO 8601) em SQLite — a comparação
+    # lexicográfica '2026-03-01' funciona em ambos os formatos.
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM plantas_go
+        WHERE status = 'aprovado'
+          AND data_plantio >= '2026-03-01'
+    """)
+    total_arvores = cursor.fetchone()[0]
 
     conn.close()
 
@@ -1861,6 +1870,7 @@ def admin_mapa():
         FROM plantas_go pg
         JOIN usuarios u ON u.id = pg.responsavel_id
         WHERE pg.status = 'aprovado'
+          AND pg.data_plantio >= '2026-03-01'
           AND pg.latitude IS NOT NULL
           AND pg.longitude IS NOT NULL
         ORDER BY pg.data_plantio DESC
