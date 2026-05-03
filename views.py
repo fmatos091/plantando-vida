@@ -661,18 +661,14 @@ def plantio_credenciado():
         flash("Plantio registrado com sucesso! Aguardando aprovação.", "sucesso")
         return redirect("/dashboard")
 
-    # GET: busca fornecedores ativos e dados bancários para o modal de compra
+    # GET: busca fornecedores ativos para exibição no catálogo
     conn   = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT id, razao_social, cnpj, cidade, uf, tipo_planta, whatsapp, maps_link FROM fornecedores WHERE ativo = 1 ORDER BY uf, cidade")
     fornecedores = cursor.fetchall()
-
-    # Dados bancários exibidos no modal de compra para o usuário efetuar o pagamento
-    cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios LIMIT 1")
-    dados_bancarios = cursor.fetchone()
     conn.close()
 
-    return render_template("plantio_credenciado.html", fornecedores=fornecedores, dados_bancarios=dados_bancarios)
+    return render_template("plantio_credenciado.html", fornecedores=fornecedores)
 
 
 # ===================== ROTA MEUS PLANTIOS (PENDENTES / TODOS) =====================

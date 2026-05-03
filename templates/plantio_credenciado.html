@@ -186,50 +186,7 @@
                         </div>
                     </div>
 
-                    <!-- ── ETAPA 2: Dados Bancários para pagamento ── -->
-                    {% if dados_bancarios %}
-                    {% set db = dados_bancarios %}
-                    <div class="border border-green-200 rounded-xl p-4 bg-green-50">
-                        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
-                            2️⃣ Realize o Pagamento
-                        </p>
-
-                        <div class="space-y-1 text-sm mb-3">
-                            {% if db[0] %}<p>🏢 <strong>{{ db[0] }}</strong></p>{% endif %}
-                            {% if db[1] %}<p>🏦 Banco: <strong>{{ db[1] }}</strong></p>{% endif %}
-                            {% if db[3] or db[2] %}
-                            <p>📋 Ag: <strong>{{ db[3] or '—' }}</strong>
-                               &nbsp;|&nbsp; Conta: <strong>{{ db[2] or '—' }}</strong></p>
-                            {% endif %}
-                            {% if db[4] %}
-                            <div class="flex items-center gap-2 mt-1">
-                                <p class="text-green-800">🔑 PIX: <strong id="chave-pix-val">{{ db[4] }}</strong></p>
-                                <!-- Botão copiar chave PIX -->
-                                <button type="button" onclick="copiarPix()"
-                                    class="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold
-                                           px-2 py-1 rounded-lg transition" title="Copiar chave PIX">
-                                    📋 Copiar
-                                </button>
-                            </div>
-                            <!-- Feedback de cópia -->
-                            <p id="pix-copiado" class="text-xs text-green-600 hidden">✅ Chave copiada!</p>
-                            {% endif %}
-                        </div>
-
-                        <!-- QR Code PIX se disponível -->
-                        {% if db[5] %}
-                        <div class="text-center mt-2">
-                            <img src="{{ img_url(db[5], 'pix') }}" alt="QR Code PIX"
-                                class="mx-auto w-32 h-32 object-contain rounded-lg shadow-sm" />
-                            <p class="text-xs text-gray-400 mt-1">Escaneie para pagar via PIX</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% else %}
-                    <div class="border border-yellow-200 bg-yellow-50 rounded-xl p-4 text-sm text-yellow-700">
-                        ⚠️ Dados bancários não configurados pelo administrador.
-                    </div>
-                    {% endif %}
+                    <!-- Pagamento e comprovante exibidos somente em /carrinho -->
 
                     <!-- Botão Adicionar no Carrinho — chama AJAX, não submete form -->
                     <button type="button" id="btn-adicionar-carrinho" disabled
