@@ -17,12 +17,28 @@
         <!-- ===================== CABEÇALHO ===================== -->
         <div class="text-center mb-8">
             <div class="text-5xl mb-3">🏪</div>
-            <h1 class="text-2xl font-bold text-green-800">Registrar Plantio Credenciado</h1>
+            <h1 class="text-2xl font-bold text-green-800">Comprar Planta</h1>
             <!-- Destaque da doação à APAE -->
-            <div
-                class="mt-3 inline-block bg-yellow-100 border border-yellow-300 text-yellow-800 text-sm px-4 py-2 rounded-full">
+            <div class="mt-3 inline-block bg-yellow-100 border border-yellow-300
+                        text-yellow-800 text-sm px-4 py-2 rounded-full">
                 💛 Parte do valor será doado à <strong>APAE</strong> do município
             </div>
+        </div>
+
+        <!-- Botão flutuante do carrinho — aparece somente quando há itens -->
+        <div id="btn-carrinho-flutuante"
+             class="hidden fixed bottom-6 right-6 z-40">
+            <a href="/carrinho"
+               class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white
+                      font-bold px-5 py-3 rounded-full shadow-xl transition">
+                🛒 <span>Carrinho</span>
+                <!-- Badge com contagem de itens -->
+                <span id="carrinho-badge"
+                      class="bg-white text-green-700 text-xs font-bold
+                             w-6 h-6 rounded-full flex items-center justify-center">
+                    0
+                </span>
+            </a>
         </div>
 
         <!-- ===================== MENSAGENS DE FEEDBACK ===================== -->
@@ -126,12 +142,13 @@
                         class="text-green-200 hover:text-white text-xl font-bold leading-none">✕</button>
                 </div>
 
-                <form method="POST" action="/compra/finalizar" enctype="multipart/form-data" class="p-5 space-y-4">
-                    <!-- Campos ocultos: fornecedor selecionado + planta escolhida -->
-                    <input type="hidden" name="fornecedor_id" id="compra-fornecedor-id" />
-                    <input type="hidden" name="especie_nome"  id="compra-especie-nome" />
-                    <input type="hidden" name="tipo_planta"   id="compra-tipo-planta" />
-                    <input type="hidden" name="valor"         id="compra-valor" />
+                <!-- Dados do item selecionado — preenchidos via JS antes de adicionar ao carrinho -->
+                <div class="p-5 space-y-4">
+                    <input type="hidden" id="compra-fornecedor-id" />
+                    <input type="hidden" id="compra-fornecedor-nome" />
+                    <input type="hidden" id="compra-especie-nome" />
+                    <input type="hidden" id="compra-tipo-planta" />
+                    <input type="hidden" id="compra-valor" />
 
                     <!-- ── ETAPA 1: Selecionar planta ── -->
                     <div class="border border-gray-100 rounded-xl p-4 bg-gray-50">
@@ -214,27 +231,22 @@
                     </div>
                     {% endif %}
 
-                    <!-- ── ETAPA 3: Comprovante de pagamento ── -->
-                    <div class="border border-gray-100 rounded-xl p-4 bg-gray-50">
-                        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
-                            3️⃣ Anexar Comprovante
-                        </p>
-                        <input type="file" name="comprovante" accept=".jpg,.jpeg,.png,.pdf"
-                            class="w-full text-sm text-gray-500
-                                   file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0
-                                   file:bg-green-100 file:text-green-700 file:font-medium hover:file:bg-green-200" />
-                        <p class="text-xs text-gray-400 mt-1">JPG, PNG ou PDF — opcional, mas recomendado</p>
-                    </div>
-
-                    <!-- Botão Finalizar Compra -->
-                    <button type="submit" id="btn-finalizar-compra" disabled
+                    <!-- Botão Adicionar no Carrinho — chama AJAX, não submete form -->
+                    <button type="button" id="btn-adicionar-carrinho" disabled
+                        onclick="adicionarNoCarrinho()"
                         class="w-full py-3 rounded-xl font-bold text-base transition
-                               bg-gray-200 text-gray-400 cursor-not-allowed"
-                        onclick="return validarCompra()">
-                        ✅ Finalizar Compra
+                               bg-gray-200 text-gray-400 cursor-not-allowed">
+                        🛒 Adicionar no Carrinho
                     </button>
 
-                </form>
+                    <!-- Toast de confirmação exibido após adicionar com sucesso -->
+                    <div id="toast-carrinho"
+                         class="hidden text-center text-sm font-semibold text-green-700
+                                bg-green-50 border border-green-200 rounded-xl py-2 px-4">
+                        ✅ Item adicionado ao carrinho!
+                    </div>
+
+                </div>
             </div>
         </div>
         <!-- fim modal compra -->
@@ -273,12 +285,32 @@
             return ''; // tipo desconhecido → sem filtro, exibe todas
         }
 
+        // Contador de itens no carrinho — inicializado pelo servidor via sessionStorage
+        let _totalCarrinho = parseInt(sessionStorage.getItem('carrinho_count') || '0');
+
+        // Atualiza o badge e botão flutuante do carrinho
+        function _atualizarBadgeCarrinho(total) {
+            _totalCarrinho = total;
+            sessionStorage.setItem('carrinho_count', total);
+            const badge   = document.getElementById('carrinho-badge');
+            const flutuante = document.getElementById('btn-carrinho-flutuante');
+            if (badge) badge.textContent = total;
+            if (flutuante) {
+                total > 0 ? flutuante.classList.remove('hidden')
+                          : flutuante.classList.add('hidden');
+            }
+        }
+
+        // Verifica a contagem real do carrinho na sessão ao carregar a página
+        fetch('/carrinho/count').then(r => r.json()).then(d => _atualizarBadgeCarrinho(d.total || 0)).catch(() => {});
+
         // Abre o modal de compra para o fornecedor clicado.
         // tipoPlanta: valor de tipo_planta cadastrado pelo fornecedor (ex: "Nativa").
         // O tipo é normalizado, exibido como badge e enviado como filtro fixo na busca.
         function abrirModalCompra(fornecedorId, fornecedorNome, tipoPlanta) {
             // Preenche campos do cabeçalho do modal
-            document.getElementById('compra-fornecedor-id').value = fornecedorId;
+            document.getElementById('compra-fornecedor-id').value   = fornecedorId;
+            document.getElementById('compra-fornecedor-nome').value = fornecedorNome;
             document.getElementById('modal-fornecedor-nome').textContent = fornecedorNome;
 
             // Normaliza para o valor canônico e atualiza o badge
@@ -299,13 +331,14 @@
         function fecharModalCompra() {
             document.getElementById('modal-compra').classList.add('hidden');
             // Limpa seleção anterior
-            document.getElementById('compra-especie-nome').value = '';
-            document.getElementById('compra-tipo-planta').value  = '';
-            document.getElementById('compra-valor').value        = '';
+            document.getElementById('compra-especie-nome').value  = '';
+            document.getElementById('compra-tipo-planta').value   = '';
+            document.getElementById('compra-valor').value         = '';
             document.getElementById('planta-selecionada').classList.add('hidden');
-            document.getElementById('btn-finalizar-compra').disabled  = true;
-            document.getElementById('btn-finalizar-compra').className =
-                'w-full py-3 rounded-xl font-bold text-base transition bg-gray-200 text-gray-400 cursor-not-allowed';
+            document.getElementById('toast-carrinho').classList.add('hidden');
+            const btn = document.getElementById('btn-adicionar-carrinho');
+            btn.disabled  = true;
+            btn.className = 'w-full py-3 rounded-xl font-bold text-base transition bg-gray-200 text-gray-400 cursor-not-allowed';
             document.getElementById('busca-planta').value = '';
         }
 
@@ -354,9 +387,9 @@
             }
         }
 
-        // Marca visualmente a planta escolhida e preenche os campos ocultos do form.
+        // Marca visualmente a planta escolhida e preenche os campos ocultos.
         function selecionarPlanta(nome, tipo, valor, elClicado) {
-            // Remove destaque de outros itens
+            // Remove destaque de outros itens da lista
             document.querySelectorAll('.planta-item').forEach(el => {
                 el.classList.remove('border-green-500', 'bg-green-100');
                 el.classList.add('border-gray-200');
@@ -364,21 +397,77 @@
             elClicado.classList.add('border-green-500', 'bg-green-100');
             elClicado.classList.remove('border-gray-200');
 
-            // Preenche os campos ocultos
+            // Preenche os campos ocultos com os dados da planta selecionada
             document.getElementById('compra-especie-nome').value = nome;
             document.getElementById('compra-tipo-planta').value  = tipo;
             document.getElementById('compra-valor').value        = valor;
 
-            // Exibe o resumo da seleção
+            // Exibe o resumo da seleção abaixo da lista
             document.getElementById('planta-sel-label').textContent = `${tipo === 'Frutífera' ? '🍎' : '🌳'} ${nome}`;
             document.getElementById('planta-sel-valor').textContent = `R$ ${valor.toFixed(2)}`;
             document.getElementById('planta-selecionada').classList.remove('hidden');
 
-            // Ativa o botão Finalizar Compra
-            const btn = document.getElementById('btn-finalizar-compra');
+            // Ativa o botão Adicionar no Carrinho
+            const btn = document.getElementById('btn-adicionar-carrinho');
             btn.disabled  = false;
             btn.className = 'w-full py-3 rounded-xl font-bold text-base transition ' +
                 'bg-green-600 hover:bg-green-700 text-white cursor-pointer';
+        }
+
+        // Envia o item selecionado para o carrinho via AJAX e exibe confirmação.
+        async function adicionarNoCarrinho() {
+            const fornecedorId   = document.getElementById('compra-fornecedor-id').value;
+            const fornecedorNome = document.getElementById('compra-fornecedor-nome').value;
+            const especieNome    = document.getElementById('compra-especie-nome').value;
+            const tipoPlanta     = document.getElementById('compra-tipo-planta').value;
+            const valor          = parseFloat(document.getElementById('compra-valor').value) || 0;
+
+            if (!especieNome) {
+                alert('Selecione uma planta antes de adicionar ao carrinho.');
+                return;
+            }
+
+            const btn = document.getElementById('btn-adicionar-carrinho');
+            btn.disabled = true;
+            btn.textContent = '⏳ Adicionando...';
+
+            try {
+                const resp = await fetch('/carrinho/adicionar', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        fornecedor_id:   parseInt(fornecedorId),
+                        fornecedor_nome: fornecedorNome,
+                        especie_nome:    especieNome,
+                        tipo_planta:     tipoPlanta,
+                        valor:           valor
+                    })
+                });
+                const data = await resp.json();
+
+                if (data.ok) {
+                    // Atualiza badge e mostra toast de confirmação
+                    _atualizarBadgeCarrinho(data.total_itens);
+                    document.getElementById('toast-carrinho').classList.remove('hidden');
+
+                    // Reseta o botão para permitir adicionar mais itens
+                    btn.disabled  = false;
+                    btn.className = 'w-full py-3 rounded-xl font-bold text-base transition ' +
+                        'bg-green-600 hover:bg-green-700 text-white cursor-pointer';
+                    btn.textContent = '🛒 Adicionar no Carrinho';
+
+                    // Fecha o modal após 1.5s para o usuário ver o toast
+                    setTimeout(fecharModalCompra, 1500);
+                } else {
+                    alert('Erro ao adicionar ao carrinho. Tente novamente.');
+                    btn.textContent = '🛒 Adicionar no Carrinho';
+                    btn.disabled = false;
+                }
+            } catch(e) {
+                alert('Erro de conexão. Tente novamente.');
+                btn.textContent = '🛒 Adicionar no Carrinho';
+                btn.disabled = false;
+            }
         }
 
         // Copia a chave PIX para o clipboard e exibe confirmação temporária.
@@ -391,15 +480,8 @@
             });
         }
 
-        // Valida que uma planta foi selecionada antes de enviar o formulário.
-        function validarCompra() {
-            const especie = document.getElementById('compra-especie-nome').value;
-            if (!especie) {
-                alert('Selecione uma planta antes de finalizar a compra.');
-                return false;
-            }
-            return true;
-        }
+        // Verifica quantos itens há na sessão ao carregar a página (sincroniza badge)
+        // A rota /carrinho/count é leve e retorna apenas o total sem renderizar HTML.
 
         // ===================== LEITOR QR CODE =====================
         // Variável global para controlar a instância do leitor QR

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8, responsividade e título -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carrinho — Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-green-50 min-h-screen py-10 px-4">
+<div class="max-w-2xl mx-auto">
+
+    <!-- ===================== CABEÇALHO ===================== -->
+    <div class="text-center mb-8">
+        <div class="text-5xl mb-3">🛒</div>
+        <h1 class="text-2xl font-bold text-green-800">Meu Carrinho</h1>
+        <p class="text-sm text-gray-500 mt-1">Revise seus itens e finalize a compra</p>
+    </div>
+
+    <!-- ===================== MENSAGENS DE FEEDBACK ===================== -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    {% if category == "erro" %}
+    <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">⚠️ {{ message }}</div>
+    {% elif category == "sucesso" %}
+    <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-4 text-center">✅ {{ message }}</div>
+    {% endif %}
+    {% endfor %}
+    {% endwith %}
+
+    {% if carrinho %}
+
+    <!-- ===================== LISTA DE ITENS ===================== -->
+    <div class="bg-white rounded-xl shadow p-5 mb-4">
+        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4">
+            🌿 Itens no carrinho ({{ carrinho|length }})
+        </h2>
+
+        <div class="flex flex-col gap-3" id="lista-carrinho">
+        {% for item in carrinho %}
+        <!-- Card de item — item_id usado para remoção via AJAX -->
+        <div id="item-{{ item.item_id }}"
+             class="flex items-center justify-between gap-3 p-3 rounded-xl
+                    border border-gray-100 bg-gray-50">
+
+            <!-- Ícone do tipo de planta -->
+            <div class="text-2xl flex-shrink-0">
+                {{ '🍎' if item.tipo_planta == 'Frutífera' else '🌳' }}
+            </div>
+
+            <!-- Dados do item -->
+            <div class="flex-1 min-w-0">
+                <p class="font-semibold text-green-800 text-sm truncate">{{ item.especie_nome }}</p>
+                <p class="text-xs text-gray-400 truncate">📦 {{ item.fornecedor_nome }}</p>
+                <p class="text-xs text-gray-400">{{ item.tipo_planta }}</p>
+            </div>
+
+            <!-- Valor e botão remover -->
+            <div class="flex items-center gap-3 flex-shrink-0">
+                <span class="font-bold text-green-700 text-sm">R$ {{ "%.2f"|format(item.valor) }}</span>
+                <!-- Botão X para remover o item via AJAX -->
+                <button type="button"
+                        onclick="removerItem('{{ item.item_id }}')"
+                        class="w-7 h-7 flex items-center justify-center rounded-full
+                               bg-red-100 hover:bg-red-200 text-red-500 text-xs font-bold transition"
+                        title="Remover item">✕</button>
+            </div>
+        </div>
+        {% endfor %}
+        </div>
+
+        <!-- Total do pedido -->
+        <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+            <span class="text-sm font-bold text-gray-600">Total do pedido</span>
+            <span class="text-lg font-bold text-green-700" id="total-display">
+                R$ {{ "%.2f"|format(total) }}
+            </span>
+        </div>
+    </div>
+
+    <!-- ===================== FORMULÁRIO DE FINALIZAÇÃO ===================== -->
+    <form method="POST" action="/carrinho/finalizar" enctype="multipart/form-data" class="space-y-4">
+
+        <!-- Dados bancários para pagamento -->
+        {% if dados_bancarios %}
+        {% set db = dados_bancarios %}
+        <div class="bg-white rounded-xl shadow p-5 border border-green-100">
+            <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">
+                💳 Realizar Pagamento
+            </h2>
+
+            <div class="space-y-1 text-sm mb-3">
+                {% if db[0] %}<p>🏢 <strong>{{ db[0] }}</strong></p>{% endif %}
+                {% if db[1] %}<p>🏦 Banco: <strong>{{ db[1] }}</strong></p>{% endif %}
+                {% if db[3] or db[2] %}
+                <p>📋 Ag: <strong>{{ db[3] or '—' }}</strong>
+                   &nbsp;|&nbsp; Conta: <strong>{{ db[2] or '—' }}</strong></p>
+                {% endif %}
+                {% if db[4] %}
+                <div class="flex items-center gap-2 mt-2">
+                    <p class="text-green-800">🔑 PIX: <strong id="chave-pix-val">{{ db[4] }}</strong></p>
+                    <!-- Botão copiar chave PIX para o clipboard -->
+                    <button type="button" onclick="copiarPix()"
+                        class="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold
+                               px-2 py-1 rounded-lg transition">
+                        📋 Copiar
+                    </button>
+                </div>
+                <p id="pix-copiado" class="text-xs text-green-600 hidden">✅ Chave copiada!</p>
+                {% endif %}
+            </div>
+
+            <!-- QR Code PIX se disponível -->
+            {% if db[5] %}
+            <div class="text-center mt-3">
+                <img src="{{ img_url(db[5], 'pix') }}" alt="QR Code PIX"
+                     class="mx-auto w-32 h-32 object-contain rounded-lg shadow-sm" />
+                <p class="text-xs text-gray-400 mt-1">Escaneie para pagar via PIX</p>
+            </div>
+            {% endif %}
+
+            <!-- Destaque da doação à APAE -->
+            <div class="mt-3 text-center bg-yellow-50 border border-yellow-200
+                        text-yellow-800 text-xs px-3 py-2 rounded-lg">
+                💛 Parte do valor será doado à <strong>APAE</strong> do município
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-700">
+            ⚠️ Dados bancários não configurados pelo administrador.
+        </div>
+        {% endif %}
+
+        <!-- Upload do comprovante de pagamento -->
+        <div class="bg-white rounded-xl shadow p-5">
+            <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">
+                📎 Comprovante de Pagamento
+            </h2>
+            <input type="file" name="comprovante" accept=".jpg,.jpeg,.png,.pdf"
+                   class="w-full text-sm text-gray-500
+                          file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+                          file:bg-green-100 file:text-green-700 file:font-semibold
+                          hover:file:bg-green-200 transition" />
+            <p class="text-xs text-gray-400 mt-2">JPG, PNG ou PDF — opcional, mas recomendado para agilizar a aprovação</p>
+        </div>
+
+        <!-- Botão finalizar compra -->
+        <button type="submit"
+                class="w-full py-4 rounded-xl font-bold text-base
+                       bg-green-600 hover:bg-green-700 text-white transition shadow-lg">
+            ✅ Finalizar Compra ({{ carrinho|length }} {{ 'item' if carrinho|length == 1 else 'itens' }})
+        </button>
+
+    </form>
+
+    {% else %}
+    <!-- ===================== CARRINHO VAZIO ===================== -->
+    <div class="bg-white rounded-xl shadow p-10 text-center">
+        <div class="text-5xl mb-4">🛒</div>
+        <h2 class="text-lg font-bold text-gray-700 mb-2">Seu carrinho está vazio</h2>
+        <p class="text-sm text-gray-400 mb-6">Adicione plantas do catálogo para continuar.</p>
+        <a href="/plantio/credenciado"
+           class="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold
+                  px-6 py-3 rounded-xl transition shadow">
+            🌿 Ver Fornecedores
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Navegação inferior -->
+    <div class="flex justify-between items-center mt-6 text-sm">
+        <a href="/plantio/credenciado"
+           class="text-gray-400 hover:text-green-600 hover:underline transition">
+            ← Continuar comprando
+        </a>
+        <a href="/dashboard"
+           class="text-gray-400 hover:text-green-600 hover:underline transition">
+            Painel principal →
+        </a>
+    </div>
+
+</div>
+
+
+<!-- ===================== JAVASCRIPT ===================== -->
+<script>
+    // Remove item do carrinho via AJAX e atualiza a UI sem recarregar a página
+    async function removerItem(itemId) {
+        try {
+            const resp = await fetch('/carrinho/remover', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({item_id: itemId})
+            });
+            const data = await resp.json();
+
+            if (data.ok) {
+                // Remove o card do item da tela
+                const el = document.getElementById('item-' + itemId);
+                if (el) el.remove();
+
+                // Recalcula o total somando os valores restantes na tela
+                // (não faz nova requisição — mantém sincronia com session)
+                if (data.total_itens === 0) {
+                    // Recarrega para exibir a tela de carrinho vazio
+                    location.reload();
+                }
+            }
+        } catch(e) {
+            alert('Erro ao remover item. Tente novamente.');
+        }
+    }
+
+    // Copia a chave PIX para o clipboard e exibe confirmação temporária
+    function copiarPix() {
+        const chave = document.getElementById('chave-pix-val').textContent.trim();
+        navigator.clipboard.writeText(chave).then(() => {
+            const msg = document.getElementById('pix-copiado');
+            msg.classList.remove('hidden');
+            setTimeout(() => msg.classList.add('hidden'), 2500);
+        });
+    }
+</script>
+
+</body>
+</html>

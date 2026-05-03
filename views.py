@@ -2391,6 +2391,218 @@ def api_plantas():
 # ===================== ROTA FINALIZAR COMPRA =====================
 # Salva a compra na tabela compras e envia email de confirmação ao usuário.
 # Acesso restrito a usuários logados.
+# ===================== ROTAS DO CARRINHO DE COMPRAS =====================
+# O carrinho é armazenado na sessão Flask como lista de dicts.
+# Cada item: {item_id, fornecedor_id, fornecedor_nome, especie_nome, tipo_planta, valor}.
+
+@app.route("/carrinho/count")
+def carrinho_count():
+    # Endpoint leve para o JS sincronizar o badge do carrinho ao carregar a página.
+    total = len(session.get("carrinho", []))
+    return jsonify({"total": total})
+
+
+@app.route("/carrinho/adicionar", methods=["POST"])
+def carrinho_adicionar():
+    # Adiciona um item ao carrinho via AJAX (JSON). Retorna total de itens.
+    if "usuario_id" not in session:
+        return jsonify({"ok": False, "erro": "Login necessário"}), 401
+
+    dados = request.get_json()
+    if not dados or not dados.get("especie_nome"):
+        return jsonify({"ok": False, "erro": "Dados incompletos"}), 400
+
+    item = {
+        "item_id":       str(uuid.uuid4())[:8],
+        "fornecedor_id": dados.get("fornecedor_id"),
+        "fornecedor_nome": dados.get("fornecedor_nome", ""),
+        "especie_nome":  dados.get("especie_nome", ""),
+        "tipo_planta":   dados.get("tipo_planta", ""),
+        "valor":         float(dados.get("valor", 0)),
+    }
+
+    # session["carrinho"] precisa ser reatribuída para o Flask detectar a mudança
+    carrinho = list(session.get("carrinho", []))
+    carrinho.append(item)
+    session["carrinho"] = carrinho
+    session.modified    = True
+
+    return jsonify({"ok": True, "total_itens": len(carrinho)})
+
+
+@app.route("/carrinho/remover", methods=["POST"])
+def carrinho_remover():
+    # Remove um item pelo item_id via AJAX (JSON). Retorna total restante.
+    if "usuario_id" not in session:
+        return jsonify({"ok": False}), 401
+
+    dados   = request.get_json() or {}
+    item_id = dados.get("item_id")
+
+    carrinho = [i for i in session.get("carrinho", []) if i["item_id"] != item_id]
+    session["carrinho"] = carrinho
+    session.modified    = True
+
+    return jsonify({"ok": True, "total_itens": len(carrinho)})
+
+
+@app.route("/carrinho")
+def carrinho_view():
+    # Exibe a página do carrinho com itens, dados bancários e form de finalização.
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios LIMIT 1")
+    dados_bancarios = cursor.fetchone()
+    conn.close()
+
+    carrinho = session.get("carrinho", [])
+    total    = sum(i["valor"] for i in carrinho)
+
+    return render_template("carrinho.html",
+                           carrinho=carrinho,
+                           dados_bancarios=dados_bancarios,
+                           total=total)
+
+
+@app.route("/carrinho/finalizar", methods=["POST"])
+def carrinho_finalizar():
+    # Cria um registro em compras por item, salva comprovante único e envia email.
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    carrinho = session.get("carrinho", [])
+    if not carrinho:
+        flash("Seu carrinho está vazio.", "erro")
+        return redirect("/plantio/credenciado")
+
+    # Um comprovante para todo o pedido
+    comprovante = salvar_foto("comprovante")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    for item in carrinho:
+        cursor.execute("""
+            INSERT INTO compras (usuario_id, fornecedor_id, especie_nome, tipo_planta, valor, comprovante, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'em_analise')
+        """, (
+            session["usuario_id"],
+            item["fornecedor_id"],
+            item["especie_nome"],
+            item["tipo_planta"],
+            item["valor"],
+            comprovante,
+        ))
+
+    conn.commit()
+
+    cursor.execute("SELECT nome, email FROM usuarios WHERE id = ?", (session["usuario_id"],))
+    usuario = cursor.fetchone()
+    conn.close()
+
+    total_pedido = sum(i["valor"] for i in carrinho)
+    qtd          = len(carrinho)
+
+    # Email de confirmação com resumo de todos os itens do pedido
+    if usuario:
+        nome_usuario, email_usuario = usuario
+        itens_html = "".join([
+            f"""<tr>
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;">
+                    {'🍎' if i['tipo_planta']=='Frutífera' else '🌳'} {i['especie_nome']}
+                </td>
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;color:#6b7280;">
+                    {i['fornecedor_nome']}
+                </td>
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;
+                            font-weight:bold;color:#15803d;">
+                    R$ {i['valor']:.2f}
+                </td>
+            </tr>"""
+            for i in carrinho
+        ])
+
+        corpo_html = f"""<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+  <tr><td align="center">
+    <table width="540" cellpadding="0" cellspacing="0"
+           style="background:#fff;border-radius:16px;overflow:hidden;
+                  box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:540px;width:100%;">
+      <tr>
+        <td style="background:#166534;padding:28px 36px;text-align:center;">
+          <p style="margin:0 0 4px;font-size:20px;font-weight:700;color:#fff;">Plantando Vida</p>
+          <p style="margin:0;font-size:12px;color:#bbf7d0;letter-spacing:1px;text-transform:uppercase;">
+            Pedido Recebido
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:32px 36px 24px;">
+          <p style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">
+            Ola, {nome_usuario}!
+          </p>
+          <p style="margin:0 0 24px;font-size:14px;color:#4b5563;line-height:1.6;">
+            Recebemos seu pedido com <strong>{qtd} {'item' if qtd==1 else 'itens'}</strong>.
+            Nossa equipe irá conferir o comprovante e confirmar em breve.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+            <thead>
+              <tr style="background:#f9fafb;">
+                <th style="padding:10px 8px;text-align:left;color:#374151;">Planta</th>
+                <th style="padding:10px 8px;text-align:left;color:#374151;">Fornecedor</th>
+                <th style="padding:10px 8px;text-align:right;color:#374151;">Valor</th>
+              </tr>
+            </thead>
+            <tbody>{itens_html}</tbody>
+            <tfoot>
+              <tr style="background:#f0fdf4;">
+                <td colspan="2" style="padding:10px 8px;font-weight:700;color:#166534;">Total</td>
+                <td style="padding:10px 8px;text-align:right;font-weight:700;color:#166534;font-size:15px;">
+                  R$ {total_pedido:.2f}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+          <div style="background:#fefce8;border-radius:8px;padding:14px;
+                      border-left:4px solid #ca8a04;margin-top:20px;">
+            <p style="margin:0;font-size:13px;color:#92400e;">
+              <strong>Aguarde a validacao do pagamento.</strong>
+              Voce sera notificado por email assim que confirmado.
+            </p>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:16px 36px 24px;text-align:center;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;font-size:11px;color:#9ca3af;">
+            Email automatico — nao responda.<br>
+            &copy; 2026 Plantando Vida. Todos os direitos reservados.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>"""
+
+        enviar_email(email_usuario,
+                     f"Pedido recebido ({qtd} {'item' if qtd==1 else 'itens'}) — Plantando Vida",
+                     corpo_html)
+
+    # Limpa o carrinho após finalizar
+    session.pop("carrinho", None)
+    session.modified = True
+
+    flash(f"Pedido realizado! {qtd} {'item aguardando' if qtd==1 else 'itens aguardando'} validação.", "sucesso")
+    return redirect("/plantios/pendentes")
+
+
 @app.route("/compra/finalizar", methods=["POST"])
 def compra_finalizar():
     if "usuario_id" not in session:
