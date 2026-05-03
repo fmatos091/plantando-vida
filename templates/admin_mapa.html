@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8 e responsividade -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Plantios — Plantando Vida</title>
+
+    <!-- Leaflet.js CSS: estilos do mapa interativo -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Tailwind CSS via CDN para navbar e overlay -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* O mapa ocupa toda a viewport abaixo da navbar */
+        #mapa {
+            position: absolute;
+            top: 64px; /* altura da navbar */
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        /* Tooltip customizado exibido ao passar o cursor sobre o marcador */
+        .leaflet-tooltip-custom {
+            background: white;
+            border: 1px solid #16a34a;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            white-space: nowrap;
+        }
+
+        /* Popup com foto e dados: limita largura e permite scroll em telas pequenas */
+        .popup-plantio img {
+            width: 100%;
+            max-height: 180px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .popup-plantio h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #166534;
+            margin-bottom: 4px;
+        }
+
+        .popup-plantio p {
+            font-size: 12px;
+            color: #4b5563;
+            margin: 2px 0;
+        }
+
+        .popup-plantio a.gmaps-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #2563eb;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+
+    <!-- ===================== NAVBAR ===================== -->
+    <nav class="fixed top-0 left-0 right-0 z-[1000] bg-gray-800 text-white px-6 py-4
+                flex justify-between items-center shadow-md" style="height:64px;">
+        <div class="flex items-center gap-3">
+            <!-- Voltar ao painel admin -->
+            <a href="/admin/painel?tipo=plantios"
+               class="text-gray-300 hover:text-white transition text-sm">
+                ← Painel
+            </a>
+            <span class="text-gray-600">|</span>
+            <span class="text-xl">🗺️</span>
+            <span class="font-bold">Mapa de Plantios</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- Contador total de marcadores -->
+            <span class="bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                🌳 {{ total }} plantio{{ 's' if total != 1 else '' }} aprovado{{ 's' if total != 1 else '' }}
+            </span>
+            <!-- Botão home -->
+            <a href="/" class="text-gray-400 hover:text-white text-sm transition">🏠 Início</a>
+        </div>
+    </nav>
+
+    <!-- ===================== CONTAINER DO MAPA =====================
+         O div #mapa é inicializado pelo Leaflet.js no script abaixo.
+         Ocupa toda a área abaixo da navbar (top: 64px).
+    -->
+    <div id="mapa"></div>
+
+    <!-- Mensagem exibida quando não há plantios com coordenadas -->
+    {% if total == 0 %}
+    <div class="fixed inset-0 flex items-center justify-center z-[999] bg-green-50"
+         style="top:64px;">
+        <div class="text-center p-10">
+            <div class="text-6xl mb-4">🌿</div>
+            <h2 class="text-xl font-bold text-green-800 mb-2">Nenhum plantio no mapa</h2>
+            <p class="text-gray-500 text-sm">
+                Não há plantios aprovados com coordenadas GPS cadastradas.
+            </p>
+            <a href="/admin/painel?tipo=plantios"
+               class="inline-block mt-6 bg-green-600 hover:bg-green-700 text-white
+                      font-semibold px-6 py-2 rounded-xl transition text-sm">
+                ← Voltar ao Painel
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+
+    <!-- ===================== LEAFLET.JS ===================== -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // Dados dos marcadores injetados pelo Flask como JSON seguro
+        const marcadores = {{ marcadores_json | safe }};
+
+        // Inicializa o mapa com OpenStreetMap (sem API key)
+        const mapa = L.map('mapa');
+
+        // Camada de tiles OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
+            maxZoom: 19
+        }).addTo(mapa);
+
+        // Ícone personalizado verde para os marcadores
+        const iconeVerde = L.divIcon({
+            className: '',
+            html: '<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.3))">🌳</div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -34]
+        });
+
+        // Grupo de todos os marcadores para ajustar zoom automaticamente
+        const grupo = L.featureGroup();
+
+        marcadores.forEach(function(m) {
+            // Monta o HTML do tooltip (visível ao passar o cursor sobre o marcador)
+            const tooltipHtml =
+                '<strong style="color:#166534;">' + (m.especie || '—') + '</strong><br>' +
+                '👤 ' + (m.nome || '—') + '<br>' +
+                '📅 ' + (m.data || '—') + '<br>' +
+                '📍 ' + (m.bairro || '—') + ', ' + (m.municipio || '—');
+
+            // Monta o HTML do popup (visível ao clicar no marcador)
+            let fotoHtml = '';
+            if (m.foto) {
+                fotoHtml = '<img src="' + m.foto + '" alt="Foto do plantio" onerror="this.style.display=\'none\'">';
+            }
+            const gmapsUrl =
+                'https://www.google.com/maps?q=' + m.lat + ',' + m.lng;
+
+            const popupHtml =
+                '<div class="popup-plantio" style="min-width:200px;max-width:260px;">' +
+                fotoHtml +
+                '<h3>🌳 ' + (m.especie || '—') + '</h3>' +
+                '<p>👤 <strong>' + (m.nome || '—') + '</strong></p>' +
+                '<p>📅 ' + (m.data || '—') + '</p>' +
+                '<p>📍 ' + (m.bairro || '—') + ', ' + (m.municipio || '—') + '</p>' +
+                '<a href="' + gmapsUrl + '" target="_blank" class="gmaps-link">' +
+                '🗺️ Ver no Google Maps</a>' +
+                '</div>';
+
+            // Cria o marcador com ícone verde
+            const marker = L.marker([m.lat, m.lng], { icon: iconeVerde })
+                .bindTooltip(tooltipHtml, {
+                    className: 'leaflet-tooltip-custom',
+                    direction: 'top',
+                    offset: [0, -30]
+                })
+                .bindPopup(popupHtml, { maxWidth: 280 });
+
+            grupo.addLayer(marker);
+        });
+
+        // Adiciona todos os marcadores ao mapa
+        grupo.addTo(mapa);
+
+        // Ajusta o zoom para mostrar todos os marcadores; fallback para centro do Brasil
+        if (marcadores.length > 0) {
+            mapa.fitBounds(grupo.getBounds(), { padding: [40, 40] });
+        } else {
+            // Centro geográfico aproximado do Brasil
+            mapa.setView([-15.78, -47.93], 5);
+        }
+    </script>
+
+</body>
+</html>

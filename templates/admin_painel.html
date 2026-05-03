@@ -212,6 +212,29 @@
             </script>
         </div>
 
+        <!-- ===================== PAINEL RÁPIDO: STATS + MAPA =====================
+             Exibido em todas as abas. Mostra o total de árvores aprovadas e o botão
+             de acesso ao mapa interativo de plantios.
+        -->
+        <div class="flex flex-wrap gap-4 mb-6 items-center">
+            <!-- Stat card: total de árvores plantadas (status = aprovado) -->
+            <div class="bg-white rounded-xl shadow px-5 py-3 flex items-center gap-3
+                        border border-green-100">
+                <span class="text-3xl">🌳</span>
+                <div>
+                    <p class="text-2xl font-bold text-green-700">{{ total_arvores }}</p>
+                    <p class="text-xs text-gray-500 font-medium">Árvores Plantadas</p>
+                </div>
+            </div>
+
+            <!-- Botão: abre o mapa de plantios em nova aba -->
+            <a href="/admin/mapa" target="_blank"
+               class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700
+                      text-white font-semibold px-5 py-3 rounded-xl transition shadow text-sm">
+                🗺️ Visualizar Plantios no MAPA
+            </a>
+        </div>
+
 
         <!-- ===================== ABA FORNECEDORES =====================
              Exibida quando tipo == "fornecedores".

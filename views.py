@@ -596,6 +596,14 @@ def salvar_foto(campo_arquivo):
 #       Acesso restrito a usuários logados (session["usuario_id"]).
 # POST: salva os dados do plantio na tabela plantas_go (incluindo fotos)
 #       e registra a transação na tabela plantios com status "pendente".
+@app.route("/plantio/voluntario")
+def plantio_voluntario():
+    # Página em desenvolvimento — exibe aviso amigável ao usuário.
+    if "usuario_id" not in session:
+        return redirect("/login")
+    return render_template("plantio_voluntario.html")
+
+
 @app.route("/plantio/credenciado", methods=["GET", "POST"])
 def plantio_credenciado():
     if "usuario_id" not in session:
@@ -1806,6 +1814,9 @@ def admin_painel():
     """)
     faturamentos_admin_hist = cursor.fetchall()
 
+    # ---- Total de árvores efetivamente plantadas (status 'aprovado') ----
+    total_arvores = sum(1 for p in plantios if p[4] == 'aprovado')
+
     conn.close()
 
     return render_template("admin_painel.html",
@@ -1827,7 +1838,61 @@ def admin_painel():
                            busca=busca,
                            tipo=tipo,
                            plantio_status=plantio_status,
-                           contagem_plantios=contagem_plantios)
+                           contagem_plantios=contagem_plantios,
+                           total_arvores=total_arvores)
+
+
+# ===================== ROTA ADMIN: MAPA DE PLANTIOS =====================
+# Exibe mapa interativo (Leaflet.js + OpenStreetMap) com marcadores de todos
+# os plantios aprovados que possuem coordenadas (latitude e longitude).
+@app.route("/admin/mapa")
+def admin_mapa():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Busca apenas plantios aprovados com coordenadas válidas para exibir no mapa
+    cursor.execute("""
+        SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio, pg.bairro,
+               pg.latitude, pg.longitude, pg.foto_plantio, pg.foto_1,
+               u.nome AS nome_usuario
+        FROM plantas_go pg
+        JOIN usuarios u ON u.id = pg.responsavel_id
+        WHERE pg.status = 'aprovado'
+          AND pg.latitude IS NOT NULL
+          AND pg.longitude IS NOT NULL
+        ORDER BY pg.data_plantio DESC
+    """)
+    plantios_mapa = cursor.fetchall()
+    conn.close()
+
+    # Serializa para JSON seguro para uso no JavaScript do template
+    import json
+    marcadores = []
+    for p in plantios_mapa:
+        foto = ""
+        if p[7]:   # foto_plantio (etapa concluir)
+            foto = p[7] if p[7].startswith("http") else f"/static/uploads/{p[7]}"
+        elif p[8]: # foto_1 (acompanhamento)
+            foto = p[8] if p[8].startswith("http") else f"/static/uploads/{p[8]}"
+
+        marcadores.append({
+            "id":          p[0],
+            "data":        str(p[1]) if p[1] else "",
+            "especie":     p[2] or "",
+            "municipio":   p[3] or "",
+            "bairro":      p[4] or "",
+            "lat":         float(p[5]),
+            "lng":         float(p[6]),
+            "foto":        foto,
+            "nome":        p[9] or "",
+        })
+
+    return render_template("admin_mapa.html",
+                           marcadores_json=json.dumps(marcadores, ensure_ascii=False),
+                           total=len(marcadores))
 
 
 # ===================== ROTA ADMIN: SALVAR / EDITAR FORNECEDOR =====================
