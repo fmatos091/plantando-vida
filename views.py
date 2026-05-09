@@ -2353,7 +2353,7 @@ def admin_salvar_entidade():
 
     if not razao_social:
         flash("O campo Razão Social é obrigatório.", "erro")
-        return redirect("/admin/painel?tipo=fechamento_entidade")
+        return redirect("/admin/painel?tipo=entidades")
 
     conn   = get_db()
     cursor = conn.cursor()
@@ -2397,7 +2397,7 @@ def admin_salvar_entidade():
 
     conn.commit()
     conn.close()
-    return redirect("/admin/painel?tipo=fechamento_entidade")
+    return redirect("/admin/painel?tipo=entidades")
 
 
 # ===================== ROTA ADMIN: EXCLUIR ENTIDADE FAVORECIDA =====================
@@ -2415,7 +2415,7 @@ def admin_excluir_entidade(eid):
     conn.close()
 
     flash("Entidade excluída.", "sucesso")
-    return redirect("/admin/painel?tipo=fechamento_entidade")
+    return redirect("/admin/painel?tipo=entidades")
 
 
 # ===================== API: BUSCA DE ESPÉCIES (AJAX) =====================
