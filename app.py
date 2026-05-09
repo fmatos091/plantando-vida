@@ -286,6 +286,19 @@ def init_db():
     )
     """)
 
+    # Tabela de aceites de Termos de Uso / LGPD por usuário.
+    # Cada login gera um novo registro com a versão vigente dos termos,
+    # IP do acesso e timestamp — garantindo rastreabilidade para conformidade legal.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS aceites_termos (
+        id          {pk},
+        usuario_id  INTEGER NOT NULL,
+        versao      TEXT    NOT NULL,
+        ip          TEXT,
+        aceito_em   TEXT    DEFAULT ({ts})
+    )
+    """)
+
     # ---- Migrações seguras para bancos já existentes ----
     # Adiciona colunas que podem não existir em instalações anteriores.
     # SQLite: try/except (não suporta IF NOT EXISTS no ADD COLUMN antes da v3.37)
@@ -318,6 +331,8 @@ def init_db():
             "faturamento_id INTEGER",
             "faturamento_entidade_id INTEGER",
             "faturamento_admin_id INTEGER",
+            # Vincula doações escolares à entidade educacional escolhida pelo usuário
+            "entidade_educacional_id INTEGER",
         ],
         # banco/conta/agencia/chave_pix/qrcode_pix: dados bancários da entidade (unificados ao cadastro).
         # ativa: 1 = entidade ativa no projeto (exibida para seleção no fechamento); 0 = inativa.

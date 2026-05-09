@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8 e responsividade -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doações de Plantas — Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* Animação de entrada dos cards de espécie */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeInUp 0.35s ease forwards; }
+
+        /* Efeito de toque no botão Adicionar */
+        .btn-adicionar:active { transform: scale(0.95); }
+
+        /* Transição suave no toast */
+        #toast { transition: opacity 0.3s ease, transform 0.3s ease; }
+
+        /* Botão de tipo ativo vs inativo */
+        .btn-tipo {
+            transition: background-color 0.15s ease, color 0.15s ease,
+                        border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .btn-tipo.ativo {
+            background-color: #16a34a;
+            color: #fff;
+            border-color: #16a34a;
+            box-shadow: 0 2px 6px rgba(22,163,74,.35);
+        }
+
+        /* Destaque no campo de busca com foco */
+        #busca-especie:focus {
+            outline: none;
+            border-color: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22,163,74,.2);
+        }
+    </style>
+</head>
+<body class="bg-green-50 min-h-screen pb-32">
+
+    <!-- ===================== NAVBAR ===================== -->
+    <nav class="bg-green-700 text-white px-5 py-4 flex items-center gap-3 shadow-md sticky top-0 z-40">
+        <!-- Voltar para seleção de entidade -->
+        <a href="/plantio/escolar"
+           class="text-green-200 hover:text-white transition text-sm font-medium flex-shrink-0">
+            ← Voltar
+        </a>
+        <div class="flex-1 min-w-0 text-center">
+            <p class="text-xs text-green-300 uppercase tracking-wide">Doações de Plantas</p>
+            <!-- Nome da entidade truncado para evitar quebra em mobile -->
+            <p class="font-bold text-sm leading-tight truncate">{{ entidade[1] }}</p>
+        </div>
+        <!-- Badge do carrinho — atualizado via JS -->
+        <a href="/carrinho" id="nav-badge-link" class="relative flex-shrink-0 text-white hidden">
+            <span class="text-2xl">🛒</span>
+            <span id="nav-badge-count"
+                  class="absolute -top-1 -right-1 bg-yellow-400 text-green-900 text-xs
+                         font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                0
+            </span>
+        </a>
+    </nav>
+    <!-- fim da navbar -->
+
+    <!-- ===================== CABEÇALHO DA PÁGINA ===================== -->
+    <div class="max-w-2xl mx-auto px-4 mt-6 mb-2 text-center">
+        <div class="text-4xl mb-2">🌱</div>
+        <h1 class="text-xl font-bold text-green-800">Selecione as Mudas recebidas via doação</h1>
+        <p class="text-sm text-gray-500 mt-1">
+            Doação destinada à
+            <strong class="text-emerald-700">{{ entidade[1] }}</strong>
+        </p>
+    </div>
+
+    <!-- ===================== MENSAGENS DE FEEDBACK ===================== -->
+    <div class="max-w-2xl mx-auto px-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        {% if category == "erro" %}
+        <div class="bg-red-100 text-red-700 text-sm px-4 py-3 rounded-lg mb-3 text-center">⚠️ {{ message }}</div>
+        {% elif category == "sucesso" %}
+        <div class="bg-green-100 text-green-700 text-sm px-4 py-3 rounded-lg mb-3 text-center">✅ {{ message }}</div>
+        {% endif %}
+        {% endfor %}
+        {% endwith %}
+    </div>
+
+    {% if especies %}
+
+    <!-- ===================== FILTROS =====================
+         Filtro por Tipo: botões toggle (Todos / Nativa / Frutífera).
+         Filtro por Nome: campo de busca textual em tempo real.
+         Ambos combinados com lógica AND — filtragem 100% client-side (sem reload).
+    -->
+    <div class="max-w-2xl mx-auto px-4 mb-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-4 flex flex-col gap-3">
+
+            <!-- Filtro por Tipo — botões pill -->
+            <div class="flex flex-col gap-1.5">
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Filtrar por Tipo</p>
+                <div class="flex gap-2 flex-wrap">
+                    <button type="button"
+                            data-tipo=""
+                            onclick="filtrarTipo(this)"
+                            class="btn-tipo ativo border border-green-600 text-green-700
+                                   text-xs font-bold px-4 py-1.5 rounded-full">
+                        Todos
+                    </button>
+                    <button type="button"
+                            data-tipo="Nativa"
+                            onclick="filtrarTipo(this)"
+                            class="btn-tipo border border-gray-300 text-gray-500
+                                   text-xs font-bold px-4 py-1.5 rounded-full bg-white">
+                        🌳 Nativa
+                    </button>
+                    <button type="button"
+                            data-tipo="Frutífera"
+                            onclick="filtrarTipo(this)"
+                            class="btn-tipo border border-gray-300 text-gray-500
+                                   text-xs font-bold px-4 py-1.5 rounded-full bg-white">
+                        🍎 Frutífera
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtro por Nome — campo de busca -->
+            <div class="flex flex-col gap-1.5">
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Buscar Espécie</p>
+                <div class="relative">
+                    <!-- Ícone de lupa -->
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm select-none">🔍</span>
+                    <input type="text"
+                           id="busca-especie"
+                           placeholder="Digite o nome da espécie..."
+                           oninput="filtrar()"
+                           class="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200
+                                  rounded-xl bg-gray-50 text-gray-700 placeholder-gray-400
+                                  transition">
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <!-- fim dos filtros -->
+
+    <!-- ===================== CATÁLOGO DE ESPÉCIES =====================
+         Lista flat de cards — todos renderizados no DOM.
+         Cada card carrega data-tipo e data-nome para filtragem client-side.
+         Visibilidade controlada pelo JS (filtrar()).
+    -->
+    <div class="max-w-2xl mx-auto px-4">
+
+        <div id="lista-especies" class="flex flex-col gap-3">
+            {% for esp in especies %}
+            <!-- Card da espécie:
+                 esp[0]=id  esp[1]=nome  esp[2]=tipo  esp[3]=valor
+                 data-tipo / data-nome: usados pelo JS para filtrar sem reload -->
+            <div class="especie-card fade-in bg-white rounded-xl shadow-sm border border-transparent
+                        hover:border-green-200 hover:shadow-md transition flex items-center gap-4 p-4"
+                 data-tipo="{{ esp[2] }}"
+                 data-nome="{{ esp[1] | lower }}">
+
+                <!-- Ícone do tipo -->
+                <div class="text-3xl flex-shrink-0">
+                    {{ '🍎' if esp[2] == 'Frutífera' else '🌳' }}
+                </div>
+
+                <!-- Nome e tipo da espécie -->
+                <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-green-800 text-sm leading-tight">{{ esp[1] }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">{{ esp[2] }}</p>
+                </div>
+
+                <!-- Valor e botão Adicionar -->
+                <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <span class="text-sm font-bold text-green-700">
+                        R$ {{ "%.2f"|format(esp[3]) }}
+                    </span>
+                    <button type="button"
+                            onclick="adicionarAoCarrinho('{{ esp[1] | replace("'", "\\'") }}', '{{ esp[2] }}', {{ esp[3] }})"
+                            class="btn-adicionar bg-green-500 hover:bg-green-600 text-white
+                                   text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-sm
+                                   flex items-center gap-1">
+                        <span>+</span> Adicionar
+                    </button>
+                </div>
+
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Mensagem exibida quando nenhum card corresponde aos filtros -->
+        <div id="sem-resultados" class="hidden text-center py-12">
+            <div class="text-4xl mb-3">🔍</div>
+            <p class="text-gray-500 text-sm font-medium">Nenhuma espécie encontrada.</p>
+            <p class="text-gray-400 text-xs mt-1">Tente outro nome ou altere o filtro de tipo.</p>
+        </div>
+
+    </div>
+    <!-- fim do catálogo -->
+
+    {% else %}
+    <!-- Estado vazio: nenhuma espécie cadastrada no sistema -->
+    <div class="max-w-2xl mx-auto px-4 text-center py-16">
+        <div class="text-5xl mb-4">🌿</div>
+        <p class="text-gray-500 text-sm">Nenhuma espécie cadastrada pelo administrador.</p>
+        <a href="/plantio/escolar"
+           class="inline-block mt-6 bg-green-600 hover:bg-green-700 text-white
+                  font-bold px-6 py-2 rounded-xl transition shadow text-sm">
+            ← Voltar
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- ===================== BARRA FLUTUANTE DO CARRINHO =====================
+         Aparece somente quando o carrinho tem ao menos 1 item.
+         Exibe contagem, total acumulado e link para /carrinho.
+    -->
+    <div id="barra-carrinho"
+         class="hidden fixed bottom-0 left-0 right-0 z-50
+                bg-green-700 text-white px-4 py-3 shadow-2xl">
+        <div class="max-w-2xl mx-auto flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">🛒</span>
+                <div>
+                    <p class="text-xs text-green-200 leading-none">
+                        <span id="barra-qtd">0</span> item(ns) no carrinho
+                    </p>
+                    <p class="text-sm font-bold leading-tight">
+                        Total: R$ <span id="barra-total">0,00</span>
+                    </p>
+                </div>
+            </div>
+            <a href="/carrinho"
+               class="bg-white text-green-800 font-bold text-sm px-5 py-2
+                      rounded-xl shadow-sm hover:bg-green-50 transition flex-shrink-0">
+                Ver Carrinho →
+            </a>
+        </div>
+    </div>
+    <!-- fim da barra flutuante -->
+
+    <!-- ===================== TOAST DE CONFIRMAÇÃO =====================
+         Aparece brevemente no topo após adicionar item ao carrinho.
+    -->
+    <div id="toast"
+         class="fixed top-20 left-1/2 z-50 bg-green-800 text-white text-sm font-semibold
+                px-5 py-2.5 rounded-full shadow-xl opacity-0 pointer-events-none"
+         style="transform: translateX(-50%) translateY(-8px);">
+        ✅ Adicionado ao carrinho!
+    </div>
+
+
+    <!-- ===================== JAVASCRIPT ===================== -->
+    <script>
+        // ---- Dados injetados pelo Flask ----
+        const ENTIDADE_ID   = {{ entidade[0] }};
+        const ENTIDADE_NOME = "{{ entidade[1] | replace('"', '\\"') }}";
+
+        // ---- Estado do carrinho (sincronizado com o servidor) ----
+        let totalItens = 0;
+        let totalValor = 0;
+
+        // Sincroniza badge e barra ao carregar a página
+        fetch('/carrinho/resumo')
+            .then(r => r.json())
+            .then(d => {
+                totalItens = d.total_itens || 0;
+                totalValor = d.total       || 0;
+                atualizarUI();
+            })
+            .catch(() => {});
+
+
+        // ============================================================
+        // FILTROS — Tipo e Nome
+        // ============================================================
+
+        let filtroTipoAtivo = ''; // '' = todos
+
+        // Ativa o botão de tipo clicado e filtra os cards
+        function filtrarTipo(btn) {
+            filtroTipoAtivo = btn.dataset.tipo;
+
+            // Atualiza visual dos botões: ativo vs inativo
+            document.querySelectorAll('.btn-tipo').forEach(b => {
+                const ativo = b.dataset.tipo === filtroTipoAtivo;
+                b.classList.toggle('ativo', ativo);
+                // Restaura cor do texto para botões inativos
+                if (!ativo) {
+                    b.classList.remove('text-white');
+                    b.classList.add('text-gray-500', 'bg-white');
+                } else {
+                    b.classList.add('text-white');
+                    b.classList.remove('text-gray-500', 'bg-white');
+                }
+            });
+
+            filtrar();
+        }
+
+        // Filtra os cards com base no tipo ativo e no texto digitado (AND)
+        function filtrar() {
+            const busca = document.getElementById('busca-especie').value.toLowerCase().trim();
+            const cards = document.querySelectorAll('.especie-card');
+            let visiveis = 0;
+
+            cards.forEach(card => {
+                const tipoOk  = !filtroTipoAtivo || card.dataset.tipo === filtroTipoAtivo;
+                const nomeOk  = !busca           || card.dataset.nome.includes(busca);
+                const mostrar = tipoOk && nomeOk;
+
+                card.style.display = mostrar ? '' : 'none';
+                if (mostrar) visiveis++;
+            });
+
+            // Exibe ou oculta a mensagem de "sem resultados"
+            document.getElementById('sem-resultados')
+                    .classList.toggle('hidden', visiveis > 0);
+        }
+
+
+        // ============================================================
+        // CARRINHO
+        // ============================================================
+
+        // Envia item ao carrinho via AJAX e atualiza UI
+        async function adicionarAoCarrinho(especieNome, tipo, valor) {
+            try {
+                const resp = await fetch('/carrinho/adicionar', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fornecedor_id:           null,
+                        fornecedor_nome:         ENTIDADE_NOME,
+                        especie_nome:            especieNome,
+                        tipo_planta:             tipo,
+                        valor:                   valor,
+                        entidade_educacional_id: ENTIDADE_ID,
+                    })
+                });
+                const data = await resp.json();
+
+                if (data.ok) {
+                    totalItens = data.total_itens;
+                    totalValor += valor;
+                    atualizarUI();
+                    exibirToast();
+                }
+            } catch (e) {
+                console.error('Erro ao adicionar ao carrinho:', e);
+            }
+        }
+
+        // Sincroniza barra flutuante e badge da navbar
+        function atualizarUI() {
+            const barra     = document.getElementById('barra-carrinho');
+            const qtdEl     = document.getElementById('barra-qtd');
+            const totEl     = document.getElementById('barra-total');
+            const badge     = document.getElementById('nav-badge-count');
+            const badgeLink = document.getElementById('nav-badge-link');
+
+            const temItens = totalItens > 0;
+            barra.classList.toggle('hidden', !temItens);
+            badgeLink.classList.toggle('hidden', !temItens);
+
+            qtdEl.textContent = totalItens;
+            badge.textContent = totalItens;
+            totEl.textContent = totalValor.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2
+            });
+        }
+
+        // Exibe toast de confirmação por 2 segundos
+        function exibirToast() {
+            const toast = document.getElementById('toast');
+            toast.style.opacity   = '1';
+            toast.style.transform = 'translateX(-50%) translateY(0)';
+            setTimeout(() => {
+                toast.style.opacity   = '0';
+                toast.style.transform = 'translateX(-50%) translateY(-8px)';
+            }, 2000);
+        }
+    </script>
+
+</body>
+</html>

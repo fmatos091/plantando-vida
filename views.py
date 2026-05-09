@@ -3,6 +3,11 @@ import secrets
 import random
 import os
 import re
+
+# ===================== VERSÃO DOS TERMOS DE USO =====================
+# Altere este valor sempre que os Termos ou a Política de Privacidade forem atualizados.
+# Todos os usuários serão obrigados a reler e aceitar novamente no próximo login.
+VERSAO_TERMOS = "v1.0"
 import uuid
 import smtplib
 import qrcode
@@ -536,7 +541,8 @@ def login():
         if usuario and cpf_banco == cpf and check_password_hash(usuario[3], senha):
             session["usuario_id"]   = usuario[0]
             session["usuario_nome"] = usuario[1]
-            return redirect("/dashboard")
+            # Redireciona para aceite de termos a cada login (LGPD)
+            return redirect("/termos")
 
         # Credenciais inválidas: mensagem genérica para não expor qual campo falhou
         flash("Email, CPF ou senha incorretos. Tente novamente.", "erro")
@@ -546,12 +552,46 @@ def login():
 
 
 # ===================== ROTA DO DASHBOARD =====================
+# ===================== ROTA TERMOS DE USO / LGPD =====================
+# GET:  exibe os Termos de Uso e Política de Privacidade para o usuário aceitar.
+# POST: registra o aceite na tabela aceites_termos com versão, IP e timestamp,
+#       marca a sessão como aceita e redireciona para o dashboard.
+# Requerido a cada login — fluxo: /login → /termos → /dashboard.
+@app.route("/termos", methods=["GET", "POST"])
+def termos():
+    # Garante que o usuário está logado antes de exibir os termos
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    if request.method == "POST":
+        # Registra o aceite com IP real (considera proxy reverso do Railway/Render)
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+        conn   = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO aceites_termos (usuario_id, versao, ip) VALUES (?, ?, ?)",
+            (session["usuario_id"], VERSAO_TERMOS, ip)
+        )
+        conn.commit()
+        conn.close()
+
+        # Marca a sessão atual como com termos aceitos
+        session["termos_aceitos"] = True
+        return redirect("/dashboard")
+
+    # GET: exibe a página de termos
+    return render_template("termos.html", versao=VERSAO_TERMOS)
+
+
 # Exibe o painel do usuário após login.
 # Se o usuário não estiver logado (sem sessão), redireciona para /login.
+# Se os termos ainda não foram aceitos na sessão atual, redireciona para /termos.
 @app.route("/dashboard")
 def dashboard():
     if "usuario_id" not in session:
         return redirect("/login")
+    if not session.get("termos_aceitos"):
+        return redirect("/termos")
 
     conn   = get_db()
     cursor = conn.cursor()
@@ -568,12 +608,24 @@ def dashboard():
     cursor.execute("SELECT COUNT(*) FROM fornecedores WHERE ativo = 1")
     fornecedores_ativos = cursor.fetchone()[0]
 
+    # Busca entidades educacionais ativas para exibir no card "Plantio Voluntário".
+    # Se nenhuma ativa, o card fica desabilitado com aviso.
+    # ee[0]=id  ee[1]=razao_social  ee[2]=cnpj  ee[3]=whatsapp
+    cursor.execute("""
+        SELECT id, razao_social, cnpj, whatsapp
+        FROM entidades_educacionais
+        WHERE ativa = 1
+        ORDER BY razao_social
+    """)
+    entidades_edu_ativas = cursor.fetchall()
+
     conn.close()
 
     return render_template("dashboard.html",
                            nome=session["usuario_nome"],
                            total_aprovados=total_aprovados,
-                           fornecedores_ativos=fornecedores_ativos)
+                           fornecedores_ativos=fornecedores_ativos,
+                           entidades_edu_ativas=entidades_edu_ativas)
 
 
 # ===================== ROTA DE LOGOUT =====================
@@ -602,12 +654,61 @@ def salvar_foto(campo_arquivo):
 #       Acesso restrito a usuários logados (session["usuario_id"]).
 # POST: salva os dados do plantio na tabela plantas_go (incluindo fotos)
 #       e registra a transação na tabela plantios com status "pendente".
-@app.route("/plantio/voluntario")
-def plantio_voluntario():
-    # Página em desenvolvimento — exibe aviso amigável ao usuário.
+@app.route("/plantio/escolar")
+def plantio_escolar():
+    # Exige login; redireciona para /login se não autenticado.
     if "usuario_id" not in session:
         return redirect("/login")
-    return render_template("plantio_voluntario.html")
+
+    # Busca todas as entidades educacionais ativas para exibir como cards de seleção.
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, razao_social, cnpj, whatsapp
+        FROM entidades_educacionais
+        WHERE ativa = 1
+        ORDER BY razao_social
+    """)
+    entidades = cursor.fetchall()
+    conn.close()
+
+    return render_template("plantio_escolar.html", entidades=entidades)
+
+
+# ===================== ROTA DOAÇÕES DE PLANTAS — PLANTIO ESCOLAR =====================
+# Exibe o catálogo de espécies disponíveis vinculado a uma entidade educacional específica.
+# GET: valida a entidade, busca espécies cadastradas e renderiza a página de seleção.
+# O usuário adiciona espécies ao carrinho e segue o fluxo normal de pagamento.
+@app.route("/plantio/escolar/<int:entidade_id>/doacoes")
+def plantio_escolar_doacoes(entidade_id):
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Valida se a entidade existe e está ativa
+    cursor.execute(
+        "SELECT id, razao_social, cnpj, whatsapp FROM entidades_educacionais WHERE id = ? AND ativa = 1",
+        (entidade_id,)
+    )
+    entidade = cursor.fetchone()
+    if not entidade:
+        conn.close()
+        flash("Entidade educacional não encontrada ou inativa.", "erro")
+        return redirect("/plantio/escolar")
+
+    # Busca todas as espécies cadastradas para o catálogo de doações
+    cursor.execute("SELECT id, nome, tipo, valor FROM especies_plantas ORDER BY tipo, nome")
+    especies = cursor.fetchall()
+    conn.close()
+
+    # Grava o ID da entidade na sessão para que o carrinho saiba para onde voltar
+    session["origem_escolar_id"] = entidade_id
+
+    return render_template("plantio_escolar_doacoes.html",
+                           entidade=entidade,
+                           especies=especies)
 
 
 @app.route("/plantio/credenciado", methods=["GET", "POST"])
@@ -2583,6 +2684,15 @@ def carrinho_count():
     return jsonify({"total": total})
 
 
+@app.route("/carrinho/resumo")
+def carrinho_resumo():
+    # Retorna contagem e valor total do carrinho — usado para sincronizar a barra flutuante
+    # da página de doações escolares ao recarregar sem perder o total acumulado.
+    carrinho = session.get("carrinho", [])
+    total    = sum(i["valor"] for i in carrinho)
+    return jsonify({"total_itens": len(carrinho), "total": total})
+
+
 @app.route("/carrinho/adicionar", methods=["POST"])
 def carrinho_adicionar():
     # Adiciona um item ao carrinho via AJAX (JSON). Retorna total de itens.
@@ -2594,12 +2704,14 @@ def carrinho_adicionar():
         return jsonify({"ok": False, "erro": "Dados incompletos"}), 400
 
     item = {
-        "item_id":       str(uuid.uuid4())[:8],
-        "fornecedor_id": dados.get("fornecedor_id"),
-        "fornecedor_nome": dados.get("fornecedor_nome", ""),
-        "especie_nome":  dados.get("especie_nome", ""),
-        "tipo_planta":   dados.get("tipo_planta", ""),
-        "valor":         float(dados.get("valor", 0)),
+        "item_id":                str(uuid.uuid4())[:8],
+        "fornecedor_id":          dados.get("fornecedor_id"),
+        "fornecedor_nome":        dados.get("fornecedor_nome", ""),
+        "especie_nome":           dados.get("especie_nome", ""),
+        "tipo_planta":            dados.get("tipo_planta", ""),
+        "valor":                  float(dados.get("valor", 0)),
+        # Presente somente em doações escolares — identifica a entidade educacional receptora
+        "entidade_educacional_id": dados.get("entidade_educacional_id"),
     }
 
     # session["carrinho"] precisa ser reatribuída para o Flask detectar a mudança
@@ -2642,10 +2754,15 @@ def carrinho_view():
     carrinho = session.get("carrinho", [])
     total    = sum(i["valor"] for i in carrinho)
 
+    # ID da entidade escolar gravado quando o usuário entrou na página de doações;
+    # usado para construir o link "Continuar" no template do carrinho.
+    origem_escolar_id = session.get("origem_escolar_id")
+
     return render_template("carrinho.html",
                            carrinho=carrinho,
                            dados_bancarios=dados_bancarios,
-                           total=total)
+                           total=total,
+                           origem_escolar_id=origem_escolar_id)
 
 
 @app.route("/carrinho/finalizar", methods=["POST"])
@@ -2667,15 +2784,18 @@ def carrinho_finalizar():
 
     for item in carrinho:
         cursor.execute("""
-            INSERT INTO compras (usuario_id, fornecedor_id, especie_nome, tipo_planta, valor, comprovante, status)
-            VALUES (?, ?, ?, ?, ?, ?, 'em_analise')
+            INSERT INTO compras (
+                usuario_id, fornecedor_id, especie_nome, tipo_planta, valor,
+                comprovante, status, entidade_educacional_id
+            ) VALUES (?, ?, ?, ?, ?, ?, 'em_analise', ?)
         """, (
             session["usuario_id"],
-            item["fornecedor_id"],
+            item.get("fornecedor_id"),
             item["especie_nome"],
             item["tipo_planta"],
             item["valor"],
             comprovante,
+            item.get("entidade_educacional_id"),
         ))
 
     conn.commit()

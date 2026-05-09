@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8 e responsividade -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plantio Escolar — Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* Animação de entrada dos cards */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeInUp 0.5s ease forwards; }
+        .delay-1 { animation-delay: 0.05s; opacity: 0; }
+        .delay-2 { animation-delay: 0.10s; opacity: 0; }
+        .delay-3 { animation-delay: 0.15s; opacity: 0; }
+        .delay-4 { animation-delay: 0.20s; opacity: 0; }
+        .delay-5 { animation-delay: 0.25s; opacity: 0; }
+        .delay-6 { animation-delay: 0.30s; opacity: 0; }
+    </style>
+</head>
+<body class="bg-green-50 min-h-screen">
+
+    <!-- ===================== NAVBAR ===================== -->
+    <nav class="bg-green-700 text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <!-- Logo com link para home -->
+        <div class="flex items-center gap-2">
+            <span class="text-2xl">🌱</span>
+            <a href="/" class="text-xl font-bold hover:text-green-200 transition">Plantando Vida</a>
+        </div>
+        <!-- Link de retorno ao dashboard -->
+        <a href="/dashboard" class="text-sm text-green-200 hover:text-white transition">
+            ← Voltar ao painel
+        </a>
+    </nav>
+    <!-- fim da navbar -->
+
+    <!-- ===================== CONTEÚDO PRINCIPAL ===================== -->
+    <main class="max-w-2xl mx-auto mt-10 px-4 pb-16">
+
+        <!-- Cabeçalho da página -->
+        <div class="mb-8 flex flex-col items-center text-center">
+            <div class="text-5xl mb-3">🏫</div>
+            <h1 class="text-2xl font-bold text-green-800">Plantio Escolar</h1>
+            <p class="text-gray-500 mt-1 text-sm">
+                Selecione a entidade educacional parceira para registrar seu plantio
+            </p>
+        </div>
+
+        <!-- ===================== LISTA DE ENTIDADES =====================
+             Cada entidade educacional ativa é exibida como card selecionável.
+             Ao clicar, direciona para o formulário de plantio vinculado à entidade.
+        -->
+        {% if entidades %}
+        <div class="flex flex-col gap-4">
+            {% for ent in entidades %}
+            <!-- Card da entidade: delay progressivo para animação em cascata -->
+            <a href="/plantio/escolar/{{ ent[0] }}/doacoes"
+               class="fade-in delay-{{ loop.index if loop.index <= 6 else 6 }}">
+                <div class="bg-white rounded-xl shadow p-5 flex items-center gap-5
+                            hover:shadow-md hover:bg-emerald-50 transition cursor-pointer
+                            border border-transparent hover:border-emerald-300">
+
+                    <!-- Ícone da entidade -->
+                    <div class="text-4xl flex-shrink-0">🏫</div>
+
+                    <!-- Dados da entidade -->
+                    <div class="flex-1 min-w-0">
+                        <h2 class="text-base font-semibold text-emerald-800 leading-tight">
+                            {{ ent[1] }}
+                        </h2>
+                        <!-- CNPJ (exibe somente se preenchido) -->
+                        {% if ent[2] %}
+                        <p class="text-xs text-gray-400 mt-0.5">
+                            CNPJ: {{ ent[2] }}
+                        </p>
+                        {% endif %}
+                        <!-- WhatsApp (exibe somente se preenchido) -->
+                        {% if ent[3] %}
+                        <p class="text-xs text-gray-400">
+                            📱 {{ ent[3] }}
+                        </p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Seta de navegação -->
+                    <span class="ml-auto text-emerald-400 text-xl flex-shrink-0">→</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <!-- Estado vazio: nenhuma entidade ativa — fallback de segurança -->
+        <div class="text-center py-16">
+            <div class="text-6xl mb-4">🌿</div>
+            <h2 class="text-lg font-semibold text-gray-600 mb-2">
+                Nenhuma entidade disponível no momento
+            </h2>
+            <p class="text-gray-400 text-sm mb-8">
+                Não há entidades educacionais ativas para seleção.
+            </p>
+            <a href="/dashboard"
+               class="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700
+                      text-white font-bold px-8 py-3 rounded-xl transition shadow text-sm">
+                ← Voltar ao painel
+            </a>
+        </div>
+        {% endif %}
+
+    </main>
+    <!-- fim do conteúdo principal -->
+
+</body>
+</html>

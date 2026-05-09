@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação UTF-8 e responsividade -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Termos de Uso — Plantando Vida</title>
+    <!-- Tailwind CSS via CDN para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* Animação de entrada do card principal */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeInUp 0.5s ease forwards; }
+
+        /* Estilo dos parágrafos de texto legal */
+        .legal p { margin-bottom: 0.75rem; line-height: 1.7; }
+        .legal h3 { font-weight: 700; color: #166534; margin: 1.25rem 0 0.5rem; }
+        .legal ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+        .legal ul li { margin-bottom: 0.4rem; line-height: 1.6; }
+    </style>
+</head>
+<body class="bg-green-50 min-h-screen flex flex-col">
+
+    <!-- ===================== NAVBAR ===================== -->
+    <nav class="bg-green-700 text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <div class="flex items-center gap-2">
+            <span class="text-2xl">🌱</span>
+            <span class="text-xl font-bold">Plantando Vida</span>
+        </div>
+        <!-- Versão dos termos exibida no canto direito para transparência -->
+        <span class="text-xs text-green-300">Termos — {{ versao }}</span>
+    </nav>
+    <!-- fim da navbar -->
+
+    <!-- ===================== CONTEÚDO PRINCIPAL ===================== -->
+    <main class="flex-1 max-w-2xl mx-auto w-full mt-8 px-4 pb-16">
+
+        <!-- Card principal com os termos -->
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in">
+
+            <!-- Cabeçalho do card -->
+            <div class="bg-green-700 px-8 py-6 text-center">
+                <div class="text-4xl mb-2">📋</div>
+                <h1 class="text-xl font-bold text-white">Termos de Uso e Política de Privacidade</h1>
+                <p class="text-green-200 text-xs mt-1">
+                    Versão {{ versao }} · Leia com atenção antes de prosseguir
+                </p>
+            </div>
+
+            <!-- Corpo dos termos -->
+            <div class="px-8 py-6 text-sm text-gray-600 legal max-h-[55vh] overflow-y-auto border-b border-gray-100">
+
+                <h3>1. Sobre o Plantando Vida</h3>
+                <p>
+                    O <strong>Plantando Vida</strong> é uma plataforma digital que facilita o registro e
+                    acompanhamento de plantios de árvores em municípios parceiros, promovendo a
+                    educação ambiental e a sustentabilidade em parceria com escolas, entidades
+                    educacionais e fornecedores credenciados.
+                </p>
+
+                <h3>2. Dados Coletados</h3>
+                <p>Para o funcionamento do sistema, coletamos os seguintes dados pessoais:</p>
+                <ul>
+                    <li>Nome completo, e-mail, CPF, telefone e data de nascimento</li>
+                    <li>Município e estado de residência</li>
+                    <li>Fotos e coordenadas GPS dos plantios registrados</li>
+                    <li>Histórico de atividades na plataforma (plantios, compras, acompanhamentos)</li>
+                    <li>IP de acesso e timestamps de login para fins de segurança e conformidade legal</li>
+                </ul>
+
+                <h3>3. Finalidade do Uso dos Dados</h3>
+                <p>Os dados coletados são utilizados exclusivamente para:</p>
+                <ul>
+                    <li>Identificação e autenticação do usuário na plataforma</li>
+                    <li>Registro e acompanhamento dos plantios realizados</li>
+                    <li>Comunicação sobre o status dos plantios e compras</li>
+                    <li>Geração de relatórios ambientais e faturamentos para parceiros</li>
+                    <li>Cumprimento de obrigações legais e regulatórias</li>
+                </ul>
+
+                <h3>4. Compartilhamento de Dados</h3>
+                <p>
+                    Seus dados <strong>não serão vendidos</strong> a terceiros. Poderemos compartilhá-los
+                    somente com entidades educacionais e fornecedores vinculados ao seu plantio,
+                    exclusivamente para fins operacionais do projeto.
+                </p>
+
+                <h3>5. Seus Direitos (Lei nº 13.709/2018 — LGPD)</h3>
+                <p>Em conformidade com a Lei Geral de Proteção de Dados, você tem direito a:</p>
+                <ul>
+                    <li>Confirmar a existência de tratamento dos seus dados pessoais</li>
+                    <li>Acessar, corrigir ou atualizar seus dados a qualquer momento pelo perfil</li>
+                    <li>Solicitar a anonimização, bloqueio ou eliminação dos seus dados</li>
+                    <li>Revogar o consentimento a qualquer momento, mediante solicitação</li>
+                    <li>Obter informações sobre entidades com quem seus dados foram compartilhados</li>
+                </ul>
+
+                <h3>6. Segurança</h3>
+                <p>
+                    Adotamos medidas técnicas e organizacionais para proteger seus dados contra
+                    acesso não autorizado, uso indevido, alteração ou divulgação. As senhas são
+                    armazenadas com hash criptográfico (bcrypt) e nunca em texto puro.
+                </p>
+
+                <h3>7. Retenção dos Dados</h3>
+                <p>
+                    Seus dados serão mantidos enquanto sua conta estiver ativa ou pelo prazo
+                    necessário para cumprimento das obrigações legais aplicáveis. Após a exclusão
+                    da conta, os dados poderão ser anonimizados para fins estatísticos.
+                </p>
+
+                <h3>8. Contato</h3>
+                <p>
+                    Para exercer seus direitos ou obter esclarecimentos, entre em contato com a
+                    equipe do Plantando Vida através dos canais disponíveis no aplicativo.
+                </p>
+
+                <p class="text-xs text-gray-400 mt-4 border-t pt-4">
+                    Ao clicar em <strong>"Li e Aceito os Termos"</strong> você declara ter lido,
+                    compreendido e concordado com este documento. Este aceite é registrado
+                    eletronicamente com data, hora e IP de acesso para fins de conformidade legal.
+                </p>
+
+            </div>
+            <!-- fim do corpo dos termos -->
+
+            <!-- Rodapé com botão de aceite -->
+            <div class="px-8 py-6 bg-gray-50 flex flex-col items-center gap-4">
+
+                <!-- Checkbox de confirmação de leitura -->
+                <label class="flex items-start gap-3 cursor-pointer select-none max-w-md">
+                    <input type="checkbox" id="confirma-leitura"
+                           class="mt-0.5 w-4 h-4 accent-green-600 cursor-pointer flex-shrink-0"
+                           onchange="toggleBotao()">
+                    <span class="text-sm text-gray-600 leading-snug">
+                        Li e compreendi os <strong>Termos de Uso</strong> e a
+                        <strong>Política de Privacidade</strong> do Plantando Vida,
+                        e autorizo o uso dos meus dados conforme descrito acima.
+                    </span>
+                </label>
+
+                <!-- Formulário POST que registra o aceite no banco -->
+                <form method="POST" action="/termos" class="w-full max-w-md">
+                    <button type="submit" id="btn-aceitar" disabled
+                        class="w-full py-3 rounded-xl font-bold text-sm transition
+                               bg-gray-200 text-gray-400 cursor-not-allowed
+                               disabled:opacity-60">
+                        ✅ Li e Aceito os Termos
+                    </button>
+                </form>
+
+                <!-- Link para sair sem aceitar (encerra a sessão) -->
+                <a href="/logout"
+                   class="text-xs text-gray-400 hover:text-red-500 transition underline">
+                    Não aceito — sair do aplicativo
+                </a>
+
+            </div>
+            <!-- fim do rodapé -->
+
+        </div>
+        <!-- fim do card principal -->
+
+    </main>
+    <!-- fim do conteúdo principal -->
+
+    <!-- ===================== JAVASCRIPT =====================
+         toggleBotao(): habilita/desabilita o botão de aceite conforme o checkbox.
+         O botão só fica ativo quando o usuário marca a confirmação de leitura.
+    -->
+    <script>
+        function toggleBotao() {
+            const check = document.getElementById('confirma-leitura');
+            const btn   = document.getElementById('btn-aceitar');
+
+            if (check.checked) {
+                // Habilita o botão com estilo verde
+                btn.disabled = false;
+                btn.classList.remove('bg-gray-200', 'text-gray-400', 'cursor-not-allowed', 'disabled:opacity-60');
+                btn.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white', 'cursor-pointer', 'shadow-md');
+            } else {
+                // Desabilita o botão retornando ao estado neutro
+                btn.disabled = true;
+                btn.classList.remove('bg-green-600', 'hover:bg-green-700', 'text-white', 'cursor-pointer', 'shadow-md');
+                btn.classList.add('bg-gray-200', 'text-gray-400', 'cursor-not-allowed', 'disabled:opacity-60');
+            }
+        }
+    </script>
+
+</body>
+</html>
