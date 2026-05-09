@@ -125,13 +125,20 @@ def enviar_email(destinatario, assunto, corpo_html):
 
         msg.attach(MIMEText(corpo_html, "html", "utf-8"))
 
+        # Extrai apenas o endereço de e-mail do remetente para o envelope SMTP.
+        # sendmail() precisa do e-mail puro (sem "Nome <...>") no MAIL FROM.
+        from email.utils import parseaddr
+        _, envelope_from = parseaddr(remetente)
+        if not envelope_from:
+            envelope_from = remetente  # fallback se formato inesperado
+
         # Brevo SMTP: host smtp-relay.brevo.com, porta 587, STARTTLS obrigatório
         with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=15) as smtp:
             smtp.ehlo()
             smtp.starttls()
             smtp.ehlo()
             smtp.login(login, smtp_key)
-            smtp.sendmail(remetente, destinatario, msg.as_string())
+            smtp.sendmail(envelope_from, destinatario, msg.as_string())
 
         print(f"[EMAIL] Enviado via Brevo para {destinatario}", file=sys.stderr)
         return True
