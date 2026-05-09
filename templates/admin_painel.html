@@ -61,28 +61,13 @@
         </form>
 
         <!-- ===================== ABAS DE NAVEGAÇÃO =====================
-             Três abas para alternar entre Fornecedores, Cadastros e Plantios.
-             A aba ativa é destacada com fundo verde; a inativa com fundo branco.
-             O clique gera uma requisição GET com o parâmetro "tipo" alterado.
+             Navegação compacta com dois grupos dropdown: Cadastros e Financeiro.
+             Cada grupo detecta se a aba ativa pertence ao grupo (highligh automático).
+             Os sub-menus abrem via JS (toggle hidden) e fecham ao clicar fora.
         -->
         <div class="flex gap-2 mb-6 flex-wrap">
-            <!-- Aba Fornecedores -->
-            <a href="/admin/painel?tipo=fornecedores&busca={{ busca }}">
-                <button
-                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
-                    {{ 'bg-green-600 text-white' if tipo == 'fornecedores' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    🌿 Fornecedores ({{ fornecedores|length }})
-                </button>
-            </a>
-            <!-- Aba Cadastros de Usuários -->
-            <a href="/admin/painel?tipo=usuarios&busca={{ busca }}">
-                <button
-                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
-                    {{ 'bg-green-600 text-white' if tipo == 'usuarios' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    👤 Cadastros ({{ usuarios|length }})
-                </button>
-            </a>
-            <!-- Aba Plantios -->
+
+            <!-- Aba Plantios (standalone — fora dos grupos) -->
             <a href="/admin/painel?tipo=plantios&busca={{ busca }}">
                 <button
                     class="px-5 py-2 rounded-lg font-semibold text-sm transition
@@ -90,22 +75,74 @@
                     🌱 Plantios ({{ plantios|length }})
                 </button>
             </a>
-            <!-- Aba Espécies de Plantas -->
-            <a href="/admin/painel?tipo=especies">
-                <button
-                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
-                    {{ 'bg-green-600 text-white' if tipo == 'especies' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    🌿 Espécies ({{ especies|length }})
+
+            <!-- ====== Grupo "Cadastros" com sub-menu em cascata ======
+                 Agrupa: Usuários, Fornecedores, Ent. Educacional, Espécies.
+            -->
+            {% set cadastros_ativo = tipo in ['fornecedores', 'usuarios', 'entidade_educacional', 'especies'] %}
+            <div class="relative" id="grupo-cadastros">
+
+                <!-- Botão principal -->
+                <button onclick="toggleCadastros(event)"
+                    class="px-5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-1.5
+                    {{ 'bg-green-700 text-white' if cadastros_ativo else 'bg-white text-gray-600 hover:bg-gray-200' }}">
+                    📋 Cadastros
+                    <svg id="seta-cadastros" class="w-3.5 h-3.5 transition-transform duration-200" fill="none"
+                        stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                    </svg>
                 </button>
-            </a>
-            <!-- Aba Entidades Educacionais (APAE e similares) -->
-            <a href="/admin/painel?tipo=entidades">
-                <button
-                    class="px-5 py-2 rounded-lg font-semibold text-sm transition
-                    {{ 'bg-blue-600 text-white' if tipo == 'entidades' else 'bg-white text-gray-600 hover:bg-gray-200' }}">
-                    🏫 Entidades ({{ entidades|length }})
-                </button>
-            </a>
+
+                <!-- Sub-menu cascata -->
+                <div id="submenu-cadastros" class="hidden absolute left-0 top-full mt-1.5 z-50 bg-white
+                            rounded-xl shadow-xl border border-gray-100
+                            flex flex-col min-w-[220px] py-1.5 overflow-hidden">
+
+                    <!-- Item: Usuários -->
+                    <a href="/admin/painel?tipo=usuarios&busca={{ busca }}"
+                        class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                              {{ 'bg-green-50 text-green-800 font-semibold' if tipo == 'usuarios' else 'text-gray-700 hover:bg-gray-50' }}">
+                        👤 Usuários
+                        <span class="ml-auto text-xs text-gray-400">({{ usuarios|length }})</span>
+                        {% if tipo == 'usuarios' %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-600"></span>
+                        {% endif %}
+                    </a>
+
+                    <!-- Item: Fornecedores -->
+                    <a href="/admin/painel?tipo=fornecedores&busca={{ busca }}"
+                        class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                              {{ 'bg-green-50 text-green-800 font-semibold' if tipo == 'fornecedores' else 'text-gray-700 hover:bg-gray-50' }}">
+                        🌿 Fornecedores
+                        <span class="ml-auto text-xs text-gray-400">({{ fornecedores|length }})</span>
+                        {% if tipo == 'fornecedores' %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-600"></span>
+                        {% endif %}
+                    </a>
+
+                    <!-- Item: Entidade Educacional -->
+                    <a href="/admin/painel?tipo=entidade_educacional"
+                        class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                              {{ 'bg-green-50 text-green-800 font-semibold' if tipo == 'entidade_educacional' else 'text-gray-700 hover:bg-gray-50' }}">
+                        🏫 Ent. Educacional
+                        <span class="ml-auto text-xs text-gray-400">({{ entidades_edu|length }})</span>
+                        {% if tipo == 'entidade_educacional' %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-600"></span>
+                        {% endif %}
+                    </a>
+
+                    <!-- Item: Espécies -->
+                    <a href="/admin/painel?tipo=especies"
+                        class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
+                              {{ 'bg-green-50 text-green-800 font-semibold' if tipo == 'especies' else 'text-gray-700 hover:bg-gray-50' }}">
+                        🌱 Espécies
+                        <span class="ml-auto text-xs text-gray-400">({{ especies|length }})</span>
+                        {% if tipo == 'especies' %}
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-600"></span>
+                        {% endif %}
+                    </a>
+                </div>
+            </div>
 
             <!-- ====== Grupo "Financeiro" com sub-menu em cascata ======
                  Detecta se a aba ativa pertence ao grupo para manter o botão destacado.
@@ -121,7 +158,6 @@
                     class="px-5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-1.5
                     {{ 'bg-emerald-700 text-white' if financeiro_ativo else 'bg-white text-gray-600 hover:bg-gray-200' }}">
                     💼 Financeiro
-                    <!-- Seta indicadora de sub-menu -->
                     <svg id="seta-financeiro" class="w-3.5 h-3.5 transition-transform duration-200" fill="none"
                         stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
@@ -192,8 +228,19 @@
                 </div>
             </div>
 
-            <!-- JS: abre/fecha o sub-menu Financeiro e fecha ao clicar fora -->
+            <!-- JS: controla os dois dropdowns (Cadastros e Financeiro) -->
             <script>
+                // Abre/fecha o dropdown Cadastros
+                function toggleCadastros(e) {
+                    e.stopPropagation();
+                    const menu = document.getElementById('submenu-cadastros');
+                    const seta = document.getElementById('seta-cadastros');
+                    const aberto = !menu.classList.contains('hidden');
+                    menu.classList.toggle('hidden', aberto);
+                    seta.style.transform = aberto ? '' : 'rotate(180deg)';
+                }
+
+                // Abre/fecha o dropdown Financeiro
                 function toggleFinanceiro(e) {
                     e.stopPropagation();
                     const menu = document.getElementById('submenu-financeiro');
@@ -202,22 +249,34 @@
                     menu.classList.toggle('hidden', aberto);
                     seta.style.transform = aberto ? '' : 'rotate(180deg)';
                 }
-                // Fecha ao clicar em qualquer lugar fora do grupo
+
+                // Fecha ambos os dropdowns ao clicar em qualquer lugar fora deles
                 document.addEventListener('click', function () {
-                    const menu = document.getElementById('submenu-financeiro');
-                    const seta = document.getElementById('seta-financeiro');
-                    if (menu) { menu.classList.add('hidden'); }
-                    if (seta) { seta.style.transform = ''; }
+                    ['submenu-cadastros', 'submenu-financeiro'].forEach(function(id) {
+                        const menu = document.getElementById(id);
+                        if (menu) menu.classList.add('hidden');
+                    });
+                    ['seta-cadastros', 'seta-financeiro'].forEach(function(id) {
+                        const seta = document.getElementById(id);
+                        if (seta) seta.style.transform = '';
+                    });
                 });
-                // Se a aba ativa pertence ao grupo, abre o sub-menu automaticamente ao carregar
-                {% if financeiro_ativo %}
+
+                // Abre automaticamente o dropdown cujo item está ativo na carga da página
                 document.addEventListener('DOMContentLoaded', function () {
-                    const menu = document.getElementById('submenu-financeiro');
-                    const seta = document.getElementById('seta-financeiro');
-                    if (menu) { menu.classList.remove('hidden'); }
-                    if (seta) { seta.style.transform = 'rotate(180deg)'; }
+                    {% if cadastros_ativo %}
+                    const mc = document.getElementById('submenu-cadastros');
+                    const sc = document.getElementById('seta-cadastros');
+                    if (mc) mc.classList.remove('hidden');
+                    if (sc) sc.style.transform = 'rotate(180deg)';
+                    {% endif %}
+                    {% if financeiro_ativo %}
+                    const mf = document.getElementById('submenu-financeiro');
+                    const sf = document.getElementById('seta-financeiro');
+                    if (mf) mf.classList.remove('hidden');
+                    if (sf) sf.style.transform = 'rotate(180deg)';
+                    {% endif %}
                 });
-                {% endif %}
             </script>
         </div>
 
@@ -243,6 +302,18 @@
                 🗺️ Visualizar Plantios no MAPA
             </a>
         </div>
+
+
+        <!-- ===================== TELA INICIAL (sem aba selecionada) =====================
+             Exibida quando o admin acessa /admin/painel sem parâmetro ?tipo.
+             Mostra um resumo rápido com atalhos para as seções principais.
+        -->
+        {% if not tipo %}
+        <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
+            <div class="text-4xl mb-3">🔒</div>
+            <p class="text-sm">Selecione uma seção nos botões acima para começar.</p>
+        </div>
+        {% endif %}
 
 
         <!-- ===================== ABA FORNECEDORES =====================
@@ -1183,13 +1254,14 @@
 
 
         <!-- ===================== ABA ENTIDADES EDUCACIONAIS =====================
-             Cadastro e gestão das entidades favorecidas (APAE e similares).
-             Mesmos campos usados no fechamento_entidade; gerenciamento centralizado aqui.
-             e[0]=id  e[1]=razao_social  e[2]=cnpj  e[3]=whatsapp
-             e[4]=criado_em  e[5]=banco  e[6]=conta  e[7]=agencia
-             e[8]=chave_pix  e[9]=qrcode_pix  e[10]=ativa
+             Cadastro e gestão de entidades educacionais parceiras (escolas, ONGs, creches).
+             Tabela separada das entidades financeiras — sem vínculo com o faturamento.
+             Vinculada a usuarios e plantas_go via entidade_educacional_id.
+             ee[0]=id  ee[1]=razao_social  ee[2]=cnpj  ee[3]=whatsapp
+             ee[4]=banco  ee[5]=agencia  ee[6]=conta  ee[7]=chave_pix
+             ee[8]=qrcode_pix  ee[9]=ativa  ee[10]=criado_em
         -->
-        {% if tipo == 'entidades' %}
+        {% if tipo == 'entidade_educacional' %}
 
         <!-- Mensagens de flash (cadastro, edição, exclusão) -->
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -1207,15 +1279,15 @@
 
             <!-- ── Coluna esquerda: formulário de cadastro/edição ── -->
             <div class="bg-white rounded-2xl shadow p-6">
-                <h3 id="titulo-form-ent2" class="font-bold text-gray-700 text-sm mb-4">
+                <h3 id="titulo-form-edu" class="font-bold text-gray-700 text-sm mb-4">
                     ➕ Nova Entidade Educacional
                 </h3>
 
-                <form method="POST" action="/admin/entidade/salvar"
-                      enctype="multipart/form-data" class="space-y-4" id="form-entidade2">
+                <form method="POST" action="/admin/entidade-educacional/salvar"
+                      enctype="multipart/form-data" class="space-y-4" id="form-edu">
 
                     <!-- Campo oculto: vazio = INSERT; preenchido = UPDATE -->
-                    <input type="hidden" name="id" id="ent2-id" value="">
+                    <input type="hidden" name="id" id="edu-id" value="">
 
                     <!-- ── Identificação ── -->
                     <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Identificação</p>
@@ -1225,8 +1297,8 @@
                         <label class="block text-sm font-medium text-gray-600 mb-1">
                             Razão Social <span class="text-red-500">*</span>
                         </label>
-                        <input type="text" name="razao_social" id="ent2-razao" required
-                               placeholder="Ex: APAE de Arapoti"
+                        <input type="text" name="razao_social" id="edu-razao" required
+                               placeholder="Ex: Escola Estadual João Silva"
                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                       focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
@@ -1234,8 +1306,8 @@
                     <!-- CNPJ com máscara -->
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1">CNPJ</label>
-                        <input type="text" name="cnpj" id="ent2-cnpj" maxlength="18" inputmode="numeric"
-                               placeholder="00.000.000/0001-00" oninput="mascaraCnpjEnt2(this)"
+                        <input type="text" name="cnpj" id="edu-cnpj" maxlength="18" inputmode="numeric"
+                               placeholder="00.000.000/0001-00" oninput="mascaraCnpjEdu(this)"
                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                       focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
@@ -1243,22 +1315,22 @@
                     <!-- WhatsApp com máscara -->
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1">Fone WhatsApp</label>
-                        <input type="text" name="whatsapp" id="ent2-whatsapp" maxlength="15" inputmode="numeric"
-                               placeholder="(00) 00000-0000" oninput="mascaraFoneEnt2(this)"
+                        <input type="text" name="whatsapp" id="edu-whatsapp" maxlength="15" inputmode="numeric"
+                               placeholder="(00) 00000-0000" oninput="mascaraFoneEdu(this)"
                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                       focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
 
-                    <!-- Status ativa no projeto -->
+                    <!-- Status ativa -->
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1">
-                            Entidade Ativa no Projeto
+                            Entidade Ativa
                         </label>
-                        <select name="ativa" id="ent2-ativa"
+                        <select name="ativa" id="edu-ativa"
                                 class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                        focus:outline-none focus:ring-2 focus:ring-blue-400">
+                            <option value="sim">SIM — Ativa</option>
                             <option value="nao">NÃO — Inativa</option>
-                            <option value="sim">SIM — Ativa (recebe fechamentos)</option>
                         </select>
                     </div>
 
@@ -1268,7 +1340,7 @@
                     <!-- Banco -->
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1">Banco</label>
-                        <input type="text" name="banco" id="ent2-banco"
+                        <input type="text" name="banco" id="edu-banco"
                                placeholder="Ex: Nubank, Bradesco, Itaú..."
                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                       focus:outline-none focus:ring-2 focus:ring-blue-400" />
@@ -1278,13 +1350,13 @@
                     <div class="flex gap-3">
                         <div class="w-32">
                             <label class="block text-sm font-medium text-gray-600 mb-1">Agência</label>
-                            <input type="text" name="agencia" id="ent2-agencia" placeholder="0001"
+                            <input type="text" name="agencia" id="edu-agencia" placeholder="0001"
                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                           focus:outline-none focus:ring-2 focus:ring-blue-400" />
                         </div>
                         <div class="flex-1">
                             <label class="block text-sm font-medium text-gray-600 mb-1">Conta Corrente</label>
-                            <input type="text" name="conta" id="ent2-conta" placeholder="00000-0"
+                            <input type="text" name="conta" id="edu-conta" placeholder="00000-0"
                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                           focus:outline-none focus:ring-2 focus:ring-blue-400" />
                         </div>
@@ -1293,7 +1365,7 @@
                     <!-- Chave PIX -->
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1">Chave PIX</label>
-                        <input type="text" name="chave_pix" id="ent2-chave-pix"
+                        <input type="text" name="chave_pix" id="edu-chave-pix"
                                placeholder="CNPJ, email, telefone ou chave aleatória"
                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
                                       focus:outline-none focus:ring-2 focus:ring-blue-400" />
@@ -1302,26 +1374,26 @@
                     <!-- QR Code PIX -->
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1">QR Code PIX</label>
-                        <input type="file" name="qrcode_pix" id="ent2-qrcode"
+                        <input type="file" name="qrcode_pix" id="edu-qrcode"
                                accept=".jpg,.jpeg,.png"
                                class="w-full text-sm text-gray-500
                                       file:mr-3 file:py-1.5 file:px-3 file:rounded
                                       file:border-0 file:bg-blue-100 file:text-blue-700
                                       file:font-medium hover:file:bg-blue-200" />
-                        <p id="ent2-qr-aviso" class="hidden text-xs text-gray-400 mt-1">
+                        <p id="edu-qr-aviso" class="hidden text-xs text-gray-400 mt-1">
                             ✅ QR Code já cadastrado — envie novo para substituir.
                         </p>
                     </div>
 
                     <!-- Botões: Salvar + Cancelar edição -->
                     <div class="flex gap-3 pt-1">
-                        <button type="submit" id="btn-submit-ent2"
+                        <button type="submit" id="btn-submit-edu"
                                 class="flex-1 bg-blue-600 hover:bg-blue-700 text-white
                                        font-semibold py-2 rounded-lg transition text-sm">
                             💾 Cadastrar Entidade
                         </button>
-                        <button type="button" id="btn-cancelar-ent2"
-                                onclick="cancelarEdicaoEnt2()"
+                        <button type="button" id="btn-cancelar-edu"
+                                onclick="cancelarEdicaoEdu()"
                                 class="hidden px-5 bg-gray-100 hover:bg-gray-200 text-gray-600
                                        font-semibold py-2 rounded-lg transition text-sm">
                             ✕ Cancelar
@@ -1330,28 +1402,26 @@
                 </form>
             </div>
 
-            <!-- ── Coluna direita: grid de entidades cadastradas ── -->
+            <!-- ── Coluna direita: lista de entidades educacionais cadastradas ── -->
             <div class="bg-white rounded-2xl shadow p-6">
                 <h3 class="font-bold text-gray-700 text-sm mb-4">
                     📋 Entidades Cadastradas
-                    <span class="text-gray-400 font-normal">({{ entidades|length }})</span>
-                    <span class="text-xs text-gray-400 font-normal ml-2">·
-                        {{ entidades_ativas|length }} ativa(s)
-                    </span>
+                    <span class="text-gray-400 font-normal">({{ entidades_edu|length }})</span>
                 </h3>
 
-                {% if entidades %}
+                {% if entidades_edu %}
                 <div class="flex flex-col gap-3 max-h-[700px] overflow-y-auto pr-1">
-                    {% for e in entidades %}
-                    <!-- e[0]=id  e[1]=razao_social  e[2]=cnpj  e[3]=whatsapp
-                         e[5]=banco  e[6]=conta  e[7]=agencia  e[8]=chave_pix  e[9]=qrcode_pix  e[10]=ativa -->
+                    {% for ee in entidades_edu %}
+                    <!-- ee[0]=id  ee[1]=razao_social  ee[2]=cnpj  ee[3]=whatsapp
+                         ee[4]=banco  ee[5]=agencia  ee[6]=conta  ee[7]=chave_pix
+                         ee[8]=qrcode_pix  ee[9]=ativa -->
                     <div class="rounded-xl border p-4 flex flex-col gap-2
-                        {{ 'bg-blue-50 border-blue-200' if e[10] == 1 else 'bg-gray-50 border-gray-100' }}">
+                        {{ 'bg-blue-50 border-blue-200' if ee[9] == 1 else 'bg-gray-50 border-gray-100' }}">
 
                         <!-- Cabeçalho: nome + badge ativa/inativa -->
                         <div class="flex items-start justify-between gap-2">
-                            <p class="text-sm font-bold text-gray-800 leading-tight">{{ e[1] }}</p>
-                            {% if e[10] == 1 %}
+                            <p class="text-sm font-bold text-gray-800 leading-tight">{{ ee[1] }}</p>
+                            {% if ee[9] == 1 %}
                             <span class="shrink-0 text-xs font-semibold bg-blue-600 text-white
                                          px-2 py-0.5 rounded-full whitespace-nowrap">✅ Ativa</span>
                             {% else %}
@@ -1362,47 +1432,47 @@
 
                         <!-- Identificação -->
                         <div class="text-xs text-gray-500 space-y-0.5">
-                            {% if e[2] %}<p>CNPJ: {{ e[2] }}</p>{% endif %}
-                            {% if e[3] %}<p>📱 {{ e[3] }}</p>{% endif %}
+                            {% if ee[2] %}<p>CNPJ: {{ ee[2] }}</p>{% endif %}
+                            {% if ee[3] %}<p>📱 {{ ee[3] }}</p>{% endif %}
                         </div>
 
-                        <!-- Dados bancários -->
-                        {% if e[5] or e[6] or e[8] %}
+                        <!-- Dados bancários (somente se preenchidos) -->
+                        {% if ee[4] or ee[6] or ee[7] %}
                         <div class="text-xs text-gray-500 border-t border-gray-200 pt-2 space-y-0.5">
-                            {% if e[5] %}<p>🏦 {{ e[5] }}</p>{% endif %}
-                            {% if e[7] or e[6] %}
-                            <p>Ag. {{ e[7] or '—' }} / Cc. {{ e[6] or '—' }}</p>
+                            {% if ee[4] %}<p>🏦 {{ ee[4] }}</p>{% endif %}
+                            {% if ee[5] or ee[6] %}
+                            <p>Ag. {{ ee[5] or '—' }} / Cc. {{ ee[6] or '—' }}</p>
                             {% endif %}
-                            {% if e[8] %}<p>PIX: <span class="break-all">{{ e[8] }}</span></p>{% endif %}
+                            {% if ee[7] %}<p>PIX: <span class="break-all">{{ ee[7] }}</span></p>{% endif %}
                         </div>
                         {% endif %}
 
                         <!-- QR Code (miniatura) -->
-                        {% if e[9] %}
-                        <img src="{{ img_url(e[9], 'pix') }}" alt="QR Code"
+                        {% if ee[8] %}
+                        <img src="{{ img_url(ee[8], 'pix') }}" alt="QR Code"
                              class="w-16 h-16 object-contain rounded border border-gray-200 self-center" />
                         {% endif %}
 
                         <!-- Botões Editar / Excluir -->
                         <div class="flex gap-2 mt-auto pt-1">
                             <button type="button"
-                                    onclick="editarEnt2(this)"
-                                    data-eid="{{ e[0] }}"
-                                    data-razao="{{ e[1] }}"
-                                    data-cnpj="{{ e[2] or '' }}"
-                                    data-whatsapp="{{ e[3] or '' }}"
-                                    data-ativa="{{ e[10] }}"
-                                    data-banco="{{ e[5] or '' }}"
-                                    data-agencia="{{ e[7] or '' }}"
-                                    data-conta="{{ e[6] or '' }}"
-                                    data-pix="{{ e[8] or '' }}"
-                                    data-temqr="{{ 'true' if e[9] else 'false' }}"
+                                    onclick="editarEdu(this)"
+                                    data-eid="{{ ee[0] }}"
+                                    data-razao="{{ ee[1] }}"
+                                    data-cnpj="{{ ee[2] or '' }}"
+                                    data-whatsapp="{{ ee[3] or '' }}"
+                                    data-ativa="{{ ee[9] }}"
+                                    data-banco="{{ ee[4] or '' }}"
+                                    data-agencia="{{ ee[5] or '' }}"
+                                    data-conta="{{ ee[6] or '' }}"
+                                    data-pix="{{ ee[7] or '' }}"
+                                    data-temqr="{{ 'true' if ee[8] else 'false' }}"
                                     class="flex-1 text-blue-600 hover:text-blue-800 text-xs font-semibold
                                            px-2 py-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 transition text-center">
                                 ✏️ Editar
                             </button>
-                            <form method="POST" action="/admin/entidade/{{ e[0] }}/excluir"
-                                  data-nome="{{ e[1] }}"
+                            <form method="POST" action="/admin/entidade-educacional/{{ ee[0] }}/excluir"
+                                  data-nome="{{ ee[1] }}"
                                   onsubmit="return confirm('Excluir ' + this.dataset.nome + '?')">
                                 <button type="submit"
                                         class="text-red-400 hover:text-red-600 text-xs font-semibold
@@ -1418,52 +1488,51 @@
                 {% else %}
                 <div class="bg-gray-50 rounded-xl p-10 text-center text-gray-400">
                     <div class="text-4xl mb-3">🏫</div>
-                    <p class="text-sm">Nenhuma entidade cadastrada ainda.</p>
+                    <p class="text-sm">Nenhuma entidade educacional cadastrada ainda.</p>
                 </div>
                 {% endif %}
             </div>
 
         </div><!-- fim grid -->
 
-        <!-- JS exclusivo da aba Entidades: ids com sufixo "2" para não colidir com o accordion -->
+        <!-- JS exclusivo da aba Entidade Educacional -->
         <script>
             // Preenche o formulário com os dados da entidade selecionada (modo edição)
-            function editarEnt2(btn) {
-                document.getElementById('ent2-id').value        = btn.dataset.eid;
-                document.getElementById('ent2-razao').value     = btn.dataset.razao;
-                document.getElementById('ent2-cnpj').value      = btn.dataset.cnpj;
-                document.getElementById('ent2-whatsapp').value  = btn.dataset.whatsapp;
-                document.getElementById('ent2-ativa').value     = btn.dataset.ativa === '1' ? 'sim' : 'nao';
-                document.getElementById('ent2-banco').value     = btn.dataset.banco;
-                document.getElementById('ent2-agencia').value   = btn.dataset.agencia;
-                document.getElementById('ent2-conta').value     = btn.dataset.conta;
-                document.getElementById('ent2-chave-pix').value = btn.dataset.pix;
+            function editarEdu(btn) {
+                document.getElementById('edu-id').value        = btn.dataset.eid;
+                document.getElementById('edu-razao').value     = btn.dataset.razao;
+                document.getElementById('edu-cnpj').value      = btn.dataset.cnpj;
+                document.getElementById('edu-whatsapp').value  = btn.dataset.whatsapp;
+                document.getElementById('edu-ativa').value     = btn.dataset.ativa === '1' ? 'sim' : 'nao';
+                document.getElementById('edu-banco').value     = btn.dataset.banco;
+                document.getElementById('edu-agencia').value   = btn.dataset.agencia;
+                document.getElementById('edu-conta').value     = btn.dataset.conta;
+                document.getElementById('edu-chave-pix').value = btn.dataset.pix;
 
-                const qrAviso = document.getElementById('ent2-qr-aviso');
+                const qrAviso = document.getElementById('edu-qr-aviso');
                 btn.dataset.temqr === 'true'
                     ? qrAviso.classList.remove('hidden')
                     : qrAviso.classList.add('hidden');
 
-                document.getElementById('titulo-form-ent2').textContent  = '✏️ Editar Entidade';
-                document.getElementById('btn-submit-ent2').textContent   = '💾 Salvar Alterações';
-                document.getElementById('btn-cancelar-ent2').classList.remove('hidden');
+                document.getElementById('titulo-form-edu').textContent = '✏️ Editar Entidade';
+                document.getElementById('btn-submit-edu').textContent  = '💾 Salvar Alterações';
+                document.getElementById('btn-cancelar-edu').classList.remove('hidden');
 
-                // Rola até o formulário
-                document.getElementById('form-entidade2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                document.getElementById('form-edu').scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
-            // Cancela edição e restaura o formulário para o modo criação
-            function cancelarEdicaoEnt2() {
-                document.getElementById('ent2-id').value = '';
-                document.getElementById('form-entidade2').reset();
-                document.getElementById('ent2-qr-aviso').classList.add('hidden');
-                document.getElementById('titulo-form-ent2').textContent  = '➕ Nova Entidade Educacional';
-                document.getElementById('btn-submit-ent2').textContent   = '💾 Cadastrar Entidade';
-                document.getElementById('btn-cancelar-ent2').classList.add('hidden');
+            // Cancela edição e restaura o formulário para modo criação
+            function cancelarEdicaoEdu() {
+                document.getElementById('edu-id').value = '';
+                document.getElementById('form-edu').reset();
+                document.getElementById('edu-qr-aviso').classList.add('hidden');
+                document.getElementById('titulo-form-edu').textContent = '➕ Nova Entidade Educacional';
+                document.getElementById('btn-submit-edu').textContent  = '💾 Cadastrar Entidade';
+                document.getElementById('btn-cancelar-edu').classList.add('hidden');
             }
 
             // Máscara CNPJ: 00.000.000/0000-00
-            function mascaraCnpjEnt2(input) {
+            function mascaraCnpjEdu(input) {
                 let v = input.value.replace(/\D/g, '').slice(0, 14);
                 if (v.length > 12) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
                 else if (v.length > 8) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{0,4})/, '$1.$2.$3/$4');
@@ -1473,7 +1542,7 @@
             }
 
             // Máscara telefone: (00) 00000-0000
-            function mascaraFoneEnt2(input) {
+            function mascaraFoneEdu(input) {
                 let v = input.value.replace(/\D/g, '').slice(0, 11);
                 if (v.length > 6) v = v.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
                 else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
@@ -1482,7 +1551,7 @@
         </script>
 
         {% endif %}
-        <!-- fim da aba entidades -->
+        <!-- fim da aba entidade_educacional -->
 
 
         <!-- ===================== ABA DADOS BANCÁRIOS =====================

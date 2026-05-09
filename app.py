@@ -267,6 +267,25 @@ def init_db():
     )
     """)
 
+    # Tabela de entidades educacionais parceiras (escolas, ONGs, creches, instituições).
+    # Separada da tabela entidades (APAEs financeiras) — sem vínculo com o sistema de faturamento.
+    # Vinculada a usuarios (entidade_educacional_id) e plantas_go (entidade_educacional_id).
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS entidades_educacionais (
+        id           {pk},
+        razao_social TEXT NOT NULL,
+        cnpj         TEXT,
+        whatsapp     TEXT,
+        banco        TEXT,
+        agencia      TEXT,
+        conta        TEXT,
+        chave_pix    TEXT,
+        qrcode_pix   TEXT,
+        ativa        INTEGER DEFAULT 1,
+        criado_em    TEXT DEFAULT ({ts})
+    )
+    """)
+
     # ---- Migrações seguras para bancos já existentes ----
     # Adiciona colunas que podem não existir em instalações anteriores.
     # SQLite: try/except (não suporta IF NOT EXISTS no ADD COLUMN antes da v3.37)
@@ -274,15 +293,19 @@ def init_db():
     migracoes = {
         "fornecedores": ["senha TEXT", "cidade TEXT", "uf TEXT", "ativo INTEGER DEFAULT 1", "email TEXT"],
         # uf/cidade: localização do usuário.
+        # entidade_educacional_id: vínculo opcional com entidade educacional parceira.
         "usuarios":     ["cpf TEXT", "telefone TEXT", "data_nascimento TEXT",
-                         "uf TEXT", "cidade TEXT"],
+                         "uf TEXT", "cidade TEXT",
+                         "entidade_educacional_id INTEGER"],
         # status/fornecedor_id/justificativa: gestão de aprovação de plantios pelo admin.
         # foto_plantio: foto tirada pelo usuário ao lado da cova antes de plantar (Etapa 3 do fluxo).
+        # entidade_educacional_id: vínculo opcional com entidade educacional parceira.
         "plantas_go":   [
             "status TEXT DEFAULT 'em_analise'",
             "fornecedor_id INTEGER",
             "justificativa TEXT",
             "foto_plantio TEXT",
+            "entidade_educacional_id INTEGER",
         ],
         # data_validacao: preenchida pelo fornecedor ao escanear o voucher de retirada.
         # plantio_id: referência ao registro de plantas_go criado após o plantio definitivo.

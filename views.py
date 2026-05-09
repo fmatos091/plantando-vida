@@ -1658,7 +1658,7 @@ def admin_painel():
 
     # Parâmetros de filtro vindos da URL (query string)
     busca           = request.args.get("busca", "").strip()
-    tipo            = request.args.get("tipo", "fornecedores")  # aba ativa padrão
+    tipo            = request.args.get("tipo", "")  # sem aba padrão — exibe tela inicial
     plantio_status  = request.args.get("plantio_status", "").strip()  # filtro de status na aba plantios
 
     # ---- Consulta Fornecedores com filtro por razão social, CNPJ ou cidade ----
@@ -1756,6 +1756,20 @@ def admin_painel():
     # Lista de entidades com ativa=1 (usada no template de Saldos Pendentes para seleção)
     entidades_ativas = [e for e in entidades if e[10] == 1]
 
+    # ---- Consulta Entidades Educacionais (escolas, ONGs, creches, instituições parceiras) ----
+    # Tabela separada das entidades financeiras — sem vínculo com faturamento.
+    # ee[0]=id  ee[1]=razao_social  ee[2]=cnpj  ee[3]=whatsapp
+    # ee[4]=banco  ee[5]=agencia  ee[6]=conta  ee[7]=chave_pix  ee[8]=qrcode_pix
+    # ee[9]=ativa  ee[10]=criado_em
+    cursor.execute("""
+        SELECT id, razao_social, cnpj, whatsapp,
+               banco, agencia, conta, chave_pix, qrcode_pix,
+               ativa, criado_em
+        FROM entidades_educacionais
+        ORDER BY ativa DESC, razao_social
+    """)
+    entidades_edu = cursor.fetchall()
+
     # ---- Consulta Percentuais de Vigência — tabela de distribuição do valor das plantas ----
     # p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin
     cursor.execute("""
@@ -1837,6 +1851,7 @@ def admin_painel():
                            dados_bancarios=dados_bancarios,
                            entidades=entidades,
                            entidades_ativas=entidades_ativas,
+                           entidades_edu=entidades_edu,
                            percentuais=percentuais,
                            fechamento_pendente=fechamento_pendente,
                            fechamento_entidade_pendente=fechamento_entidade_pendente,
@@ -2353,7 +2368,7 @@ def admin_salvar_entidade():
 
     if not razao_social:
         flash("O campo Razão Social é obrigatório.", "erro")
-        return redirect("/admin/painel?tipo=entidades")
+        return redirect("/admin/painel?tipo=fechamento_entidade")
 
     conn   = get_db()
     cursor = conn.cursor()
@@ -2397,7 +2412,7 @@ def admin_salvar_entidade():
 
     conn.commit()
     conn.close()
-    return redirect("/admin/painel?tipo=entidades")
+    return redirect("/admin/painel?tipo=fechamento_entidade")
 
 
 # ===================== ROTA ADMIN: EXCLUIR ENTIDADE FAVORECIDA =====================
@@ -2415,7 +2430,96 @@ def admin_excluir_entidade(eid):
     conn.close()
 
     flash("Entidade excluída.", "sucesso")
-    return redirect("/admin/painel?tipo=entidades")
+    return redirect("/admin/painel?tipo=fechamento_entidade")
+
+
+# ===================== ROTA ADMIN: SALVAR ENTIDADE EDUCACIONAL =====================
+# Cria ou atualiza uma entidade educacional (escola, ONG, creche, instituição parceira).
+# Tabela separada de entidades (APAEs financeiras) — sem vínculo com faturamento.
+# Campo oculto "id" vazio → INSERT; preenchido → UPDATE.
+# QR Code PIX salvo em static/pix/ com prefixo "edu_" + uuid.
+@app.route("/admin/entidade-educacional/salvar", methods=["POST"])
+def admin_salvar_entidade_edu():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    eid          = request.form.get("id", "").strip()
+    razao_social = request.form.get("razao_social", "").strip()
+    cnpj         = request.form.get("cnpj", "").strip()
+    whatsapp     = request.form.get("whatsapp", "").strip()
+    banco        = request.form.get("banco", "").strip()
+    agencia      = request.form.get("agencia", "").strip()
+    conta        = request.form.get("conta", "").strip()
+    chave_pix    = request.form.get("chave_pix", "").strip()
+    ativa        = 1 if request.form.get("ativa") == "sim" else 0
+
+    if not razao_social:
+        flash("O campo Razão Social é obrigatório.", "erro")
+        return redirect("/admin/painel?tipo=entidade_educacional")
+
+    # Processa upload do QR Code PIX
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    qrcode_final = None
+    arquivo_qr   = request.files.get("qrcode_pix")
+    if arquivo_qr and arquivo_qr.filename:
+        import uuid as _uuid
+        ext          = os.path.splitext(arquivo_qr.filename)[1].lower()
+        nome_arquivo = f"edu_{_uuid.uuid4().hex[:12]}{ext}"
+        pasta_pix    = os.path.join(app.root_path, "static", "pix")
+        os.makedirs(pasta_pix, exist_ok=True)
+        arquivo_qr.save(os.path.join(pasta_pix, nome_arquivo))
+        qrcode_final = nome_arquivo
+
+    if eid:
+        # UPDATE: mantém QR Code existente se nenhum novo foi enviado
+        if qrcode_final:
+            cursor.execute("""
+                UPDATE entidades_educacionais
+                SET razao_social=?, cnpj=?, whatsapp=?,
+                    banco=?, agencia=?, conta=?, chave_pix=?, qrcode_pix=?, ativa=?
+                WHERE id=?
+            """, (razao_social, cnpj, whatsapp,
+                  banco, agencia, conta, chave_pix, qrcode_final, ativa, int(eid)))
+        else:
+            cursor.execute("""
+                UPDATE entidades_educacionais
+                SET razao_social=?, cnpj=?, whatsapp=?,
+                    banco=?, agencia=?, conta=?, chave_pix=?, ativa=?
+                WHERE id=?
+            """, (razao_social, cnpj, whatsapp,
+                  banco, agencia, conta, chave_pix, ativa, int(eid)))
+        flash("Entidade educacional atualizada com sucesso.", "sucesso")
+    else:
+        cursor.execute("""
+            INSERT INTO entidades_educacionais
+                (razao_social, cnpj, whatsapp, banco, agencia, conta, chave_pix, qrcode_pix, ativa)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (razao_social, cnpj, whatsapp,
+              banco, agencia, conta, chave_pix, qrcode_final, ativa))
+        flash("Entidade educacional cadastrada com sucesso.", "sucesso")
+
+    conn.commit()
+    conn.close()
+    return redirect("/admin/painel?tipo=entidade_educacional")
+
+
+# ===================== ROTA ADMIN: EXCLUIR ENTIDADE EDUCACIONAL =====================
+# Remove permanentemente a entidade educacional do banco.
+@app.route("/admin/entidade-educacional/<int:eid>/excluir", methods=["POST"])
+def admin_excluir_entidade_edu(eid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM entidades_educacionais WHERE id = ?", (eid,))
+    conn.commit()
+    conn.close()
+
+    flash("Entidade educacional excluída.", "sucesso")
+    return redirect("/admin/painel?tipo=entidade_educacional")
 
 
 # ===================== API: BUSCA DE ESPÉCIES (AJAX) =====================
