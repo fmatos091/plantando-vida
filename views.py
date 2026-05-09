@@ -563,11 +563,17 @@ def dashboard():
         (session["usuario_id"],)
     )
     total_aprovados = cursor.fetchone()[0]
+
+    # Conta fornecedores ativos — se zero, o botão "Adquirir em Local Credenciado" fica desabilitado.
+    cursor.execute("SELECT COUNT(*) FROM fornecedores WHERE ativo = 1")
+    fornecedores_ativos = cursor.fetchone()[0]
+
     conn.close()
 
     return render_template("dashboard.html",
                            nome=session["usuario_nome"],
-                           total_aprovados=total_aprovados)
+                           total_aprovados=total_aprovados,
+                           fornecedores_ativos=fornecedores_ativos)
 
 
 # ===================== ROTA DE LOGOUT =====================
