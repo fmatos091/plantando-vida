@@ -15,8 +15,7 @@ import resend
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
-from email.header import Header
-from email.utils import formataddr, make_msgid
+from email.utils import formataddr, parseaddr
 from flask import render_template, request, redirect, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -104,22 +103,19 @@ def enviar_email(destinatario, assunto, corpo_html):
     login     = os.environ.get("BREVO_LOGIN", "")
     smtp_key  = os.environ.get("BREVO_SMTP_KEY", "")
     remetente = os.environ.get("BREVO_FROM", "Plantando Vida <projetoplantandovida2026@gmail.com>")
-    app_url   = os.environ.get("APP_URL", "https://plantando-vida.up.railway.app")
 
     if not login or not smtp_key:
         print(f"[EMAIL] Credenciais Brevo ausentes: BREVO_LOGIN={bool(login)} BREVO_SMTP_KEY={bool(smtp_key)}", file=sys.stderr)
         return False
 
     try:
+        import base64 as _b64
         msg = MIMEMultipart("alternative")
-        # Codifica assunto em UTF-8 para suporte a acentos e caracteres especiais
-        msg["Subject"] = Header(assunto, "utf-8")
+        # Codifica assunto como bloco único base64 para evitar quebra de linha
+        # que causa "Header parsing error" em servidores SMTP mais estritos (ex: Brevo).
+        msg["Subject"] = "=?utf-8?b?" + _b64.b64encode(assunto.encode("utf-8")).decode("ascii") + "?="
         msg["From"]    = remetente
         msg["To"]      = destinatario
-        # Message-ID único evita que provedores classifiquem como spam duplicado
-        msg["Message-ID"] = make_msgid(domain=app_url.replace("https://", "").replace("http://", ""))
-        # Reply-To direciona respostas para o remetente real, não o relay
-        msg["Reply-To"]   = remetente
         # Indica que é email transacional (não marketing)
         msg["X-Mailer"]   = "Plantando Vida Mailer"
 
@@ -127,7 +123,6 @@ def enviar_email(destinatario, assunto, corpo_html):
 
         # Extrai apenas o endereço de e-mail do remetente para o envelope SMTP.
         # sendmail() precisa do e-mail puro (sem "Nome <...>") no MAIL FROM.
-        from email.utils import parseaddr
         _, envelope_from = parseaddr(remetente)
         if not envelope_from:
             envelope_from = remetente  # fallback se formato inesperado
