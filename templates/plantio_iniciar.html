@@ -227,20 +227,31 @@
       </div>
 
       <!-- ============================================================
-           ETAPA 3 — FOTO DA PLANTA AO LADO DA COVA
-           Registro fotográfico da muda ao lado do buraco (berço) antes
-           de ser plantada. Campo obrigatório.
+           ETAPA 3 — FOTO COVA (ou Plantio da Semente)
+           Checkbox "Registrar Plantio da Semente":
+             - Marcado  → solicita foto da semente e pula para Etapa 5
+             - Desmarcado → foto da muda ao lado da cova, fluxo normal
       ============================================================ -->
       <div id="etapa-3" class="etapa hidden">
         <div class="bg-white rounded-2xl shadow p-6">
-          <h2 class="text-base font-bold text-green-800 mb-1">
+          <h2 id="titulo-etapa3" class="text-base font-bold text-green-800 mb-1">
             Etapa 3 — Foto da Planta ao lado da Cova
           </h2>
-          <p class="text-xs text-gray-500 mb-5">
+          <p id="desc-etapa3" class="text-xs text-gray-500 mb-4">
             Tire uma foto mostrando a muda ao lado do buraco (berço) onde será plantada.
           </p>
 
-          <!-- Input de arquivo para foto da cova -->
+          <!-- Checkbox: Registrar Plantio da Semente -->
+          <label class="flex items-center gap-3 mb-5 p-3 bg-green-50 rounded-xl border border-green-200 cursor-pointer">
+            <input type="checkbox" id="chk-semente" onchange="toggleSemente()"
+                   class="w-4 h-4 accent-green-700 flex-shrink-0">
+            <div>
+              <span class="text-sm font-semibold text-green-800 block">Registrar Plantio da Semente</span>
+              <span class="text-xs text-gray-500">Marque se está plantando uma semente (não uma muda)</span>
+            </div>
+          </label>
+
+          <!-- Input de foto (reutilizado para cova e semente — mesmo campo foto_plantio) -->
           <div class="mb-4">
             <label for="foto-plantio-input"
               class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed
@@ -252,7 +263,6 @@
               </div>
               <img id="img-preview-3" class="hidden w-full h-full object-cover rounded-xl" alt="Preview">
             </label>
-            <!-- Aceita câmera em mobile (capture="environment") e galeria em desktop -->
             <input type="file" id="foto-plantio-input" name="foto_plantio"
               accept="image/jpeg,image/png" capture="environment"
               class="hidden"
@@ -341,7 +351,7 @@
             Tudo certo! Confirme o plantio para registrar oficialmente sua muda no sistema.
           </p>
 
-          <!-- Resumo das etapas concluídas -->
+          <!-- Resumo das etapas concluídas (atualizado dinamicamente pela JS) -->
           <div class="space-y-2 mb-6">
             <div class="flex items-center gap-3 bg-green-50 rounded-xl px-4 py-3">
               <span class="text-green-600 text-lg">✅</span>
@@ -353,9 +363,9 @@
             </div>
             <div class="flex items-center gap-3 bg-green-50 rounded-xl px-4 py-3">
               <span class="text-green-600 text-lg">✅</span>
-              <p class="text-sm text-green-800 font-semibold">Foto ao lado da cova registrada</p>
+              <p id="resumo-foto3-texto" class="text-sm text-green-800 font-semibold">Foto ao lado da cova registrada</p>
             </div>
-            <div class="flex items-center gap-3 bg-green-50 rounded-xl px-4 py-3">
+            <div id="resumo-item-foto4" class="flex items-center gap-3 bg-green-50 rounded-xl px-4 py-3">
               <span class="text-green-600 text-lg">✅</span>
               <p class="text-sm text-green-800 font-semibold">Foto na cova com água (Acomp. 1)</p>
             </div>
@@ -393,71 +403,103 @@
   <!-- ===================== JAVASCRIPT ===================== -->
   <script>
     // ---- Estado global do fluxo ----
-    let etapaAtual = 1;          // Etapa visível no momento
-    let qr1Instancia = null;     // Instância do leitor de QR Code da Etapa 1
-    let qr1Escaneado = false;    // True após leitura bem-sucedida do QR
+    let etapaAtual = 1;
+    let qr1Instancia = null;
+    let qr1Escaneado = false;
+    let plantioSemente = false;  // true quando checkbox "Registrar Plantio da Semente" está marcado
 
     // ---- Navegação entre etapas ----
 
-    // Avança para a próxima etapa e atualiza o indicador de progresso
     function avancar(etapa) {
       ocultarEtapa(etapa);
-      mostrarEtapa(etapa + 1);
-      etapaAtual = etapa + 1;
+      // Etapa 3 com semente marcado → pula etapa 4 e vai direto para 5
+      const proxima = (etapa === 3 && plantioSemente) ? 5 : etapa + 1;
+      mostrarEtapa(proxima);
+      etapaAtual = proxima;
       atualizarIndicador(etapaAtual);
-
-      // Ao chegar na etapa 5, atualiza o resumo de localização
-      if (etapaAtual === 5) {
-        const mun = document.getElementById('campo-municipio').value;
-        const bai = document.getElementById('campo-bairro').value;
-        document.getElementById('resumo-localizacao').textContent =
-          (mun && bai) ? `${mun} — ${bai}` : mun || bai || 'Não informado';
-      }
+      if (etapaAtual === 5) atualizarResumoEtapa5();
     }
 
-    // Retorna para a etapa anterior
     function voltar(etapa) {
       ocultarEtapa(etapa);
-      mostrarEtapa(etapa - 1);
-      etapaAtual = etapa - 1;
+      // Voltando da etapa 5 com semente marcado → retorna para etapa 3 (pulou a 4)
+      const anterior = (etapa === 5 && plantioSemente) ? 3 : etapa - 1;
+      mostrarEtapa(anterior);
+      etapaAtual = anterior;
       atualizarIndicador(etapaAtual);
     }
 
-    // Exibe o card de uma etapa
     function mostrarEtapa(n) {
       document.getElementById('etapa-' + n).classList.remove('hidden');
     }
 
-    // Oculta o card de uma etapa
     function ocultarEtapa(n) {
       document.getElementById('etapa-' + n).classList.add('hidden');
     }
 
-    // Atualiza os círculos e rótulos do indicador de progresso
+    // Atualiza os círculos e rótulos do indicador de progresso.
+    // No modo semente, etapa 4 permanece cinza (pulada) quando a etapa atual é 5.
     function atualizarIndicador(etapa) {
       for (let i = 1; i <= 5; i++) {
         const circulo = document.getElementById('circulo-' + i);
         const label   = document.getElementById('label-' + i);
-        if (i < etapa) {
-          // Etapas concluídas: verde sólido com check
+        const pulada  = plantioSemente && i === 4 && etapa >= 5;
+        if (pulada) {
+          circulo.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all bg-gray-200 text-gray-400';
+          circulo.textContent = i;
+          label.className = 'text-xs text-center leading-tight max-w-[52px] text-gray-300';
+        } else if (i < etapa) {
           circulo.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all bg-green-500 text-white shadow';
           circulo.textContent = '✓';
         } else if (i === etapa) {
-          // Etapa atual: verde escuro em destaque
           circulo.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all bg-green-700 text-white shadow-md';
           circulo.textContent = i;
           label.className = 'text-xs text-center leading-tight max-w-[52px] text-green-700 font-semibold';
         } else {
-          // Etapas futuras: cinza
           circulo.className = 'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all bg-gray-200 text-gray-500';
           circulo.textContent = i;
           label.className = 'text-xs text-center leading-tight max-w-[52px] text-gray-400';
         }
       }
-      // Atualiza as linhas de conexão entre os círculos
+      // Linhas entre círculos: no modo semente, linhas 3→4 e 4→5 ficam cinza
       for (let i = 1; i <= 4; i++) {
-        const linha = document.getElementById('linha-' + i);
-        linha.className = 'flex-1 h-0.5 mx-1 transition-all ' + (i < etapa ? 'bg-green-500' : 'bg-gray-300');
+        const linha   = document.getElementById('linha-' + i);
+        const pulada  = plantioSemente && (i === 3 || i === 4) && etapa >= 5;
+        linha.className = 'flex-1 h-0.5 mx-1 transition-all ' + (!pulada && i < etapa ? 'bg-green-500' : 'bg-gray-300');
+      }
+    }
+
+    // Atualiza o resumo da etapa 5 de acordo com o modo (muda ou semente)
+    function atualizarResumoEtapa5() {
+      const mun = document.getElementById('campo-municipio').value;
+      const bai = document.getElementById('campo-bairro').value;
+      document.getElementById('resumo-localizacao').textContent =
+        (mun && bai) ? `${mun} — ${bai}` : mun || bai || 'Não informado';
+      document.getElementById('resumo-foto3-texto').textContent = plantioSemente
+        ? 'Foto do Plantio da Semente registrada'
+        : 'Foto ao lado da cova registrada';
+      document.getElementById('resumo-item-foto4').style.display = plantioSemente ? 'none' : '';
+    }
+
+    // ---- Etapa 3: toggle do checkbox "Registrar Plantio da Semente" ----
+    function toggleSemente() {
+      plantioSemente = document.getElementById('chk-semente').checked;
+
+      // Limpa a foto ao trocar o modo para evitar envio de foto incorreta
+      const input = document.getElementById('foto-plantio-input');
+      input.value = '';
+      document.getElementById('img-preview-3').classList.add('hidden');
+      document.getElementById('preview-3').classList.remove('hidden');
+      document.getElementById('btn-proximo-3').disabled = true;
+
+      if (plantioSemente) {
+        document.getElementById('titulo-etapa3').textContent = 'Etapa 3 — Foto do Plantio da Semente';
+        document.getElementById('desc-etapa3').textContent =
+          'Registre ou selecione da galeria a Foto do Plantio da Semente.';
+      } else {
+        document.getElementById('titulo-etapa3').textContent = 'Etapa 3 — Foto da Planta ao lado da Cova';
+        document.getElementById('desc-etapa3').textContent =
+          'Tire uma foto mostrando a muda ao lado do buraco (berço) onde será plantada.';
       }
     }
 
