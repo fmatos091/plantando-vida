@@ -33,15 +33,7 @@
             white-space: nowrap;
         }
 
-        /* Popup com foto e dados: limita largura e permite scroll em telas pequenas */
-        .popup-plantio img {
-            width: 100%;
-            max-height: 180px;
-            object-fit: cover;
-            border-radius: 8px;
-            margin-bottom: 8px;
-        }
-
+        /* Popup com carrossel de fotos e dados do plantio */
         .popup-plantio h3 {
             font-size: 14px;
             font-weight: 700;
@@ -65,6 +57,81 @@
             color: #2563eb;
             text-decoration: underline;
         }
+
+        /* Carrossel de fotos no popup — scroll horizontal */
+        .carousel-fotos {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: #16a34a #e5e7eb;
+        }
+        .carousel-fotos::-webkit-scrollbar { height: 4px; }
+        .carousel-fotos::-webkit-scrollbar-track { background: #e5e7eb; border-radius: 4px; }
+        .carousel-fotos::-webkit-scrollbar-thumb { background: #16a34a; border-radius: 4px; }
+
+        .carousel-fotos img {
+            width: 90px;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 6px;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            border: 2px solid transparent;
+        }
+        .carousel-fotos img:hover {
+            transform: scale(1.06);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            border-color: #16a34a;
+        }
+
+        /* Foto única no popup */
+        .foto-unica {
+            width: 100%;
+            max-height: 160px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .foto-unica:hover { transform: scale(1.01); }
+
+        /* Lightbox — overlay escuro com foto ampliada */
+        #lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: rgba(0,0,0,0.92);
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+        }
+        #lightbox.ativo { display: flex; }
+        #lightbox img {
+            max-width: 92vw;
+            max-height: 88vh;
+            object-fit: contain;
+            border-radius: 10px;
+            box-shadow: 0 4px 40px rgba(0,0,0,0.6);
+        }
+        #lightbox-fechar {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            color: white;
+            font-size: 28px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            line-height: 1;
+            opacity: 0.8;
+        }
+        #lightbox-fechar:hover { opacity: 1; }
     </style>
 </head>
 
@@ -119,6 +186,12 @@
     {% endif %}
 
 
+    <!-- Lightbox — overlay para foto ampliada (clique fora ou × fecha) -->
+    <div id="lightbox" onclick="fecharLightbox()">
+        <button id="lightbox-fechar" onclick="fecharLightbox()">✕</button>
+        <img id="lightbox-img" src="" alt="Foto ampliada" onclick="event.stopPropagation()">
+    </div>
+
     <!-- ===================== LEAFLET.JS ===================== -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -126,16 +199,37 @@
         // Dados dos marcadores injetados pelo Flask como JSON seguro
         const marcadores = {{ marcadores_json | safe }};
 
-        // Inicializa o mapa com OpenStreetMap (sem API key)
+        // Mapa de fotos por plantio — chave: plantio.id, valor: array de URLs
+        const fotosMap = {};
+        marcadores.forEach(function(m) {
+            if (m.fotos && m.fotos.length > 0) fotosMap[m.id] = m.fotos;
+        });
+
+        // ---- Lightbox ----
+        function abrirFoto(plantioId, idx) {
+            const fotos = fotosMap[plantioId];
+            if (!fotos || !fotos[idx]) return;
+            document.getElementById('lightbox-img').src = fotos[idx];
+            document.getElementById('lightbox').classList.add('ativo');
+        }
+
+        function fecharLightbox() {
+            document.getElementById('lightbox').classList.remove('ativo');
+            document.getElementById('lightbox-img').src = '';
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') fecharLightbox();
+        });
+
+        // ---- Mapa ----
         const mapa = L.map('mapa');
 
-        // Camada de tiles OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
             maxZoom: 19
         }).addTo(mapa);
 
-        // Ícone personalizado verde para os marcadores
         const iconeVerde = L.divIcon({
             className: '',
             html: '<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.3))">🌳</div>',
@@ -144,56 +238,64 @@
             popupAnchor: [0, -34]
         });
 
-        // Grupo de todos os marcadores para ajustar zoom automaticamente
         const grupo = L.featureGroup();
 
         marcadores.forEach(function(m) {
-            // Monta o HTML do tooltip (visível ao passar o cursor sobre o marcador)
             const tooltipHtml =
                 '<strong style="color:#166534;">' + (m.especie || '—') + '</strong><br>' +
                 '👤 ' + (m.nome || '—') + '<br>' +
                 '📅 ' + (m.data || '—') + '<br>' +
                 '📍 ' + (m.bairro || '—') + ', ' + (m.municipio || '—');
 
-            // Monta o HTML do popup (visível ao clicar no marcador)
-            let fotoHtml = '';
-            if (m.foto) {
-                fotoHtml = '<img src="' + m.foto + '" alt="Foto do plantio" onerror="this.style.display=\'none\'">';
+            // Monta HTML do carrossel de fotos
+            let fotosHtml = '';
+            if (m.fotos && m.fotos.length === 1) {
+                fotosHtml =
+                    '<img class="foto-unica" src="' + m.fotos[0] + '" ' +
+                    'onclick="abrirFoto(' + m.id + ',0)" ' +
+                    'onerror="this.style.display=\'none\'" alt="Foto">';
+            } else if (m.fotos && m.fotos.length > 1) {
+                fotosHtml = '<div class="carousel-fotos">';
+                m.fotos.forEach(function(foto, idx) {
+                    fotosHtml +=
+                        '<img src="' + foto + '" ' +
+                        'onclick="abrirFoto(' + m.id + ',' + idx + ')" ' +
+                        'onerror="this.parentNode.removeChild(this)" alt="Foto ' + (idx + 1) + '">';
+                });
+                fotosHtml += '</div>';
             }
-            const gmapsUrl =
-                'https://www.google.com/maps?q=' + m.lat + ',' + m.lng;
+
+            const gmapsUrl = 'https://www.google.com/maps?q=' + m.lat + ',' + m.lng;
 
             const popupHtml =
-                '<div class="popup-plantio" style="min-width:200px;max-width:260px;">' +
-                fotoHtml +
+                '<div class="popup-plantio" style="min-width:210px;max-width:270px;">' +
+                fotosHtml +
                 '<h3>🌳 ' + (m.especie || '—') + '</h3>' +
                 '<p>👤 <strong>' + (m.nome || '—') + '</strong></p>' +
                 '<p>📅 ' + (m.data || '—') + '</p>' +
                 '<p>📍 ' + (m.bairro || '—') + ', ' + (m.municipio || '—') + '</p>' +
-                '<a href="' + gmapsUrl + '" target="_blank" class="gmaps-link">' +
-                '🗺️ Ver no Google Maps</a>' +
+                (m.fotos && m.fotos.length > 0
+                    ? '<p style="font-size:11px;color:#6b7280;margin-top:4px;">📸 ' + m.fotos.length + ' foto' + (m.fotos.length > 1 ? 's' : '') + ' — clique para ampliar</p>'
+                    : '') +
+                '<a href="' + gmapsUrl + '" target="_blank" class="gmaps-link">🗺️ Ver no Google Maps</a>' +
                 '</div>';
 
-            // Cria o marcador com ícone verde
             const marker = L.marker([m.lat, m.lng], { icon: iconeVerde })
                 .bindTooltip(tooltipHtml, {
                     className: 'leaflet-tooltip-custom',
                     direction: 'top',
                     offset: [0, -30]
                 })
-                .bindPopup(popupHtml, { maxWidth: 280 });
+                .bindPopup(popupHtml, { maxWidth: 290 });
 
             grupo.addLayer(marker);
         });
 
-        // Adiciona todos os marcadores ao mapa
         grupo.addTo(mapa);
 
-        // Ajusta o zoom para mostrar todos os marcadores; fallback para centro do Brasil
         if (marcadores.length > 0) {
             mapa.fitBounds(grupo.getBounds(), { padding: [40, 40] });
         } else {
-            // Centro geográfico aproximado do Brasil
             mapa.setView([-15.78, -47.93], 5);
         }
     </script>

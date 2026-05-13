@@ -2039,10 +2039,11 @@ def admin_mapa():
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Busca apenas plantios aprovados com coordenadas válidas para exibir no mapa
+    # Busca plantios aprovados com coordenadas — inclui todos os campos de foto legados
     cursor.execute("""
         SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio, pg.bairro,
-               pg.latitude, pg.longitude, pg.foto_plantio, pg.foto_1,
+               pg.latitude, pg.longitude,
+               pg.foto_plantio, pg.foto_1, pg.foto_2, pg.foto_3,
                u.nome AS nome_usuario
         FROM plantas_go pg
         JOIN usuarios u ON u.id = pg.responsavel_id
@@ -2053,28 +2054,44 @@ def admin_mapa():
         ORDER BY pg.data_plantio DESC
     """)
     plantios_mapa = cursor.fetchall()
+
+    # Busca fotos dos acompanhamentos ilimitados para todos os plantios do mapa
+    acomp_fotos = {}
+    if plantios_mapa:
+        pids = [p[0] for p in plantios_mapa]
+        placeholders = ','.join(['?'] * len(pids))
+        cursor.execute(
+            f"SELECT plantio_id, foto FROM acompanhamentos WHERE plantio_id IN ({placeholders}) AND foto IS NOT NULL ORDER BY plantio_id, id",
+            pids
+        )
+        for row in cursor.fetchall():
+            acomp_fotos.setdefault(row[0], []).append(row[1])
+
     conn.close()
 
-    # Serializa para JSON seguro para uso no JavaScript do template
     import json
+
+    def _foto_url(val):
+        if not val:
+            return None
+        return val if val.startswith("http") else f"/static/uploads/{val}"
+
     marcadores = []
     for p in plantios_mapa:
-        foto = ""
-        if p[7]:   # foto_plantio (etapa concluir)
-            foto = p[7] if p[7].startswith("http") else f"/static/uploads/{p[7]}"
-        elif p[8]: # foto_1 (acompanhamento)
-            foto = p[8] if p[8].startswith("http") else f"/static/uploads/{p[8]}"
+        # p[7]=foto_plantio  p[8]=foto_1  p[9]=foto_2  p[10]=foto_3  p[11]=nome_usuario
+        fotos = [u for u in [_foto_url(p[7]), _foto_url(p[8]), _foto_url(p[9]), _foto_url(p[10])] if u]
+        fotos += [_foto_url(f) for f in acomp_fotos.get(p[0], []) if f]
 
         marcadores.append({
-            "id":          p[0],
-            "data":        str(p[1]) if p[1] else "",
-            "especie":     p[2] or "",
-            "municipio":   p[3] or "",
-            "bairro":      p[4] or "",
-            "lat":         float(p[5]),
-            "lng":         float(p[6]),
-            "foto":        foto,
-            "nome":        p[9] or "",
+            "id":        p[0],
+            "data":      str(p[1]) if p[1] else "",
+            "especie":   p[2] or "",
+            "municipio": p[3] or "",
+            "bairro":    p[4] or "",
+            "lat":       float(p[5]),
+            "lng":       float(p[6]),
+            "fotos":     fotos,
+            "nome":      p[11] or "",
         })
 
     return render_template("admin_mapa.html",
