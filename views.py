@@ -833,9 +833,22 @@ def plantios_pendentes():
         ORDER BY c.criado_em DESC
     """, (session["usuario_id"],))
     compras = cursor.fetchall()
+
+    # Busca acompanhamentos da tabela ilimitada para todos os plantios do usuário
+    acomps = {}
+    if plantios:
+        pids = [p[0] for p in plantios]
+        placeholders = ','.join(['?'] * len(pids))
+        cursor.execute(
+            f"SELECT id, plantio_id, data_acomp, foto FROM acompanhamentos WHERE plantio_id IN ({placeholders}) ORDER BY plantio_id, id",
+            pids
+        )
+        for row in cursor.fetchall():
+            acomps.setdefault(row[1], []).append(row)
+
     conn.close()
 
-    return render_template("plantios_pendentes.html", plantios=plantios, compras=compras)
+    return render_template("plantios_pendentes.html", plantios=plantios, compras=compras, acomps=acomps)
 
 
 # ===================== ROTA ACOMPANHAMENTOS DO PLANTIO =====================
@@ -898,6 +911,46 @@ def salvar_acompanhamentos(pid):
     conn.close()
 
     flash("Acompanhamentos salvos com sucesso.", "sucesso")
+    return redirect("/plantios/pendentes")
+
+
+# ===================== ROTA ADICIONAR ACOMPANHAMENTO (tabela ilimitada) =====================
+# Registra um único acompanhamento na tabela acompanhamentos.
+# Permite quantidade ilimitada por plantio, ao contrário dos 3 campos fixos de plantas_go.
+@app.route("/plantio/<int:pid>/acompanhamento", methods=["POST"])
+def acompanhamento_add(pid):
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    data_acomp = request.form.get("data_acomp", "").strip() or None
+
+    foto = None
+    arq = request.files.get("foto")
+    if arq and arq.filename:
+        ext = arq.filename.rsplit(".", 1)[-1].lower()
+        if ext in EXTENSOES_PERMITIDAS:
+            foto = upload_cloudinary(arq, pasta="plantando-vida/acompanhamentos")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id FROM plantas_go WHERE id = ? AND responsavel_id = ? AND status = 'aprovado'",
+        (pid, session["usuario_id"])
+    )
+    if not cursor.fetchone():
+        conn.close()
+        flash("Plantio não encontrado ou não aprovado.", "erro")
+        return redirect("/plantios/pendentes")
+
+    cursor.execute(
+        "INSERT INTO acompanhamentos (plantio_id, data_acomp, foto) VALUES (?, ?, ?)",
+        (pid, data_acomp, foto)
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Acompanhamento registrado com sucesso!", "sucesso")
     return redirect("/plantios/pendentes")
 
 

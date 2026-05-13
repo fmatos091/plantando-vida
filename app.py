@@ -299,6 +299,17 @@ def init_db():
     )
     """)
 
+    # Acompanhamentos ilimitados por plantio (substitui os 3 campos fixos de plantas_go).
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS acompanhamentos (
+        id         {pk},
+        plantio_id INTEGER NOT NULL,
+        data_acomp TEXT,
+        foto       TEXT,
+        criado_em  TEXT DEFAULT ({ts})
+    )
+    """)
+
     # ---- Migrações seguras para bancos já existentes ----
     # Adiciona colunas que podem não existir em instalações anteriores.
     # SQLite: try/except (não suporta IF NOT EXISTS no ADD COLUMN antes da v3.37)
