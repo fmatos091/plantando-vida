@@ -310,6 +310,21 @@ def init_db():
     )
     """)
 
+    # Tabela de membros vinculados a uma Entidade Educacional.
+    # Usada para controlar acesso à rota /plantio/escolar:
+    # somente usuários cujo CPF esteja cadastrado aqui podem acessar o fluxo escolar.
+    # entidade_educacional_id: FK para entidades_educacionais.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS membros (
+        id                      {pk},
+        entidade_educacional_id INTEGER NOT NULL,
+        nome                    TEXT    NOT NULL,
+        cpf                     TEXT    NOT NULL,
+        tenant_id               INTEGER DEFAULT 1,
+        criado_em               TEXT    DEFAULT ({ts})
+    )
+    """)
+
     # ===================== TABELA TENANTS (MULTI-TENANT) =====================
     # Cada tenant representa um cliente/projeto independente do sistema.
     # O Super Admin cria tenants via /super-admin/painel.
@@ -404,6 +419,10 @@ def init_db():
         "percentuais_vigencia":    ["tenant_id INTEGER DEFAULT 1"],
         "reset_tokens":            ["tenant_id INTEGER DEFAULT 1"],
         "aceites_termos":          ["tenant_id INTEGER DEFAULT 1"],
+        # membros: tabela nova — migração cobre instâncias já existentes
+        "membros":                 ["tenant_id INTEGER DEFAULT 1"],
+        # acompanhamentos: tabela nova — tenant_id para isolamento por projeto
+        "acompanhamentos":         ["tenant_id INTEGER DEFAULT 1"],
     }
 
     for tabela, colunas in migracoes.items():

@@ -544,6 +544,22 @@ def login():
         if usuario and cpf_banco == cpf and check_password_hash(usuario[3], senha):
             session["usuario_id"]   = usuario[0]
             session["usuario_nome"] = usuario[1]
+
+            # ── Verifica acesso ao Plantio Escolar ──
+            # O CPF do usuário é comparado (somente dígitos) com a tabela membros.
+            # tenant_id garante que a verificação é feita dentro do projeto correto.
+            # session["acesso_escolar"] = True libera a rota /plantio/escolar.
+            tid_login = getattr(g, "tenant_id", None) or 1
+            conn2   = get_db()
+            cur2    = conn2.cursor()
+            cur2.execute(
+                "SELECT id FROM membros WHERE cpf = ? AND tenant_id = ?",
+                (cpf, tid_login)
+            )
+            membro = cur2.fetchone()
+            conn2.close()
+            session["acesso_escolar"] = bool(membro)
+
             # Redireciona para aceite de termos a cada login (LGPD)
             return redirect("/termos")
 
@@ -662,6 +678,17 @@ def plantio_escolar():
     # Exige login; redireciona para /login se não autenticado.
     if "usuario_id" not in session:
         return redirect("/login")
+
+    # ── Controle de acesso: verifica se o usuário é membro de alguma entidade educacional ──
+    # session["acesso_escolar"] é definido no momento do login ao conferir o CPF na tabela membros.
+    # Se False (CPF não cadastrado) → bloqueia o acesso com mensagem explicativa.
+    if not session.get("acesso_escolar"):
+        flash(
+            "Seu CPF não está cadastrado na Entidade Educacional, "
+            "volte mais tarde. Obrigado!",
+            "erro"
+        )
+        return redirect("/dashboard")
 
     # Busca todas as entidades educacionais ativas para exibir como cards de seleção.
     conn = get_db()
@@ -2205,6 +2232,19 @@ def admin_painel():
     """, (tid,))
     entidades_edu = cursor.fetchall()
 
+    # ---- Consulta Membros vinculados às Entidades Educacionais do tenant ----
+    # m[0]=id  m[1]=nome  m[2]=cpf  m[3]=entidade_educacional_id  m[4]=razao_social
+    # Usados no painel para listar, cadastrar e excluir membros por entidade.
+    cursor.execute("""
+        SELECT m.id, m.nome, m.cpf, m.entidade_educacional_id,
+               ee.razao_social
+        FROM membros m
+        JOIN entidades_educacionais ee ON ee.id = m.entidade_educacional_id
+        WHERE m.tenant_id = ?
+        ORDER BY ee.razao_social, m.nome
+    """, (tid,))
+    membros = cursor.fetchall()
+
     # ---- Consulta Percentuais de Vigência do tenant ----
     # p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin
     cursor.execute("""
@@ -2294,6 +2334,7 @@ def admin_painel():
                            entidades=entidades,
                            entidades_ativas=entidades_ativas,
                            entidades_edu=entidades_edu,
+                           membros=membros,
                            percentuais=percentuais,
                            fechamento_pendente=fechamento_pendente,
                            fechamento_entidade_pendente=fechamento_entidade_pendente,
@@ -3018,6 +3059,83 @@ def admin_excluir_entidade_edu(eid):
     conn.close()
 
     flash("Entidade educacional excluída.", "sucesso")
+    return redirect("/admin/painel?tipo=entidade_educacional")
+
+
+# ===================== ROTA ADMIN: SALVAR MEMBRO =====================
+# Cria um novo membro vinculado a uma Entidade Educacional.
+# O CPF é armazenado somente em dígitos (normalizado) para comparação neutra
+# na validação do login — evita divergência de formatação.
+# Acesso restrito ao administrador do tenant.
+@app.route("/admin/membro/salvar", methods=["POST"])
+def admin_salvar_membro():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    nome                    = request.form.get("nome", "").strip()
+    cpf_raw                 = request.form.get("cpf", "")
+    # Normaliza CPF para somente dígitos — comparação neutra de formatação no login
+    cpf                     = re.sub(r"\D", "", cpf_raw)
+    entidade_educacional_id = request.form.get("entidade_educacional_id", "").strip()
+
+    # Validações obrigatórias
+    if not nome:
+        flash("O campo Nome é obrigatório.", "erro")
+        return redirect("/admin/painel?tipo=entidade_educacional")
+
+    if len(cpf) != 11:
+        flash("CPF inválido. Informe os 11 dígitos.", "erro")
+        return redirect("/admin/painel?tipo=entidade_educacional")
+
+    if not entidade_educacional_id:
+        flash("Selecione a Entidade Educacional.", "erro")
+        return redirect("/admin/painel?tipo=entidade_educacional")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Verifica se o CPF já está cadastrado como membro nesta entidade e tenant
+    cursor.execute(
+        "SELECT id FROM membros WHERE cpf = ? AND entidade_educacional_id = ? AND tenant_id = ?",
+        (cpf, int(entidade_educacional_id), get_tid())
+    )
+    if cursor.fetchone():
+        conn.close()
+        flash("Este CPF já está cadastrado como membro dessa entidade.", "erro")
+        return redirect("/admin/painel?tipo=entidade_educacional")
+
+    # Insere o membro vinculado ao tenant logado
+    cursor.execute(
+        """INSERT INTO membros (nome, cpf, entidade_educacional_id, tenant_id)
+           VALUES (?, ?, ?, ?)""",
+        (nome, cpf, int(entidade_educacional_id), get_tid())
+    )
+    conn.commit()
+    conn.close()
+
+    flash(f"Membro '{nome}' cadastrado com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=entidade_educacional")
+
+
+# ===================== ROTA ADMIN: EXCLUIR MEMBRO =====================
+# Remove permanentemente o membro do banco.
+# Filtro tenant_id garante que somente membros do tenant logado podem ser excluídos.
+@app.route("/admin/membro/<int:mid>/excluir", methods=["POST"])
+def admin_excluir_membro(mid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    # AND tenant_id protege contra exclusão cruzada entre tenants
+    cursor.execute(
+        "DELETE FROM membros WHERE id = ? AND tenant_id = ?",
+        (mid, get_tid())
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Membro removido.", "sucesso")
     return redirect("/admin/painel?tipo=entidade_educacional")
 
 
