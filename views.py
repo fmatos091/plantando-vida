@@ -1851,15 +1851,19 @@ def detectar_tenant_publico():
     if slug in ("www", "app", "localhost"):
         slug = os.environ.get("TENANT_SLUG", "padrao")
 
-    # Busca o tenant ativo pelo slug
-    conn   = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM tenants WHERE slug = ? AND ativo = 1", (slug,))
-    t = cursor.fetchone()
-    conn.close()
-
-    # Armazena no contexto da requisição (g) para uso nos handlers de rota
-    g.tenant_id = t[0] if t else 1  # fallback = tenant 1 (padrão)
+    # Busca o tenant ativo pelo slug.
+    # Protegido com try/except: se a tabela tenants ainda não existir (ex: primeiro deploy
+    # antes do init_db completar) ou houver falha de conexão, usa fallback tenant_id=1
+    # sem lançar 500 em todas as rotas públicas.
+    try:
+        conn   = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM tenants WHERE slug = ? AND ativo = 1", (slug,))
+        t = cursor.fetchone()
+        conn.close()
+        g.tenant_id = t[0] if t else 1  # fallback = tenant 1 (padrão)
+    except Exception:
+        g.tenant_id = 1  # fallback seguro — nunca lança 500 por falha de detecção
 
 
 # ===================== ROTAS SUPER ADMIN =====================

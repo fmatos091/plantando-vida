@@ -438,6 +438,13 @@ def init_db():
             except Exception:
                 pass  # Coluna já existe — ignorar
 
+    # ===================== COMMIT DDL =====================
+    # Comita criação de tabelas e migrações ANTES do INSERT a seguir.
+    # Isso é crítico no PostgreSQL (psycopg2): se o INSERT falhar (UNIQUE violation),
+    # psycopg2 coloca a conexão em estado de erro e o commit subsequente lança
+    # InFailedSqlTransaction. Comitando o DDL antes isolamos o risco do INSERT.
+    conn.commit()
+
     # ===================== CRIAR TENANT PADRÃO =====================
     # Executado na primeira inicialização (INSERT ignorado se slug já existir).
     # Converte as credenciais ADMIN_LOGIN/ADMIN_SENHA do .env no tenant id=1.
@@ -452,10 +459,16 @@ def init_db():
                 "INSERT INTO tenants (nome, slug, login, senha_hash, ativo) VALUES (?, ?, ?, ?, 1)",
                 ("Projeto Padrão", "padrao", _adm_login, _hash)
             )
+            conn.commit()  # Comita o INSERT do tenant padrão
         except Exception:
-            pass  # Tenant já existe (UNIQUE em slug) — nada a fazer
+            # Tenant já existe (violação UNIQUE em slug/login).
+            # Em PostgreSQL, um INSERT que falha coloca a conexão em estado de erro —
+            # é obrigatório chamar rollback() antes de qualquer outra operação ou close().
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
-    conn.commit()
     conn.close()
 
 init_db()
