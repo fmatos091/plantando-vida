@@ -310,26 +310,58 @@ def init_db():
     )
     """)
 
+    # ===================== TABELA TENANTS (MULTI-TENANT) =====================
+    # Cada tenant representa um cliente/projeto independente do sistema.
+    # O Super Admin cria tenants via /super-admin/painel.
+    # login: credencial usada em /admin/login (campo "login" do formulário).
+    # senha_hash: hash werkzeug — nunca armazenar senha em texto puro.
+    # slug: identificador único amigável (ex: "goiania") para URLs e detecção.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS tenants (
+        id          {pk},
+        nome        TEXT NOT NULL,
+        slug        TEXT NOT NULL UNIQUE,
+        login       TEXT NOT NULL UNIQUE,
+        senha_hash  TEXT NOT NULL,
+        ativo       INTEGER DEFAULT 1,
+        criado_em   TEXT    DEFAULT ({ts})
+    )
+    """)
+
     # ---- Migrações seguras para bancos já existentes ----
     # Adiciona colunas que podem não existir em instalações anteriores.
     # SQLite: try/except (não suporta IF NOT EXISTS no ADD COLUMN antes da v3.37)
     # PostgreSQL: suporta ADD COLUMN IF NOT EXISTS nativamente
+    # tenant_id DEFAULT 1: todos os registros existentes pertencem ao tenant padrão (id=1).
     migracoes = {
-        "fornecedores": ["senha TEXT", "cidade TEXT", "uf TEXT", "ativo INTEGER DEFAULT 1", "email TEXT"],
+        # tenant_id: chave estrangeira para isolamento multi-tenant.
+        # Demais colunas: expansões anteriores do schema.
+        "fornecedores": [
+            "senha TEXT", "cidade TEXT", "uf TEXT", "ativo INTEGER DEFAULT 1", "email TEXT",
+            "tenant_id INTEGER DEFAULT 1",
+        ],
         # uf/cidade: localização do usuário.
         # entidade_educacional_id: vínculo opcional com entidade educacional parceira.
-        "usuarios":     ["cpf TEXT", "telefone TEXT", "data_nascimento TEXT",
-                         "uf TEXT", "cidade TEXT",
-                         "entidade_educacional_id INTEGER"],
+        "usuarios": [
+            "cpf TEXT", "telefone TEXT", "data_nascimento TEXT",
+            "uf TEXT", "cidade TEXT",
+            "entidade_educacional_id INTEGER",
+            "tenant_id INTEGER DEFAULT 1",
+        ],
+        # tenant_id: isolamento de plantios por projeto/cliente.
+        "plantios": [
+            "tenant_id INTEGER DEFAULT 1",
+        ],
         # status/fornecedor_id/justificativa: gestão de aprovação de plantios pelo admin.
         # foto_plantio: foto tirada pelo usuário ao lado da cova antes de plantar (Etapa 3 do fluxo).
         # entidade_educacional_id: vínculo opcional com entidade educacional parceira.
-        "plantas_go":   [
+        "plantas_go": [
             "status TEXT DEFAULT 'em_analise'",
             "fornecedor_id INTEGER",
             "justificativa TEXT",
             "foto_plantio TEXT",
             "entidade_educacional_id INTEGER",
+            "tenant_id INTEGER DEFAULT 1",
         ],
         # data_validacao: preenchida pelo fornecedor ao escanear o voucher de retirada.
         # plantio_id: referência ao registro de plantas_go criado após o plantio definitivo.
@@ -344,6 +376,7 @@ def init_db():
             "faturamento_admin_id INTEGER",
             # Vincula doações escolares à entidade educacional escolhida pelo usuário
             "entidade_educacional_id INTEGER",
+            "tenant_id INTEGER DEFAULT 1",
         ],
         # banco/conta/agencia/chave_pix/qrcode_pix: dados bancários da entidade (unificados ao cadastro).
         # ativa: 1 = entidade ativa no projeto (exibida para seleção no fechamento); 0 = inativa.
@@ -354,9 +387,23 @@ def init_db():
             "chave_pix TEXT",
             "qrcode_pix TEXT",
             "ativa INTEGER DEFAULT 0",
+            "tenant_id INTEGER DEFAULT 1",
         ],
         # entidade_id: referência à entidade favorecida vinculada neste fechamento.
-        "faturamentos_entidade": ["entidade_id INTEGER"],
+        "faturamentos_entidade": [
+            "entidade_id INTEGER",
+            "tenant_id INTEGER DEFAULT 1",
+        ],
+        # Tabelas que só recebem tenant_id (sem outras colunas novas nesta migração)
+        "entidades_educacionais":  ["tenant_id INTEGER DEFAULT 1"],
+        "especies_plantas":        ["tenant_id INTEGER DEFAULT 1"],
+        "dados_bancarios":         ["tenant_id INTEGER DEFAULT 1"],
+        "dados_bancarios_entidade":["tenant_id INTEGER DEFAULT 1"],
+        "faturamentos":            ["tenant_id INTEGER DEFAULT 1"],
+        "faturamentos_admin":      ["tenant_id INTEGER DEFAULT 1"],
+        "percentuais_vigencia":    ["tenant_id INTEGER DEFAULT 1"],
+        "reset_tokens":            ["tenant_id INTEGER DEFAULT 1"],
+        "aceites_termos":          ["tenant_id INTEGER DEFAULT 1"],
     }
 
     for tabela, colunas in migracoes.items():
@@ -371,6 +418,23 @@ def init_db():
                     cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
             except Exception:
                 pass  # Coluna já existe — ignorar
+
+    # ===================== CRIAR TENANT PADRÃO =====================
+    # Executado na primeira inicialização (INSERT ignorado se slug já existir).
+    # Converte as credenciais ADMIN_LOGIN/ADMIN_SENHA do .env no tenant id=1.
+    # Após a migração, o login em /admin/login consulta a tabela tenants.
+    _adm_login = os.environ.get("ADMIN_LOGIN", "")
+    _adm_senha = os.environ.get("ADMIN_SENHA", "")
+    if _adm_login and _adm_senha:
+        from werkzeug.security import generate_password_hash as _gph
+        try:
+            _hash = _gph(_adm_senha)
+            cursor.execute(
+                "INSERT INTO tenants (nome, slug, login, senha_hash, ativo) VALUES (?, ?, ?, ?, 1)",
+                ("Projeto Padrão", "padrao", _adm_login, _hash)
+            )
+        except Exception:
+            pass  # Tenant já existe (UNIQUE em slug) — nada a fazer
 
     conn.commit()
     conn.close()

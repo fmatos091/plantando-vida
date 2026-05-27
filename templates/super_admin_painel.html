@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas: codificação, responsividade e título da aba -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin — Gerenciamento de Tenants</title>
+    <!-- Tailwind CSS via CDN para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+    <!-- ===================== NAVBAR DO SUPER ADMIN =====================
+         Barra superior com identidade visual roxa para diferenciar do painel admin comum.
+         Exibe nome do Super Admin logado e botão de logout seguro.
+    -->
+    <nav class="bg-purple-900 text-white px-6 py-4 flex justify-between items-center shadow-lg">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">👑</span>
+            <div>
+                <span class="font-bold text-lg">Super Admin</span>
+                <span class="text-purple-300 text-sm ml-2">— Gerenciamento de Tenants</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <!-- Link de retorno à home pública -->
+            <a href="/" class="text-purple-300 hover:text-white text-sm transition">🏠 Início</a>
+            <!-- Logout do Super Admin — encerra session["super_admin"] -->
+            <a href="/super-admin/logout"
+               class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
+                Sair
+            </a>
+        </div>
+    </nav>
+
+    <div class="max-w-6xl mx-auto px-4 py-8">
+
+        <!-- ===================== MENSAGENS DE FEEDBACK (FLASH) =====================
+             Exibidas após criar, editar ou ativar/inativar um tenant.
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                {% if category == "sucesso" %}
+                    <div class="bg-green-100 text-green-800 border border-green-300 px-4 py-3
+                                rounded-lg mb-4 text-sm font-medium">
+                        ✅ {{ message }}
+                    </div>
+                {% elif category == "erro" %}
+                    <div class="bg-red-100 text-red-800 border border-red-300 px-4 py-3
+                                rounded-lg mb-4 text-sm font-medium">
+                        ⚠️ {{ message }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+
+        <!-- ===================== CARDS DE ESTATÍSTICAS GLOBAIS =====================
+             Totais do sistema inteiro (todos os tenants somados).
+             Útil para o responsável técnico monitorar o crescimento da plataforma.
+        -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+
+            <!-- Total de usuários cadastrados no sistema -->
+            <div class="bg-white rounded-xl shadow p-5 border-l-4 border-blue-500 text-center">
+                <div class="text-3xl font-bold text-blue-600">{{ total_usuarios }}</div>
+                <div class="text-gray-500 text-sm mt-1">👤 Usuários Totais</div>
+            </div>
+
+            <!-- Total de plantios aprovados no sistema -->
+            <div class="bg-white rounded-xl shadow p-5 border-l-4 border-green-500 text-center">
+                <div class="text-3xl font-bold text-green-600">{{ total_plantios }}</div>
+                <div class="text-gray-500 text-sm mt-1">🌳 Plantios Aprovados</div>
+            </div>
+
+            <!-- Total de fornecedores ativos no sistema -->
+            <div class="bg-white rounded-xl shadow p-5 border-l-4 border-yellow-500 text-center">
+                <div class="text-3xl font-bold text-yellow-600">{{ total_fornecedores }}</div>
+                <div class="text-gray-500 text-sm mt-1">🏪 Fornecedores Ativos</div>
+            </div>
+
+        </div>
+        <!-- fim dos cards de estatísticas -->
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- ===================== COLUNA ESQUERDA: FORMULÁRIO CRIAR TENANT =====================
+                 POST /super-admin/tenant/criar — cria novo cliente/projeto.
+                 Campos: nome (exibição), slug (URL única), login e senha do admin do tenant.
+            -->
+            <div class="bg-white rounded-xl shadow p-6">
+                <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <span>➕</span> Novo Tenant / Cliente
+                </h2>
+
+                <form method="POST" action="/super-admin/tenant/criar" class="space-y-3">
+
+                    <!-- Nome do tenant (exibido no painel do admin desse cliente) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">
+                            Nome do Projeto / Cliente
+                        </label>
+                        <input
+                            name="nome"
+                            required
+                            placeholder="ex: Projeto Goiânia"
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-purple-400"
+                        />
+                    </div>
+
+                    <!-- Slug: identificador único amigável para URL e detecção de subdomínio -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">
+                            Slug (subdomínio único)
+                        </label>
+                        <input
+                            name="slug"
+                            required
+                            placeholder="ex: goiania"
+                            pattern="[a-z0-9\-]+"
+                            title="Apenas letras minúsculas, números e hífen"
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-purple-400"
+                        />
+                        <p class="text-gray-400 text-xs mt-1">
+                            Usado em subdomínios: <code>goiania.seudominio.com.br</code>
+                        </p>
+                    </div>
+
+                    <!-- Login do admin deste tenant — usado em /admin/login -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">
+                            Login do Admin
+                        </label>
+                        <input
+                            name="login"
+                            required
+                            placeholder="ex: ADMGOI2026"
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-purple-400"
+                        />
+                    </div>
+
+                    <!-- Senha do admin deste tenant (mínimo 6 caracteres) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">
+                            Senha do Admin
+                        </label>
+                        <input
+                            type="password"
+                            name="senha"
+                            required
+                            minlength="6"
+                            placeholder="Mínimo 6 caracteres"
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-purple-400"
+                        />
+                    </div>
+
+                    <!-- Botão de criação -->
+                    <button
+                        type="submit"
+                        class="w-full bg-purple-700 hover:bg-purple-600 text-white font-semibold
+                               py-2 rounded-lg text-sm transition">
+                        👑 Criar Tenant
+                    </button>
+
+                </form>
+                <!-- fim do formulário de criação -->
+
+            </div>
+            <!-- fim da coluna esquerda -->
+
+            <!-- ===================== COLUNA DIREITA: LISTA DE TENANTS =====================
+                 Cada linha exibe: nome, slug, login, total de usuários, status e ações.
+                 Ações disponíveis: Editar (modal inline) e Ativar/Inativar.
+            -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl shadow">
+
+                    <!-- Cabeçalho da tabela -->
+                    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                        <h2 class="text-lg font-bold text-gray-800">
+                            🏢 Tenants Cadastrados
+                            <span class="text-sm font-normal text-gray-500 ml-2">
+                                ({{ tenants|length }} projeto{% if tenants|length != 1 %}s{% endif %})
+                            </span>
+                        </h2>
+                    </div>
+
+                    <!-- Tabela de tenants — rolagem horizontal em telas pequenas -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
+                                <tr>
+                                    <th class="px-4 py-3 text-left">#</th>
+                                    <th class="px-4 py-3 text-left">Nome / Slug</th>
+                                    <th class="px-4 py-3 text-left">Login Admin</th>
+                                    <th class="px-4 py-3 text-center">Usuários</th>
+                                    <th class="px-4 py-3 text-center">Status</th>
+                                    <th class="px-4 py-3 text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+
+                                <!-- Linha por tenant — t[0]=id  t[1]=nome  t[2]=slug
+                                     t[3]=login  t[4]=ativo  t[5]=criado_em  t[6]=total_usuarios -->
+                                {% for t in tenants %}
+                                <tr class="hover:bg-gray-50 transition">
+
+                                    <!-- ID do tenant -->
+                                    <td class="px-4 py-3 text-gray-400 font-mono">{{ t[0] }}</td>
+
+                                    <!-- Nome e slug do tenant -->
+                                    <td class="px-4 py-3">
+                                        <div class="font-semibold text-gray-800">{{ t[1] }}</div>
+                                        <div class="text-gray-400 text-xs font-mono">{{ t[2] }}</div>
+                                    </td>
+
+                                    <!-- Login utilizado em /admin/login -->
+                                    <td class="px-4 py-3 text-gray-700 font-mono">{{ t[3] }}</td>
+
+                                    <!-- Quantidade de usuários vinculados ao tenant -->
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="inline-block bg-blue-100 text-blue-700
+                                                     font-semibold px-2 py-0.5 rounded-full text-xs">
+                                            {{ t[6] }}
+                                        </span>
+                                    </td>
+
+                                    <!-- Badge de status: Ativo (verde) ou Inativo (vermelho) -->
+                                    <td class="px-4 py-3 text-center">
+                                        {% if t[4] %}
+                                            <span class="inline-block bg-green-100 text-green-700
+                                                         font-semibold px-2 py-0.5 rounded-full text-xs">
+                                                ✅ Ativo
+                                            </span>
+                                        {% else %}
+                                            <span class="inline-block bg-red-100 text-red-700
+                                                         font-semibold px-2 py-0.5 rounded-full text-xs">
+                                                ❌ Inativo
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- Ações: botão editar abre modal + toggle ativo/inativo -->
+                                    <td class="px-4 py-3 text-center">
+                                        <div class="flex items-center justify-center gap-2">
+
+                                            <!-- Botão para abrir modal de edição deste tenant -->
+                                            <button
+                                                onclick="abrirModal({{ t[0] }}, '{{ t[1] }}', '{{ t[2] }}', '{{ t[3] }}')"
+                                                class="bg-yellow-100 hover:bg-yellow-200 text-yellow-800
+                                                       text-xs font-semibold px-3 py-1 rounded-lg transition">
+                                                ✏️ Editar
+                                            </button>
+
+                                            <!-- Formulário de toggle ativo/inativo -->
+                                            <form method="POST"
+                                                  action="/super-admin/tenant/{{ t[0] }}/toggle"
+                                                  onsubmit="return confirm('Confirma a alteração de status do tenant \'{{ t[1] }}\'?')">
+                                                <button
+                                                    type="submit"
+                                                    class="{{ 'bg-red-100 hover:bg-red-200 text-red-700' if t[4] else 'bg-green-100 hover:bg-green-200 text-green-700' }}
+                                                           text-xs font-semibold px-3 py-1 rounded-lg transition">
+                                                    {% if t[4] %}⛔ Inativar{% else %}✅ Ativar{% endif %}
+                                                </button>
+                                            </form>
+
+                                        </div>
+                                    </td>
+
+                                </tr>
+                                {% else %}
+                                <!-- Estado vazio — exibido quando nenhum tenant está cadastrado -->
+                                <tr>
+                                    <td colspan="6" class="px-6 py-10 text-center text-gray-400">
+                                        <div class="text-4xl mb-2">🏢</div>
+                                        <div>Nenhum tenant cadastrado ainda.</div>
+                                        <div class="text-xs mt-1">Use o formulário ao lado para criar o primeiro projeto.</div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- fim da tabela -->
+
+                </div>
+            </div>
+            <!-- fim da coluna direita -->
+
+        </div>
+        <!-- fim do grid de colunas -->
+
+    </div>
+    <!-- fim do container principal -->
+
+
+    <!-- ===================== MODAL DE EDIÇÃO DE TENANT =====================
+         Abre ao clicar em ✏️ Editar. Permite atualizar nome, slug, login e senha.
+         Senha é opcional — se vazio, mantém a senha atual no backend.
+         O script abaixo preenche os campos com os dados do tenant selecionado.
+    -->
+    <div id="modalEditar"
+         class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 relative">
+
+            <!-- Título do modal -->
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-800">✏️ Editar Tenant</h3>
+                <!-- Botão de fechar o modal -->
+                <button onclick="fecharModal()"
+                        class="text-gray-400 hover:text-gray-700 text-xl font-bold leading-none">
+                    &times;
+                </button>
+            </div>
+
+            <!-- Formulário de edição — action preenchida dinamicamente por JS -->
+            <form id="formEditar" method="POST" class="space-y-3">
+
+                <!-- Nome do tenant -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">
+                        Nome do Projeto / Cliente
+                    </label>
+                    <input
+                        id="editNome"
+                        name="nome"
+                        required
+                        class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                               focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    />
+                </div>
+
+                <!-- Slug único -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">
+                        Slug (subdomínio único)
+                    </label>
+                    <input
+                        id="editSlug"
+                        name="slug"
+                        required
+                        pattern="[a-z0-9\-]+"
+                        title="Apenas letras minúsculas, números e hífen"
+                        class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                               focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    />
+                </div>
+
+                <!-- Login do admin do tenant -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">
+                        Login do Admin
+                    </label>
+                    <input
+                        id="editLogin"
+                        name="login"
+                        required
+                        class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                               focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    />
+                </div>
+
+                <!-- Nova senha (opcional — manter em branco para não alterar) -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">
+                        Nova Senha
+                        <span class="text-gray-400 font-normal">(deixe vazio para manter a atual)</span>
+                    </label>
+                    <input
+                        type="password"
+                        name="senha"
+                        minlength="6"
+                        placeholder="Nova senha (mínimo 6 caracteres)"
+                        class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                               focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    />
+                </div>
+
+                <!-- Botões de ação do modal -->
+                <div class="flex gap-2 mt-2">
+                    <button
+                        type="submit"
+                        class="flex-1 bg-purple-700 hover:bg-purple-600 text-white
+                               font-semibold py-2 rounded-lg text-sm transition">
+                        💾 Salvar Alterações
+                    </button>
+                    <button
+                        type="button"
+                        onclick="fecharModal()"
+                        class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700
+                               font-semibold py-2 rounded-lg text-sm transition">
+                        Cancelar
+                    </button>
+                </div>
+
+            </form>
+            <!-- fim do formulário de edição -->
+
+        </div>
+    </div>
+    <!-- fim do modal -->
+
+
+    <!-- ===================== JAVASCRIPT: CONTROLE DO MODAL =====================
+         abrirModal(): preenche os campos do modal com os dados do tenant selecionado.
+         fecharModal(): esconde o modal e limpa o campo de senha por segurança.
+    -->
+    <script>
+        /**
+         * Abre o modal de edição preenchendo os campos com os dados do tenant.
+         * @param {number} id    - id do tenant na tabela tenants
+         * @param {string} nome  - nome exibível do projeto
+         * @param {string} slug  - identificador único de subdomínio
+         * @param {string} login - login do admin deste tenant
+         */
+        function abrirModal(id, nome, slug, login) {
+            // Define a action do formulário com o id correto do tenant
+            document.getElementById("formEditar").action = `/super-admin/tenant/${id}/editar`;
+
+            // Preenche os campos com os valores atuais do tenant
+            document.getElementById("editNome").value  = nome;
+            document.getElementById("editSlug").value  = slug;
+            document.getElementById("editLogin").value = login;
+
+            // Exibe o modal removendo a classe "hidden"
+            document.getElementById("modalEditar").classList.remove("hidden");
+        }
+
+        /**
+         * Fecha o modal de edição e limpa o campo de senha por segurança.
+         */
+        function fecharModal() {
+            document.getElementById("modalEditar").classList.add("hidden");
+            // Limpa senha para evitar que fique exposta ao reabrir outro registro
+            document.querySelector("#formEditar input[name='senha']").value = "";
+        }
+
+        // Fecha o modal ao clicar fora dele (no overlay escuro)
+        document.getElementById("modalEditar").addEventListener("click", function(e) {
+            if (e.target === this) fecharModal();
+        });
+    </script>
+
+</body>
+</html>

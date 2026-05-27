@@ -16,7 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.utils import formataddr, parseaddr
-from flask import render_template, request, redirect, session, flash, jsonify
+from flask import render_template, request, redirect, session, flash, jsonify, g
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import cloudinary
@@ -480,19 +480,20 @@ def cadastro():
             flash("Sessão expirada. Inicie o cadastro novamente.", "erro")
             return redirect("/cadastros")
 
-        # Grava o novo usuário com senha hasheada
+        # Grava o novo usuário com senha hasheada e tenant_id do projeto onde se cadastrou
         conn   = get_db()
         cursor = conn.cursor()
         try:
             cursor.execute(
                 """INSERT INTO usuarios
-                   (nome, email, senha, cpf, telefone, data_nascimento, uf, cidade)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (nome, email, senha, cpf, telefone, data_nascimento, uf, cidade, tenant_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     pending["nome"], pending["email"],
                     generate_password_hash(senha),
                     pending["cpf"], pending["telefone"], pending["data_nascimento"],
                     pending.get("uf"), pending.get("cidade"),
+                    getattr(g, "tenant_id", None) or 1,  # tenant detectado em before_request
                 )
             )
             conn.commit()
@@ -746,7 +747,10 @@ def plantio_credenciado():
         conn   = get_db()
         cursor = conn.cursor()
 
-        # Insere o registro completo na tabela plantas_go.
+        # Tenant do usuário detectado em before_request — isola o plantio ao projeto correto
+        tid_pub = getattr(g, "tenant_id", None) or 1
+
+        # Insere o registro completo na tabela plantas_go com tenant_id.
         # fornecedor_id e status='em_analise' são gravados para rastreamento e aprovação.
         cursor.execute("""
             INSERT INTO plantas_go (
@@ -755,21 +759,21 @@ def plantio_credenciado():
                 acompanhamento_1, foto_1,
                 acompanhamento_2, foto_2,
                 acompanhamento_3, foto_3,
-                fornecedor_id, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                fornecedor_id, status, tenant_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             data_plantio, session["usuario_id"], especie, municipio, bairro,
             latitude, longitude,
             acomp_1, foto_1,
             acomp_2, foto_2,
             acomp_3, foto_3,
-            int(fornecedor_id), "em_analise"
+            int(fornecedor_id), "em_analise", tid_pub
         ))
 
-        # Registra a transação na tabela plantios vinculando usuário e fornecedor
+        # Registra a transação na tabela plantios com tenant_id
         cursor.execute(
-            "INSERT INTO plantios (usuario_id, fornecedor_id, tipo, status) VALUES (?, ?, ?, ?)",
-            (session["usuario_id"], int(fornecedor_id), "credenciado", "pendente")
+            "INSERT INTO plantios (usuario_id, fornecedor_id, tipo, status, tenant_id) VALUES (?, ?, ?, ?, ?)",
+            (session["usuario_id"], int(fornecedor_id), "credenciado", "pendente", tid_pub)
         )
 
         conn.commit()
@@ -1000,19 +1004,25 @@ def admin_usuario_salvar(usuario_id):
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Verifica se o novo email já pertence a outro usuário
-    cursor.execute("SELECT id FROM usuarios WHERE email = ? AND id != ?", (email, usuario_id))
+    # Garante isolamento: só altera usuários do tenant logado
+    tid = get_tid()
+
+    # Verifica se o novo email já pertence a outro usuário do mesmo tenant
+    cursor.execute(
+        "SELECT id FROM usuarios WHERE email = ? AND id != ? AND tenant_id = ?",
+        (email, usuario_id, tid)
+    )
     if cursor.fetchone():
         conn.close()
         flash("Este email já está em uso por outro cadastro.", "erro")
         return redirect("/admin/painel?tipo=usuarios")
 
-    # Atualiza os dados do usuário pelo id
+    # Atualiza os dados do usuário — AND tenant_id garante isolamento multi-tenant
     cursor.execute("""
         UPDATE usuarios
         SET nome=?, email=?, cpf=?, telefone=?, data_nascimento=?
-        WHERE id=?
-    """, (nome, email, cpf, telefone, data_nascimento, usuario_id))
+        WHERE id=? AND tenant_id=?
+    """, (nome, email, cpf, telefone, data_nascimento, usuario_id, tid))
     conn.commit()
     conn.close()
 
@@ -1031,8 +1041,12 @@ def admin_usuario_limpar_senha(usuario_id):
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Senha vazia impossibilita o login via check_password_hash para qualquer input
-    cursor.execute("UPDATE usuarios SET senha=? WHERE id=?", ("", usuario_id))
+    # Senha vazia impossibilita o login via check_password_hash para qualquer input.
+    # AND tenant_id garante isolamento multi-tenant (não afeta usuários de outros tenants).
+    cursor.execute(
+        "UPDATE usuarios SET senha=? WHERE id=? AND tenant_id=?",
+        ("", usuario_id, get_tid())
+    )
     conn.commit()
     conn.close()
 
@@ -1050,7 +1064,8 @@ def admin_usuario_excluir(usuario_id):
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM usuarios WHERE id=?", (usuario_id,))
+    # AND tenant_id: impede excluir usuários de outros tenants
+    cursor.execute("DELETE FROM usuarios WHERE id=? AND tenant_id=?", (usuario_id, get_tid()))
     conn.commit()
     conn.close()
 
@@ -1079,10 +1094,10 @@ def admin_aprovar_plantio(plantio_id):
     """, (plantio_id,))
     dados = cursor.fetchone()
 
-    # Atualiza status para aprovado e limpa qualquer justificativa anterior
+    # Atualiza status para aprovado — tenant_id garante isolamento entre tenants
     cursor.execute(
-        "UPDATE plantas_go SET status = 'aprovado', justificativa = NULL WHERE id = ?",
-        (plantio_id,)
+        "UPDATE plantas_go SET status = 'aprovado', justificativa = NULL WHERE id = ? AND tenant_id = ?",
+        (plantio_id, get_tid())
     )
     conn.commit()
     conn.close()
@@ -1173,10 +1188,10 @@ def admin_reprovar_plantio(plantio_id):
     """, (plantio_id,))
     dados = cursor.fetchone()
 
-    # Atualiza status para reprovado e grava a justificativa
+    # Atualiza status para reprovado — tenant_id garante isolamento entre tenants
     cursor.execute(
-        "UPDATE plantas_go SET status = 'reprovado', justificativa = ? WHERE id = ?",
-        (justificativa, plantio_id)
+        "UPDATE plantas_go SET status = 'reprovado', justificativa = ? WHERE id = ? AND tenant_id = ?",
+        (justificativa, plantio_id, get_tid())
     )
     conn.commit()
     conn.close()
@@ -1769,36 +1784,272 @@ def fornecedor_esqueci_senha():
     return render_template("fornecedor_esqueci_senha.html", etapa=1)
 
 
-# ===================== CREDENCIAIS DO ADMINISTRADOR =====================
-# Lidas das variáveis de ambiente (.env local ou Railway em produção).
-# Nunca defina valores reais diretamente no código.
-ADMIN_LOGIN = os.environ.get("ADMIN_LOGIN", "")
-
-# A senha do ambiente é hasheada uma única vez na inicialização do app,
-# evitando comparação em texto puro durante o login.
-_admin_senha_plain = os.environ.get("ADMIN_SENHA", "")
-ADMIN_SENHA_HASH = generate_password_hash(_admin_senha_plain) if _admin_senha_plain else ""
-del _admin_senha_plain  # Remove a variável com texto puro da memória após o hash
+# ===================== CREDENCIAIS DO SUPER ADMINISTRADOR =====================
+# Nível máximo do sistema — acima dos tenants. Gerencia todos os projetos/clientes.
+# Autenticado exclusivamente via variáveis de ambiente; NUNCA armazenado no banco.
+# Rotas exclusivas: /super-admin/login  /super-admin/painel  /super-admin/logout
+SUPER_ADMIN_LOGIN = os.environ.get("SUPER_ADMIN_LOGIN", "")
+_sa_plain         = os.environ.get("SUPER_ADMIN_SENHA", "")
+SUPER_ADMIN_HASH  = generate_password_hash(_sa_plain) if _sa_plain else ""
+del _sa_plain  # Apaga a variável com texto puro da memória imediatamente
 
 
-# ===================== ROTA LOGIN ADMINISTRADOR =====================
+# ===================== HELPER: TENANT ID DA SESSÃO ADMIN =====================
+# Retorna o tenant_id armazenado na sessão do admin logado.
+# Todas as queries do painel admin usam este valor para isolar dados por projeto.
+# Retorna None se o admin não tiver tenant_id válido (deve forçar re-login).
+def get_tid():
+    """Retorna tenant_id do admin logado (isolamento multi-tenant)."""
+    return session.get("tenant_id")
+
+
+# ===================== BEFORE REQUEST: DETECTAR TENANT PÚBLICO =====================
+# Identifica o tenant nas rotas públicas (usuário final) via subdomínio.
+# Em desenvolvimento local, usa a variável TENANT_SLUG do .env (padrão: 'padrao').
+# O tenant_id é armazenado em g.tenant_id para uso nas rotas de cada request.
+@app.before_request
+def detectar_tenant_publico():
+    """Detecta tenant via subdomínio ou variável de ambiente e salva em g.tenant_id."""
+    # Rotas do Super Admin e Admin não passam por detecção de tenant público
+    if request.path.startswith("/super-admin") or request.path.startswith("/admin"):
+        g.tenant_id = None
+        return
+
+    # Extrai o subdomínio do host (ex: "goiania.app.com" → "goiania")
+    host = request.host.split(":")[0]
+    partes = host.split(".")
+    slug = partes[0] if len(partes) >= 3 else os.environ.get("TENANT_SLUG", "padrao")
+
+    # Ignora subdomínios genéricos
+    if slug in ("www", "app", "localhost"):
+        slug = os.environ.get("TENANT_SLUG", "padrao")
+
+    # Busca o tenant ativo pelo slug
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM tenants WHERE slug = ? AND ativo = 1", (slug,))
+    t = cursor.fetchone()
+    conn.close()
+
+    # Armazena no contexto da requisição (g) para uso nos handlers de rota
+    g.tenant_id = t[0] if t else 1  # fallback = tenant 1 (padrão)
+
+
+# ===================== ROTAS SUPER ADMIN =====================
+# Nível máximo do sistema. O Super Admin:
+#   • Cria, edita e inativa tenants (projetos/clientes).
+#   • Visualiza estatísticas globais de todos os tenants.
+#   • Não tem acesso direto ao painel de cada tenant (/admin/painel).
+# Autenticação: session["super_admin"] = True (independente de session["admin"]).
+
+@app.route("/super-admin/login", methods=["GET", "POST"])
+def super_admin_login():
+    """GET: exibe login. POST: autentica Super Admin via variáveis de ambiente."""
+    # Redireciona se já autenticado como Super Admin
+    if session.get("super_admin"):
+        return redirect("/super-admin/painel")
+
+    if request.method == "POST":
+        login = request.form.get("login", "").strip()
+        senha = request.form.get("senha", "")
+
+        # Valida credenciais: login por igualdade, senha via hash werkzeug
+        if (login == SUPER_ADMIN_LOGIN
+                and SUPER_ADMIN_HASH
+                and check_password_hash(SUPER_ADMIN_HASH, senha)):
+            session["super_admin"] = True
+            session["super_admin_login"] = login
+            flash("Bem-vindo ao painel Super Admin.", "sucesso")
+            return redirect("/super-admin/painel")
+
+        flash("Login ou senha incorretos.", "erro")
+        return redirect("/super-admin/login")
+
+    return render_template("super_admin_login.html")
+
+
+@app.route("/super-admin/painel")
+def super_admin_painel():
+    """Painel principal: lista todos os tenants com estatísticas globais."""
+    if not session.get("super_admin"):
+        flash("Acesso restrito ao Super Admin.", "erro")
+        return redirect("/super-admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Busca todos os tenants com contagem de usuários vinculados
+    cursor.execute("""
+        SELECT t.id, t.nome, t.slug, t.login, t.ativo, t.criado_em,
+               COUNT(u.id) AS total_usuarios
+        FROM tenants t
+        LEFT JOIN usuarios u ON u.tenant_id = t.id
+        GROUP BY t.id, t.nome, t.slug, t.login, t.ativo, t.criado_em
+        ORDER BY t.ativo DESC, t.nome
+    """)
+    tenants = cursor.fetchall()
+
+    # Estatísticas globais do sistema (todos os tenants somados)
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    total_usuarios = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE status = 'aprovado'")
+    total_plantios = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM fornecedores WHERE ativo = 1")
+    total_fornecedores = cursor.fetchone()[0]
+
+    conn.close()
+
+    return render_template("super_admin_painel.html",
+                           tenants=tenants,
+                           total_usuarios=total_usuarios,
+                           total_plantios=total_plantios,
+                           total_fornecedores=total_fornecedores)
+
+
+@app.route("/super-admin/tenant/criar", methods=["POST"])
+def super_admin_criar_tenant():
+    """Cria um novo tenant com login e senha hasheada."""
+    if not session.get("super_admin"):
+        return redirect("/super-admin/login")
+
+    nome  = request.form.get("nome", "").strip()
+    slug  = request.form.get("slug", "").strip().lower().replace(" ", "-")
+    login = request.form.get("login", "").strip()
+    senha = request.form.get("senha", "")
+
+    # Validações obrigatórias
+    if not nome or not slug or not login or not senha:
+        flash("Todos os campos são obrigatórios.", "erro")
+        return redirect("/super-admin/painel")
+
+    if len(senha) < 6:
+        flash("A senha deve ter no mínimo 6 caracteres.", "erro")
+        return redirect("/super-admin/painel")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    try:
+        # Grava o hash da senha — nunca o texto puro
+        cursor.execute(
+            "INSERT INTO tenants (nome, slug, login, senha_hash, ativo) VALUES (?, ?, ?, ?, 1)",
+            (nome, slug, login, generate_password_hash(senha))
+        )
+        conn.commit()
+        flash(f"Tenant '{nome}' criado com sucesso! Login: {login}", "sucesso")
+    except Exception:
+        # Violação de UNIQUE em slug ou login
+        flash("Slug ou login já em uso. Escolha valores únicos.", "erro")
+    finally:
+        conn.close()
+
+    return redirect("/super-admin/painel")
+
+
+@app.route("/super-admin/tenant/<int:tid>/editar", methods=["POST"])
+def super_admin_editar_tenant(tid):
+    """Atualiza nome, slug e login do tenant. Senha só é alterada se informada."""
+    if not session.get("super_admin"):
+        return redirect("/super-admin/login")
+
+    nome  = request.form.get("nome", "").strip()
+    slug  = request.form.get("slug", "").strip().lower().replace(" ", "-")
+    login = request.form.get("login", "").strip()
+    senha = request.form.get("senha", "").strip()
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    try:
+        if senha:
+            # Atualiza incluindo nova senha hasheada
+            cursor.execute(
+                "UPDATE tenants SET nome=?, slug=?, login=?, senha_hash=? WHERE id=?",
+                (nome, slug, login, generate_password_hash(senha), tid)
+            )
+        else:
+            # Mantém a senha existente — só atualiza metadados
+            cursor.execute(
+                "UPDATE tenants SET nome=?, slug=?, login=? WHERE id=?",
+                (nome, slug, login, tid)
+            )
+        conn.commit()
+        flash("Tenant atualizado com sucesso.", "sucesso")
+    except Exception:
+        flash("Slug ou login já em uso por outro tenant.", "erro")
+    finally:
+        conn.close()
+
+    return redirect("/super-admin/painel")
+
+
+@app.route("/super-admin/tenant/<int:tid>/toggle", methods=["POST"])
+def super_admin_toggle_tenant(tid):
+    """Ativa ou inativa um tenant (alterna o campo ativo entre 0 e 1)."""
+    if not session.get("super_admin"):
+        return redirect("/super-admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Lê status atual e inverte: 1 → inativa, 0 → reativa
+    cursor.execute("SELECT ativo, nome FROM tenants WHERE id = ?", (tid,))
+    row = cursor.fetchone()
+    if row:
+        novo = 0 if row[0] == 1 else 1
+        cursor.execute("UPDATE tenants SET ativo = ? WHERE id = ?", (novo, tid))
+        conn.commit()
+        acao = "inativado" if novo == 0 else "reativado"
+        flash(f"Tenant '{row[1]}' {acao} com sucesso.", "sucesso")
+    conn.close()
+
+    return redirect("/super-admin/painel")
+
+
+@app.route("/super-admin/logout")
+def super_admin_logout():
+    """Encerra a sessão do Super Admin e redireciona para o login."""
+    session.pop("super_admin", None)
+    session.pop("super_admin_login", None)
+    flash("Sessão Super Admin encerrada.", "sucesso")
+    return redirect("/super-admin/login")
+
+
+# ===================== ROTA LOGIN ADMINISTRADOR (MULTI-TENANT) =====================
 # GET:  exibe o formulário de login do administrador.
-# POST: valida login (comparação direta) e senha (check_password_hash).
-#       Se corretos: cria session["admin"] e redireciona para o painel.
-#       Se incorretos: exibe mensagem de erro via flash.
+# POST: autentica o admin consultando a tabela tenants (multi-tenant).
+#       Cada tenant tem login e senha_hash próprios cadastrados pelo Super Admin.
+#       Se corretos: session["admin"] = True + session["tenant_id"] = id do tenant.
+#       session["tenant_id"] é a chave do isolamento — todas as queries admin a usam.
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
-    if request.method == "POST":
-        login = request.form["login"]
-        senha = request.form["senha"]
+    # Redireciona se já autenticado como admin de tenant
+    if session.get("admin") and session.get("tenant_id"):
+        return redirect("/admin/painel")
 
-        # Valida login por igualdade e senha via hash — nunca texto puro
-        if login == ADMIN_LOGIN and ADMIN_SENHA_HASH and check_password_hash(ADMIN_SENHA_HASH, senha):
-            # Credenciais corretas: marca sessão de administrador
-            session["admin"] = True
+    if request.method == "POST":
+        login = request.form.get("login", "").strip()
+        senha = request.form.get("senha", "")
+
+        conn   = get_db()
+        cursor = conn.cursor()
+
+        # Busca o tenant ativo pelo login informado
+        cursor.execute(
+            "SELECT id, nome, senha_hash FROM tenants WHERE login = ? AND ativo = 1",
+            (login,)
+        )
+        tenant = cursor.fetchone()
+        conn.close()
+
+        # Valida: tenant existe, está ativo, e senha confere com o hash armazenado
+        if tenant and check_password_hash(tenant[2], senha):
+            session["admin"]       = True
+            session["tenant_id"]   = tenant[0]   # 🔑 chave do isolamento multi-tenant
+            session["tenant_nome"] = tenant[1]
             return redirect("/admin/painel")
 
-        # Credenciais incorretas
+        # Credenciais incorretas — mensagem genérica por segurança
         flash("Login ou senha incorretos.", "erro")
         return redirect("/admin/login")
 
@@ -1806,13 +2057,19 @@ def admin_login():
 
 
 # ===================== ROTA PAINEL ADMINISTRADOR =====================
-# Exibe todos os fornecedores e cadastros com filtro de busca por texto.
+# Exibe todos os fornecedores e cadastros do tenant logado, com filtro de busca.
 # O filtro é aplicado via query string (?busca=termo&tipo=fornecedores|usuarios).
-# Acesso bloqueado se session["admin"] não estiver ativo.
+# Acesso bloqueado se session["admin"] ou session["tenant_id"] não estiverem ativos.
 @app.route("/admin/painel")
 def admin_painel():
     if not session.get("admin"):
         flash("Acesso restrito. Faça o login.", "erro")
+        return redirect("/admin/login")
+
+    # Garante que o tenant_id está na sessão (isolamento multi-tenant)
+    tid = get_tid()
+    if not tid:
+        flash("Sessão inválida. Faça login novamente.", "erro")
         return redirect("/admin/login")
 
     conn   = get_db()
@@ -1823,35 +2080,41 @@ def admin_painel():
     tipo            = request.args.get("tipo", "")  # sem aba padrão — exibe tela inicial
     plantio_status  = request.args.get("plantio_status", "").strip()  # filtro de status na aba plantios
 
-    # ---- Consulta Fornecedores com filtro por razão social, CNPJ ou cidade ----
+    # ---- Consulta Fornecedores do tenant — com filtro por razão social, CNPJ ou cidade ----
     # Inclui ativo e maps_link para permitir edição e exibir status no painel
     if busca:
         cursor.execute("""
             SELECT id, razao_social, cnpj, whatsapp, tipo_planta, cidade, uf, ativo, maps_link, email
             FROM fornecedores
-            WHERE razao_social LIKE ? OR cnpj LIKE ? OR cidade LIKE ?
+            WHERE tenant_id = ?
+              AND (razao_social LIKE ? OR cnpj LIKE ? OR cidade LIKE ?)
             ORDER BY ativo DESC, razao_social
-        """, (f"%{busca}%", f"%{busca}%", f"%{busca}%"))
+        """, (tid, f"%{busca}%", f"%{busca}%", f"%{busca}%"))
     else:
         cursor.execute("""
             SELECT id, razao_social, cnpj, whatsapp, tipo_planta, cidade, uf, ativo, maps_link, email
             FROM fornecedores
+            WHERE tenant_id = ?
             ORDER BY ativo DESC, razao_social
-        """)
+        """, (tid,))
     fornecedores = cursor.fetchall()
 
-    # ---- Consulta Usuários: todos os campos para permitir edição pelo admin ----
+    # ---- Consulta Usuários do tenant — todos os campos para permitir edição pelo admin ----
     # u[0]=id  u[1]=nome  u[2]=email  u[3]=cpf  u[4]=telefone  u[5]=data_nascimento
     if busca:
         cursor.execute("""
             SELECT id, nome, email, cpf, telefone, data_nascimento FROM usuarios
-            WHERE nome LIKE ? OR email LIKE ? OR cpf LIKE ?
-        """, (f"%{busca}%", f"%{busca}%", f"%{busca}%"))
+            WHERE tenant_id = ?
+              AND (nome LIKE ? OR email LIKE ? OR cpf LIKE ?)
+        """, (tid, f"%{busca}%", f"%{busca}%", f"%{busca}%"))
     else:
-        cursor.execute("SELECT id, nome, email, cpf, telefone, data_nascimento FROM usuarios ORDER BY nome")
+        cursor.execute(
+            "SELECT id, nome, email, cpf, telefone, data_nascimento FROM usuarios WHERE tenant_id = ? ORDER BY nome",
+            (tid,)
+        )
     usuarios = cursor.fetchall()
 
-    # ---- Consulta Plantios com dados do usuário, fornecedor, fotos e localização ----
+    # ---- Consulta Plantios do tenant — dados do usuário, fornecedor, fotos e localização ----
     # p[0]=id(plantas_go)  p[1]=data_plantio  p[2]=especie  p[3]=municipio  p[4]=status
     # p[5]=justificativa   p[6]=criado_em     p[7]=nome_usuario  p[8]=fornecedor_nome
     # p[9]=bairro  p[10]=latitude  p[11]=longitude  p[12]=foto_plantio  p[13]=foto_1
@@ -1867,11 +2130,12 @@ def admin_painel():
         JOIN usuarios u ON u.id = pg.responsavel_id
         LEFT JOIN fornecedores f ON f.id = pg.fornecedor_id
         LEFT JOIN compras c ON c.plantio_id = pg.id
+        WHERE pg.tenant_id = ?
         ORDER BY pg.criado_em DESC
-    """)
+    """, (tid,))
     plantios = cursor.fetchall()
 
-    # ---- Consulta Compras de Mudas (todas, para o admin gerenciar) ----
+    # ---- Consulta Compras de Mudas do tenant (para o admin gerenciar) ----
     # c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
     # c[4]=comprovante  c[5]=status  c[6]=criado_em
     # c[7]=usuario_nome  c[8]=usuario_email  c[9]=fornecedor_nome
@@ -1883,8 +2147,9 @@ def admin_painel():
         FROM compras c
         JOIN usuarios u ON u.id = c.usuario_id
         LEFT JOIN fornecedores f ON f.id = c.fornecedor_id
+        WHERE c.tenant_id = ?
         ORDER BY c.criado_em DESC
-    """)
+    """, (tid,))
     compras = cursor.fetchall()
 
     # Contagem unificada por status: soma plantas_go + compras de cada status.
@@ -1896,29 +2161,36 @@ def admin_painel():
         'retirado':   sum(1 for p in plantios if p[4] == 'retirado')   + sum(1 for c in compras if c[5] == 'retirado'),
     }
 
-    # ---- Consulta Espécies de Plantas ----
-    cursor.execute("SELECT id, nome, tipo, valor FROM especies_plantas ORDER BY nome")
+    # ---- Consulta Espécies de Plantas do tenant ----
+    cursor.execute(
+        "SELECT id, nome, tipo, valor FROM especies_plantas WHERE tenant_id = ? ORDER BY nome",
+        (tid,)
+    )
     especies = cursor.fetchall()
 
-    # ---- Consulta Dados Bancários — Admin (registro único) ----
-    cursor.execute("SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios LIMIT 1")
+    # ---- Consulta Dados Bancários do tenant (registro único por tenant) ----
+    cursor.execute(
+        "SELECT nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix FROM dados_bancarios WHERE tenant_id = ? LIMIT 1",
+        (tid,)
+    )
     dados_bancarios = cursor.fetchone()
 
-    # ---- Consulta Entidades Favorecidas cadastradas (lista unificada com dados bancários) ----
+    # ---- Consulta Entidades Favorecidas do tenant (lista unificada com dados bancários) ----
     # e[0]=id  e[1]=razao_social  e[2]=cnpj  e[3]=whatsapp  e[4]=criado_em
     # e[5]=banco  e[6]=conta  e[7]=agencia  e[8]=chave_pix  e[9]=qrcode_pix  e[10]=ativa
     cursor.execute("""
         SELECT id, razao_social, cnpj, whatsapp, criado_em,
                banco, conta, agencia, chave_pix, qrcode_pix, ativa
         FROM entidades
+        WHERE tenant_id = ?
         ORDER BY ativa DESC, razao_social
-    """)
+    """, (tid,))
     entidades = cursor.fetchall()
 
     # Lista de entidades com ativa=1 (usada no template de Saldos Pendentes para seleção)
     entidades_ativas = [e for e in entidades if e[10] == 1]
 
-    # ---- Consulta Entidades Educacionais (escolas, ONGs, creches, instituições parceiras) ----
+    # ---- Consulta Entidades Educacionais do tenant (escolas, ONGs, creches, instituições) ----
     # Tabela separada das entidades financeiras — sem vínculo com faturamento.
     # ee[0]=id  ee[1]=razao_social  ee[2]=cnpj  ee[3]=whatsapp
     # ee[4]=banco  ee[5]=agencia  ee[6]=conta  ee[7]=chave_pix  ee[8]=qrcode_pix
@@ -1928,44 +2200,49 @@ def admin_painel():
                banco, agencia, conta, chave_pix, qrcode_pix,
                ativa, criado_em
         FROM entidades_educacionais
+        WHERE tenant_id = ?
         ORDER BY ativa DESC, razao_social
-    """)
+    """, (tid,))
     entidades_edu = cursor.fetchall()
 
-    # ---- Consulta Percentuais de Vigência — tabela de distribuição do valor das plantas ----
+    # ---- Consulta Percentuais de Vigência do tenant ----
     # p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin
     cursor.execute("""
         SELECT id, inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin, criado_em
         FROM percentuais_vigencia
+        WHERE tenant_id = ?
         ORDER BY inicio_vigencia DESC
-    """)
+    """, (tid,))
     percentuais = cursor.fetchall()
 
     # ---- Cálculo dos Fechamentos Mensais Pendentes (Fornecedor, Entidade e Admin) ----
     # Inclui os 3 percentuais para que o helper genérico possa usar o correto por tipo.
     cursor.execute("""
         SELECT inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin
-        FROM percentuais_vigencia ORDER BY inicio_vigencia ASC
-    """)
+        FROM percentuais_vigencia
+        WHERE tenant_id = ?
+        ORDER BY inicio_vigencia ASC
+    """, (tid,))
     vigencias_asc = cursor.fetchall()
 
-    fechamento_pendente          = _calcular_fechamento_pendente(cursor, vigencias_asc, 'fornecedor')
+    fechamento_pendente          = _calcular_fechamento_pendente(cursor, vigencias_asc, 'fornecedor', tid)
     # Entidade e Admin usam função própria: totaliza por mês para exibir 1 card por período.
-    fechamento_entidade_pendente = _calcular_fechamento_entidade_por_mes(cursor, vigencias_asc)
-    fechamento_admin_pendente    = _calcular_fechamento_admin_por_mes(cursor, vigencias_asc)
+    fechamento_entidade_pendente = _calcular_fechamento_entidade_por_mes(cursor, vigencias_asc, tid)
+    fechamento_admin_pendente    = _calcular_fechamento_admin_por_mes(cursor, vigencias_asc, tid)
 
-    # ---- Histórico de Faturamentos — Fornecedor ----
+    # ---- Histórico de Faturamentos — Fornecedor do tenant ----
     cursor.execute("""
         SELECT fat.id, fat.fornecedor_id, fat.mes_ref, fat.numero_baixa,
                fat.quantidade, fat.valor_bruto, fat.perc_fornecedor,
                fat.valor_liquido, fat.data_faturamento, f.razao_social
         FROM faturamentos fat
         JOIN fornecedores f ON f.id = fat.fornecedor_id
+        WHERE fat.tenant_id = ?
         ORDER BY fat.mes_ref DESC, f.razao_social
-    """)
+    """, (tid,))
     faturamentos_hist = cursor.fetchall()
 
-    # ---- Histórico de Faturamentos — Entidade Favorecida ----
+    # ---- Histórico de Faturamentos — Entidade Favorecida do tenant ----
     # fat[10] = entidade_nome: nome da entidade favorecida vinculada ao fechamento
     cursor.execute("""
         SELECT fat.id, fat.fornecedor_id, fat.mes_ref, fat.numero_baixa,
@@ -1975,31 +2252,34 @@ def admin_painel():
         FROM faturamentos_entidade fat
         JOIN fornecedores f ON f.id = fat.fornecedor_id
         LEFT JOIN entidades e ON e.id = fat.entidade_id
+        WHERE fat.tenant_id = ?
         ORDER BY fat.mes_ref DESC, f.razao_social
-    """)
+    """, (tid,))
     faturamentos_entidade_hist = cursor.fetchall()
 
-    # ---- Histórico de Faturamentos — Administração ----
+    # ---- Histórico de Faturamentos — Administração do tenant ----
     cursor.execute("""
         SELECT fat.id, fat.fornecedor_id, fat.mes_ref, fat.numero_baixa,
                fat.quantidade, fat.valor_bruto, fat.perc_admin,
                fat.valor_liquido, fat.data_faturamento, f.razao_social
         FROM faturamentos_admin fat
         JOIN fornecedores f ON f.id = fat.fornecedor_id
+        WHERE fat.tenant_id = ?
         ORDER BY fat.mes_ref DESC, f.razao_social
-    """)
+    """, (tid,))
     faturamentos_admin_hist = cursor.fetchall()
 
-    # ---- Total de árvores plantadas: aprovadas pelo admin com data_plantio >= 2026-03-01 ----
+    # ---- Total de árvores aprovadas pelo admin do tenant com data_plantio >= 2026-03-01 ----
     # Usa COUNT direto no banco para evitar iteração da lista e garantir precisão da data.
     # data_plantio é coluna DATE em PostgreSQL e TEXT (ISO 8601) em SQLite — a comparação
     # lexicográfica '2026-03-01' funciona em ambos os formatos.
     cursor.execute("""
         SELECT COUNT(*)
         FROM plantas_go
-        WHERE status = 'aprovado'
+        WHERE tenant_id = ?
+          AND status = 'aprovado'
           AND data_plantio >= '2026-03-01'
-    """)
+    """, (tid,))
     total_arvores = cursor.fetchone()[0]
 
     conn.close()
@@ -2039,7 +2319,9 @@ def admin_mapa():
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Busca plantios aprovados com coordenadas — inclui todos os campos de foto legados
+    # Busca plantios aprovados com coordenadas — inclui todos os campos de foto legados.
+    # Garante isolamento: exibe somente plantios do tenant logado.
+    tid = get_tid()
     cursor.execute("""
         SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio, pg.bairro,
                pg.latitude, pg.longitude,
@@ -2047,12 +2329,13 @@ def admin_mapa():
                u.nome AS nome_usuario
         FROM plantas_go pg
         JOIN usuarios u ON u.id = pg.responsavel_id
-        WHERE pg.status = 'aprovado'
+        WHERE pg.tenant_id = ?
+          AND pg.status = 'aprovado'
           AND pg.data_plantio >= '2026-03-01'
           AND pg.latitude IS NOT NULL
           AND pg.longitude IS NOT NULL
         ORDER BY pg.data_plantio DESC
-    """)
+    """, (tid,))
     plantios_mapa = cursor.fetchall()
 
     # Busca fotos dos acompanhamentos ilimitados para todos os plantios do mapa
@@ -2119,13 +2402,14 @@ def admin_salvar_fornecedor(fid):
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Atualiza todos os campos editáveis do fornecedor — senha não é alterada aqui
+    # Atualiza todos os campos editáveis do fornecedor — senha não é alterada aqui.
+    # AND tenant_id garante isolamento: não afeta fornecedores de outros tenants.
     cursor.execute("""
         UPDATE fornecedores
         SET razao_social = ?, cnpj = ?, whatsapp = ?, cidade = ?, uf = ?,
             tipo_planta = ?, maps_link = ?, email = ?
-        WHERE id = ?
-    """, (razao_social, cnpj, whatsapp, cidade, uf, tipo_planta, maps_link, email, fid))
+        WHERE id = ? AND tenant_id = ?
+    """, (razao_social, cnpj, whatsapp, cidade, uf, tipo_planta, maps_link, email, fid, get_tid()))
     conn.commit()
     conn.close()
 
@@ -2143,7 +2427,8 @@ def admin_excluir_fornecedor(fid):
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM fornecedores WHERE id = ?", (fid,))
+    # AND tenant_id: impede excluir fornecedores de outros tenants
+    cursor.execute("DELETE FROM fornecedores WHERE id = ? AND tenant_id = ?", (fid, get_tid()))
     conn.commit()
     conn.close()
 
@@ -2163,12 +2448,19 @@ def admin_inativar_fornecedor(fid):
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Lê o status atual e inverte: 1 → 0 (inativar) ou 0 → 1 (reativar)
-    cursor.execute("SELECT ativo FROM fornecedores WHERE id = ?", (fid,))
+    # Lê o status atual e inverte: 1 → 0 (inativar) ou 0 → 1 (reativar).
+    # AND tenant_id: garante isolamento — só afeta fornecedores do tenant logado.
+    cursor.execute(
+        "SELECT ativo FROM fornecedores WHERE id = ? AND tenant_id = ?",
+        (fid, get_tid())
+    )
     row = cursor.fetchone()
     if row:
         novo_status = 0 if (row[0] == 1 or row[0] is None) else 1
-        cursor.execute("UPDATE fornecedores SET ativo = ? WHERE id = ?", (novo_status, fid))
+        cursor.execute(
+            "UPDATE fornecedores SET ativo = ? WHERE id = ? AND tenant_id = ?",
+            (novo_status, fid, get_tid())
+        )
         conn.commit()
         msg = "Fornecedor inativado." if novo_status == 0 else "Fornecedor reativado."
         flash(msg, "sucesso")
@@ -2312,9 +2604,10 @@ def admin_cadastrar_especie():
 
     conn   = get_db()
     cursor = conn.cursor()
+    # Inclui tenant_id para vincular a espécie ao projeto do admin logado
     cursor.execute(
-        "INSERT INTO especies_plantas (nome, tipo, valor) VALUES (?, ?, ?)",
-        (nome, tipo, valor)
+        "INSERT INTO especies_plantas (nome, tipo, valor, tenant_id) VALUES (?, ?, ?, ?)",
+        (nome, tipo, valor, get_tid())
     )
     conn.commit()
     conn.close()
@@ -2340,9 +2633,10 @@ def admin_editar_especie(eid):
 
     conn   = get_db()
     cursor = conn.cursor()
+    # Filtro tenant_id garante que somente espécies do tenant logado são editadas
     cursor.execute(
-        "UPDATE especies_plantas SET nome = ?, tipo = ?, valor = ? WHERE id = ?",
-        (nome, tipo, valor, eid)
+        "UPDATE especies_plantas SET nome = ?, tipo = ?, valor = ? WHERE id = ? AND tenant_id = ?",
+        (nome, tipo, valor, eid, get_tid())
     )
     conn.commit()
     conn.close()
@@ -2359,7 +2653,8 @@ def admin_excluir_especie(eid):
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM especies_plantas WHERE id = ?", (eid,))
+    # tenant_id garante que somente espécies do tenant logado podem ser excluídas
+    cursor.execute("DELETE FROM especies_plantas WHERE id = ? AND tenant_id = ?", (eid, get_tid()))
     conn.commit()
     conn.close()
 
@@ -2409,12 +2704,16 @@ def admin_importar_especies():
             except (ValueError, AttributeError):
                 valor = 50.0
 
-            # Evita duplicatas pelo nome
-            cursor.execute("SELECT id FROM especies_plantas WHERE nome = ?", (nome,))
+            # Evita duplicatas pelo nome dentro do mesmo tenant
+            cursor.execute(
+                "SELECT id FROM especies_plantas WHERE nome = ? AND tenant_id = ?",
+                (nome, get_tid())
+            )
             if not cursor.fetchone():
+                # Insere espécie vinculada ao tenant logado
                 cursor.execute(
-                    "INSERT INTO especies_plantas (nome, tipo, valor) VALUES (?, ?, ?)",
-                    (nome, tipo, valor)
+                    "INSERT INTO especies_plantas (nome, tipo, valor, tenant_id) VALUES (?, ?, ?, ?)",
+                    (nome, tipo, valor, get_tid())
                 )
                 importados += 1
 
@@ -2452,7 +2751,11 @@ def admin_salvar_dados_bancarios():
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, qrcode_pix FROM dados_bancarios LIMIT 1")
+    # Filtra pelo tenant_id para garantir upsert isolado por tenant
+    cursor.execute(
+        "SELECT id, qrcode_pix FROM dados_bancarios WHERE tenant_id = ? LIMIT 1",
+        (get_tid(),)
+    )
     existente = cursor.fetchone()
 
     # Mantém o QR Code anterior se nenhum novo foi enviado
@@ -2462,13 +2765,14 @@ def admin_salvar_dados_bancarios():
         cursor.execute("""
             UPDATE dados_bancarios
             SET nome_empresarial=?, banco=?, conta=?, agencia=?, chave_pix=?, qrcode_pix=?
-            WHERE id=?
-        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final, existente[0]))
+            WHERE id=? AND tenant_id=?
+        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final, existente[0], get_tid()))
     else:
+        # Insere registro bancário vinculado ao tenant logado
         cursor.execute("""
-            INSERT INTO dados_bancarios (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final))
+            INSERT INTO dados_bancarios (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix, tenant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final, get_tid()))
 
     conn.commit()
     conn.close()
@@ -2501,7 +2805,11 @@ def admin_salvar_dados_bancarios_entidade():
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, qrcode_pix FROM dados_bancarios_entidade LIMIT 1")
+    # Filtra pelo tenant_id para upsert isolado por tenant
+    cursor.execute(
+        "SELECT id, qrcode_pix FROM dados_bancarios_entidade WHERE tenant_id = ? LIMIT 1",
+        (get_tid(),)
+    )
     existente = cursor.fetchone()
 
     # Mantém o QR Code anterior se nenhum novo foi enviado
@@ -2511,13 +2819,14 @@ def admin_salvar_dados_bancarios_entidade():
         cursor.execute("""
             UPDATE dados_bancarios_entidade
             SET nome_empresarial=?, banco=?, conta=?, agencia=?, chave_pix=?, qrcode_pix=?
-            WHERE id=?
-        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final, existente[0]))
+            WHERE id=? AND tenant_id=?
+        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final, existente[0], get_tid()))
     else:
+        # Insere registro da entidade favorecida vinculado ao tenant logado
         cursor.execute("""
-            INSERT INTO dados_bancarios_entidade (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final))
+            INSERT INTO dados_bancarios_entidade (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_pix, tenant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (nome_empresarial, banco, conta, agencia, chave_pix, qrcode_final, get_tid()))
 
     conn.commit()
     conn.close()
@@ -2554,9 +2863,13 @@ def admin_salvar_entidade():
 
     # --- QR Code PIX ---
     # Busca QR code atual (se for edição) para manter caso nenhum novo seja enviado.
+    # Filtro tenant_id garante que somente entidades do tenant logado são acessadas.
     qrcode_atual = None
     if eid:
-        cursor.execute("SELECT qrcode_pix FROM entidades WHERE id = ?", (int(eid),))
+        cursor.execute(
+            "SELECT qrcode_pix FROM entidades WHERE id = ? AND tenant_id = ?",
+            (int(eid), get_tid())
+        )
         row = cursor.fetchone()
         qrcode_atual = row[0] if row else None
 
@@ -2569,24 +2882,24 @@ def admin_salvar_entidade():
             qrcode_final = upload_cloudinary(qrfile, pasta="plantando-vida/pix")
 
     if eid:
-        # Atualiza entidade existente
+        # Atualiza entidade existente — garante que pertence ao tenant logado
         cursor.execute("""
             UPDATE entidades
             SET razao_social=?, cnpj=?, whatsapp=?,
                 banco=?, agencia=?, conta=?, chave_pix=?, qrcode_pix=?, ativa=?
-            WHERE id=?
+            WHERE id=? AND tenant_id=?
         """, (razao_social, cnpj, whatsapp,
               banco, agencia, conta, chave_pix, qrcode_final, ativa,
-              int(eid)))
+              int(eid), get_tid()))
         flash("Entidade atualizada com sucesso.", "sucesso")
     else:
-        # Insere nova entidade
+        # Insere nova entidade vinculada ao tenant logado
         cursor.execute("""
             INSERT INTO entidades
-                (razao_social, cnpj, whatsapp, banco, agencia, conta, chave_pix, qrcode_pix, ativa)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (razao_social, cnpj, whatsapp, banco, agencia, conta, chave_pix, qrcode_pix, ativa, tenant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (razao_social, cnpj, whatsapp,
-              banco, agencia, conta, chave_pix, qrcode_final, ativa))
+              banco, agencia, conta, chave_pix, qrcode_final, ativa, get_tid()))
         flash("Entidade cadastrada com sucesso.", "sucesso")
 
     conn.commit()
@@ -2604,7 +2917,8 @@ def admin_excluir_entidade(eid):
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM entidades WHERE id = ?", (eid,))
+    # tenant_id protege contra exclusão de dados de outros tenants
+    cursor.execute("DELETE FROM entidades WHERE id = ? AND tenant_id = ?", (eid, get_tid()))
     conn.commit()
     conn.close()
 
@@ -2653,30 +2967,32 @@ def admin_salvar_entidade_edu():
 
     if eid:
         # UPDATE: mantém QR Code existente se nenhum novo foi enviado
+        # Filtro tenant_id garante que somente entidades do tenant logado são alteradas
         if qrcode_final:
             cursor.execute("""
                 UPDATE entidades_educacionais
                 SET razao_social=?, cnpj=?, whatsapp=?,
                     banco=?, agencia=?, conta=?, chave_pix=?, qrcode_pix=?, ativa=?
-                WHERE id=?
+                WHERE id=? AND tenant_id=?
             """, (razao_social, cnpj, whatsapp,
-                  banco, agencia, conta, chave_pix, qrcode_final, ativa, int(eid)))
+                  banco, agencia, conta, chave_pix, qrcode_final, ativa, int(eid), get_tid()))
         else:
             cursor.execute("""
                 UPDATE entidades_educacionais
                 SET razao_social=?, cnpj=?, whatsapp=?,
                     banco=?, agencia=?, conta=?, chave_pix=?, ativa=?
-                WHERE id=?
+                WHERE id=? AND tenant_id=?
             """, (razao_social, cnpj, whatsapp,
-                  banco, agencia, conta, chave_pix, ativa, int(eid)))
+                  banco, agencia, conta, chave_pix, ativa, int(eid), get_tid()))
         flash("Entidade educacional atualizada com sucesso.", "sucesso")
     else:
+        # INSERT vinculado ao tenant logado
         cursor.execute("""
             INSERT INTO entidades_educacionais
-                (razao_social, cnpj, whatsapp, banco, agencia, conta, chave_pix, qrcode_pix, ativa)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (razao_social, cnpj, whatsapp, banco, agencia, conta, chave_pix, qrcode_pix, ativa, tenant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (razao_social, cnpj, whatsapp,
-              banco, agencia, conta, chave_pix, qrcode_final, ativa))
+              banco, agencia, conta, chave_pix, qrcode_final, ativa, get_tid()))
         flash("Entidade educacional cadastrada com sucesso.", "sucesso")
 
     conn.commit()
@@ -2693,7 +3009,11 @@ def admin_excluir_entidade_edu(eid):
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM entidades_educacionais WHERE id = ?", (eid,))
+    # tenant_id protege contra exclusão de dados de outros tenants
+    cursor.execute(
+        "DELETE FROM entidades_educacionais WHERE id = ? AND tenant_id = ?",
+        (eid, get_tid())
+    )
     conn.commit()
     conn.close()
 
@@ -2715,27 +3035,33 @@ def api_plantas():
     conn   = get_db()
     cursor = conn.cursor()
 
+    # Determina o tenant da requisição pública via g.tenant_id (detectado em before_request)
+    tid = getattr(g, "tenant_id", None) or 1
+
     # Monta a query dinamicamente conforme os filtros recebidos.
-    # LOWER() + LIKE no campo tipo garante tolerância a variações de capitalização
-    # caso o banco contenha valores levemente diferentes do canônico.
+    # tenant_id garante que cada projeto exibe apenas suas próprias espécies.
+    # LOWER() + LIKE no campo tipo garante tolerância a variações de capitalização.
     if tipo and busca:
         cursor.execute(
-            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE LOWER(tipo) LIKE LOWER(?) AND nome LIKE ? ORDER BY nome",
-            (f"%{tipo}%", f"%{busca}%")
+            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE LOWER(tipo) LIKE LOWER(?) AND nome LIKE ? AND tenant_id = ? ORDER BY nome",
+            (f"%{tipo}%", f"%{busca}%", tid)
         )
     elif tipo:
         cursor.execute(
-            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE LOWER(tipo) LIKE LOWER(?) ORDER BY nome",
-            (f"%{tipo}%",)
+            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE LOWER(tipo) LIKE LOWER(?) AND tenant_id = ? ORDER BY nome",
+            (f"%{tipo}%", tid)
         )
     elif busca:
         cursor.execute(
-            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE nome LIKE ? ORDER BY nome",
-            (f"%{busca}%",)
+            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE nome LIKE ? AND tenant_id = ? ORDER BY nome",
+            (f"%{busca}%", tid)
         )
     else:
-        # Sem filtros: retorna as primeiras 30 para não sobrecarregar
-        cursor.execute("SELECT id, nome, tipo, valor FROM especies_plantas ORDER BY nome LIMIT 30")
+        # Sem filtros: retorna as primeiras 30 do tenant — não sobrecarrega a resposta
+        cursor.execute(
+            "SELECT id, nome, tipo, valor FROM especies_plantas WHERE tenant_id = ? ORDER BY nome LIMIT 30",
+            (tid,)
+        )
 
     plantas = [{"id": r[0], "nome": r[1], "tipo": r[2], "valor": r[3]} for r in cursor.fetchall()]
     conn.close()
@@ -2854,12 +3180,16 @@ def carrinho_finalizar():
     conn   = get_db()
     cursor = conn.cursor()
 
+    # Identifica o tenant da sessão do usuário para vincular cada compra ao projeto correto
+    tid_publico = getattr(g, "tenant_id", None) or 1
+
     for item in carrinho:
+        # INSERT com tenant_id para garantir isolamento multi-tenant nas compras do carrinho
         cursor.execute("""
             INSERT INTO compras (
                 usuario_id, fornecedor_id, especie_nome, tipo_planta, valor,
-                comprovante, status, entidade_educacional_id
-            ) VALUES (?, ?, ?, ?, ?, ?, 'em_analise', ?)
+                comprovante, status, entidade_educacional_id, tenant_id
+            ) VALUES (?, ?, ?, ?, ?, ?, 'em_analise', ?, ?)
         """, (
             session["usuario_id"],
             item.get("fornecedor_id"),
@@ -2868,6 +3198,7 @@ def carrinho_finalizar():
             item["valor"],
             comprovante,
             item.get("entidade_educacional_id"),
+            tid_publico,
         ))
 
     conn.commit()
@@ -3001,10 +3332,14 @@ def compra_finalizar():
     conn   = get_db()
     cursor = conn.cursor()
 
+    # tenant_id vincula a compra ao projeto do tenant detectado em before_request
     cursor.execute("""
-        INSERT INTO compras (usuario_id, fornecedor_id, especie_nome, tipo_planta, valor, comprovante, status)
-        VALUES (?, ?, ?, ?, ?, ?, 'em_analise')
-    """, (session["usuario_id"], fornecedor_id, especie_nome, tipo_planta, valor, comprovante))
+        INSERT INTO compras (usuario_id, fornecedor_id, especie_nome, tipo_planta, valor, comprovante, status, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, 'em_analise', ?)
+    """, (
+        session["usuario_id"], fornecedor_id, especie_nome, tipo_planta, valor, comprovante,
+        getattr(g, "tenant_id", None) or 1
+    ))
     conn.commit()
 
     # Recupera o ID da compra recém-inserida para uso no número do pedido
@@ -3158,7 +3493,11 @@ def admin_aprovar_compra(cid):
     """, (cid,))
     dados = cursor.fetchone()
 
-    cursor.execute("UPDATE compras SET status = 'aprovado' WHERE id = ?", (cid,))
+    # tenant_id garante que somente compras do tenant logado são aprovadas
+    cursor.execute(
+        "UPDATE compras SET status = 'aprovado' WHERE id = ? AND tenant_id = ?",
+        (cid, get_tid())
+    )
     conn.commit()
     conn.close()
 
@@ -3204,7 +3543,11 @@ def admin_reprovar_compra(cid):
     """, (cid,))
     dados = cursor.fetchone()
 
-    cursor.execute("UPDATE compras SET status = 'reprovado' WHERE id = ?", (cid,))
+    # tenant_id garante que somente compras do tenant logado são reprovadas
+    cursor.execute(
+        "UPDATE compras SET status = 'reprovado' WHERE id = ? AND tenant_id = ?",
+        (cid, get_tid())
+    )
     conn.commit()
     conn.close()
 
@@ -3241,7 +3584,11 @@ def admin_analise_compra(cid):
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE compras SET status = 'em_analise' WHERE id = ?", (cid,))
+    # tenant_id garante isolamento: somente compras do tenant logado são alteradas
+    cursor.execute(
+        "UPDATE compras SET status = 'em_analise' WHERE id = ? AND tenant_id = ?",
+        (cid, get_tid())
+    )
     conn.commit()
     conn.close()
 
@@ -3267,7 +3614,8 @@ def _perc_vigente(data_str, vigencias, campo_idx=1):
 # Agrupa compras retiradas ainda não faturadas por (fornecedor, mês) e calcula valores.
 # tipo: 'fornecedor' | 'entidade' | 'admin' — determina qual coluna e percentual usar.
 # vigencias deve incluir todas as colunas: (inicio_vigencia, perc_forn, perc_ent, perc_adm).
-def _calcular_fechamento_pendente(cursor, vigencias, tipo='fornecedor'):
+# tid: tenant_id para isolamento multi-tenant — filtra compras e fornecedores do tenant.
+def _calcular_fechamento_pendente(cursor, vigencias, tipo='fornecedor', tid=None):
     # Mapeia tipo → coluna de faturamento em compras e índice do percentual em vigencias
     _col = {
         'fornecedor': ('faturamento_id',          1),
@@ -3275,6 +3623,10 @@ def _calcular_fechamento_pendente(cursor, vigencias, tipo='fornecedor'):
         'admin':      ('faturamento_admin_id',    3),
     }
     fat_col, perc_idx = _col[tipo]
+
+    # Filtro de tenant: quando tid é fornecido, restringe ao projeto do admin logado
+    tenant_filter = "AND c.tenant_id = ?" if tid else ""
+    params        = (tid,) if tid else ()
 
     cursor.execute(f"""
         SELECT c.id, c.fornecedor_id, c.valor, c.data_validacao,
@@ -3284,8 +3636,9 @@ def _calcular_fechamento_pendente(cursor, vigencias, tipo='fornecedor'):
         JOIN fornecedores f ON f.id = c.fornecedor_id
         WHERE c.status = 'retirado'
           AND (c.{fat_col} IS NULL OR c.{fat_col} = 0)
+          {tenant_filter}
         ORDER BY c.fornecedor_id, mes_ref
-    """)
+    """, params)
     rows = cursor.fetchall()
 
     grupos = {}
@@ -3334,8 +3687,11 @@ def _calcular_fechamento_pendente(cursor, vigencias, tipo='fornecedor'):
 # ===================== HELPER: FECHAMENTO ENTIDADE TOTALIZADO POR MÊS =====================
 # Mesma lógica do helper de Admin, mas usa perc_entidade (índice 2) e faturamento_entidade_id.
 # Retorna lista ordenada por mes_ref ASC com totais do mês e lista de fornecedores contribuintes.
-def _calcular_fechamento_entidade_por_mes(cursor, vigencias):
-    cursor.execute("""
+# tid: tenant_id para isolamento multi-tenant — filtra compras do projeto do admin logado.
+def _calcular_fechamento_entidade_por_mes(cursor, vigencias, tid=None):
+    tenant_filter = "AND c.tenant_id = ?" if tid else ""
+    params        = (tid,) if tid else ()
+    cursor.execute(f"""
         SELECT c.id, c.fornecedor_id, c.valor, c.data_validacao,
                SUBSTR(COALESCE(c.data_validacao, ''), 1, 7) AS mes_ref,
                f.razao_social
@@ -3343,8 +3699,9 @@ def _calcular_fechamento_entidade_por_mes(cursor, vigencias):
         JOIN fornecedores f ON f.id = c.fornecedor_id
         WHERE c.status = 'retirado'
           AND (c.faturamento_entidade_id IS NULL OR c.faturamento_entidade_id = 0)
+          {tenant_filter}
         ORDER BY mes_ref, c.fornecedor_id
-    """)
+    """, params)
     rows = cursor.fetchall()
 
     meses = {}
@@ -3407,8 +3764,11 @@ def _calcular_fechamento_entidade_por_mes(cursor, vigencias):
 # Internamente mantém a lista de fornecedores contribuintes para exibição no template.
 # Retorna lista ordenada por mes_ref ASC, cada item é um dict com:
 #   mes_ref, numero_baixa, quantidade, valor_bruto, valor_liquido, perc_display, fornecedores[]
-def _calcular_fechamento_admin_por_mes(cursor, vigencias):
-    cursor.execute("""
+def _calcular_fechamento_admin_por_mes(cursor, vigencias, tid=None):
+    # tid: tenant_id para isolamento multi-tenant — filtra compras do projeto do admin logado.
+    tenant_filter = "AND c.tenant_id = ?" if tid else ""
+    params        = (tid,) if tid else ()
+    cursor.execute(f"""
         SELECT c.id, c.fornecedor_id, c.valor, c.data_validacao,
                SUBSTR(COALESCE(c.data_validacao, ''), 1, 7) AS mes_ref,
                f.razao_social
@@ -3416,8 +3776,9 @@ def _calcular_fechamento_admin_por_mes(cursor, vigencias):
         JOIN fornecedores f ON f.id = c.fornecedor_id
         WHERE c.status = 'retirado'
           AND (c.faturamento_admin_id IS NULL OR c.faturamento_admin_id = 0)
+          {tenant_filter}
         ORDER BY mes_ref, c.fornecedor_id
-    """)
+    """, params)
     rows = cursor.fetchall()
 
     meses = {}
@@ -3512,22 +3873,22 @@ def admin_percentual_salvar():
     cursor = conn.cursor()
 
     if registro_id:
-        # Atualiza vigência existente mantendo o mesmo id
+        # Atualiza vigência existente — tenant_id garante isolamento entre tenants
         cursor.execute("""
             UPDATE percentuais_vigencia
             SET inicio_vigencia = ?,
                 perc_fornecedor = ?,
                 perc_entidade   = ?,
                 perc_admin      = ?
-            WHERE id = ?
-        """, (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin, int(registro_id)))
+            WHERE id = ? AND tenant_id = ?
+        """, (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin, int(registro_id), get_tid()))
         flash(f"Vigência atualizada com sucesso (a partir de {inicio_vigencia}).", "sucesso")
     else:
-        # Insere nova vigência
+        # Insere nova vigência vinculada ao tenant logado
         cursor.execute("""
-            INSERT INTO percentuais_vigencia (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin)
-            VALUES (?, ?, ?, ?)
-        """, (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin))
+            INSERT INTO percentuais_vigencia (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin, tenant_id)
+            VALUES (?, ?, ?, ?, ?)
+        """, (inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin, get_tid()))
         flash(f"Vigência a partir de {inicio_vigencia} cadastrada com sucesso.", "sucesso")
 
     conn.commit()
@@ -3544,7 +3905,11 @@ def admin_percentual_excluir(pid):
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM percentuais_vigencia WHERE id = ?", (pid,))
+    # tenant_id garante que somente vigências do tenant logado são excluídas
+    cursor.execute(
+        "DELETE FROM percentuais_vigencia WHERE id = ? AND tenant_id = ?",
+        (pid, get_tid())
+    )
     conn.commit()
     conn.close()
 
@@ -3574,14 +3939,16 @@ def admin_faturamento_criar():
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Busca vigências com todos os percentuais para cálculo por data
+    # Busca vigências do tenant logado — ordenadas ASC para aplicar a vigente em cada data
     cursor.execute("""
         SELECT inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin
-        FROM percentuais_vigencia ORDER BY inicio_vigencia ASC
-    """)
+        FROM percentuais_vigencia
+        WHERE tenant_id = ?
+        ORDER BY inicio_vigencia ASC
+    """, (get_tid(),))
     vigencias = cursor.fetchall()
 
-    # Busca todas as compras pendentes deste fornecedor no mês especificado
+    # Busca compras pendentes do fornecedor no mês — filtrada pelo tenant logado
     cursor.execute("""
         SELECT id, valor, data_validacao
         FROM compras
@@ -3589,7 +3956,8 @@ def admin_faturamento_criar():
           AND status = 'retirado'
           AND (faturamento_id IS NULL OR faturamento_id = 0)
           AND SUBSTR(COALESCE(data_validacao, ''), 1, 7) = ?
-    """, (int(fornecedor_id), mes_ref))
+          AND tenant_id = ?
+    """, (int(fornecedor_id), mes_ref, get_tid()))
     compras_do_mes = cursor.fetchall()
 
     if not compras_do_mes:
@@ -3618,20 +3986,20 @@ def admin_faturamento_criar():
     except ValueError:
         numero_baixa = mes_ref.replace("-", "")
 
-    # Insere o faturamento e obtém o id gerado
+    # Insere o faturamento vinculado ao tenant logado
     cursor.execute("""
         INSERT INTO faturamentos
-            (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, perc_fornecedor, valor_liquido)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, perc_fornecedor, valor_liquido, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (int(fornecedor_id), mes_ref, numero_baixa,
-          quantidade, valor_bruto, perc_usado, valor_liquido))
+          quantidade, valor_bruto, perc_usado, valor_liquido, get_tid()))
 
     # Recupera o id do faturamento recém-inserido (compatível com SQLite e PostgreSQL)
     cursor.execute("""
         SELECT id FROM faturamentos
-        WHERE fornecedor_id = ? AND mes_ref = ?
+        WHERE fornecedor_id = ? AND mes_ref = ? AND tenant_id = ?
         ORDER BY id DESC LIMIT 1
-    """, (int(fornecedor_id), mes_ref))
+    """, (int(fornecedor_id), mes_ref, get_tid()))
     fat_row      = cursor.fetchone()
     faturamento_id = fat_row[0] if fat_row else None
 
@@ -3662,23 +4030,42 @@ def admin_faturamento_criar():
 # perc_col: nome da coluna de percentual na tabela de destino
 # fat_col: coluna de faturamento em compras que será marcada
 # campo_idx: índice do percentual na tupla de vigências (2=entidade, 3=admin)
-def _criar_faturamento_tipo(fornecedor_id, mes_ref, tipo, tabela, perc_col, fat_col, campo_idx, entidade_id=None):
+# tid: tenant_id do admin logado — garante isolamento multi-tenant
+def _criar_faturamento_tipo(fornecedor_id, mes_ref, tipo, tabela, perc_col, fat_col, campo_idx, entidade_id=None, tid=None):
     conn   = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin
-        FROM percentuais_vigencia ORDER BY inicio_vigencia ASC
-    """)
+    # Busca vigências filtradas pelo tenant — necessário para percentuais corretos por projeto
+    if tid:
+        cursor.execute("""
+            SELECT inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin
+            FROM percentuais_vigencia WHERE tenant_id = ? ORDER BY inicio_vigencia ASC
+        """, (tid,))
+    else:
+        cursor.execute("""
+            SELECT inicio_vigencia, perc_fornecedor, perc_entidade, perc_admin
+            FROM percentuais_vigencia ORDER BY inicio_vigencia ASC
+        """)
     vigencias = cursor.fetchall()
 
-    cursor.execute(f"""
-        SELECT id, valor, data_validacao FROM compras
-        WHERE fornecedor_id = ?
-          AND status = 'retirado'
-          AND ({fat_col} IS NULL OR {fat_col} = 0)
-          AND SUBSTR(COALESCE(data_validacao, ''), 1, 7) = ?
-    """, (int(fornecedor_id), mes_ref))
+    # Busca compras pendentes — filtrada pelo tenant quando fornecido
+    if tid:
+        cursor.execute(f"""
+            SELECT id, valor, data_validacao FROM compras
+            WHERE fornecedor_id = ?
+              AND status = 'retirado'
+              AND ({fat_col} IS NULL OR {fat_col} = 0)
+              AND SUBSTR(COALESCE(data_validacao, ''), 1, 7) = ?
+              AND tenant_id = ?
+        """, (int(fornecedor_id), mes_ref, tid))
+    else:
+        cursor.execute(f"""
+            SELECT id, valor, data_validacao FROM compras
+            WHERE fornecedor_id = ?
+              AND status = 'retirado'
+              AND ({fat_col} IS NULL OR {fat_col} = 0)
+              AND SUBSTR(COALESCE(data_validacao, ''), 1, 7) = ?
+        """, (int(fornecedor_id), mes_ref))
     compras_do_mes = cursor.fetchall()
 
     if not compras_do_mes:
@@ -3704,26 +4091,33 @@ def _criar_faturamento_tipo(fornecedor_id, mes_ref, tipo, tabela, perc_col, fat_
     except ValueError:
         numero_baixa = mes_ref.replace("-", "")
 
-    # Inclui entidade_id no INSERT quando fornecido (faturamento de entidade favorecida)
+    # Inclui entidade_id e tenant_id no INSERT para isolamento completo
     if entidade_id:
         cursor.execute(f"""
             INSERT INTO {tabela}
-                (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, {perc_col}, valor_liquido, entidade_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, {perc_col}, valor_liquido, entidade_id, tenant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (int(fornecedor_id), mes_ref, numero_baixa,
-              quantidade, valor_bruto, perc_usado, valor_liquido, int(entidade_id)))
+              quantidade, valor_bruto, perc_usado, valor_liquido, int(entidade_id), tid))
     else:
         cursor.execute(f"""
             INSERT INTO {tabela}
-                (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, {perc_col}, valor_liquido)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (fornecedor_id, mes_ref, numero_baixa, quantidade, valor_bruto, {perc_col}, valor_liquido, tenant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (int(fornecedor_id), mes_ref, numero_baixa,
-              quantidade, valor_bruto, perc_usado, valor_liquido))
+              quantidade, valor_bruto, perc_usado, valor_liquido, tid))
 
-    cursor.execute(f"""
-        SELECT id FROM {tabela} WHERE fornecedor_id = ? AND mes_ref = ?
-        ORDER BY id DESC LIMIT 1
-    """, (int(fornecedor_id), mes_ref))
+    # Recupera id do faturamento recém-inserido — filtra por tenant para garantir o correto
+    if tid:
+        cursor.execute(f"""
+            SELECT id FROM {tabela} WHERE fornecedor_id = ? AND mes_ref = ? AND tenant_id = ?
+            ORDER BY id DESC LIMIT 1
+        """, (int(fornecedor_id), mes_ref, tid))
+    else:
+        cursor.execute(f"""
+            SELECT id FROM {tabela} WHERE fornecedor_id = ? AND mes_ref = ?
+            ORDER BY id DESC LIMIT 1
+        """, (int(fornecedor_id), mes_ref))
     fat_row = cursor.fetchone()
     fat_id  = fat_row[0] if fat_row else None
 
@@ -3763,7 +4157,8 @@ def admin_faturamento_entidade_criar():
         perc_col    = 'perc_entidade',
         fat_col     = 'faturamento_entidade_id',
         campo_idx   = 2,
-        entidade_id = entidade_id
+        entidade_id = entidade_id,
+        tid         = get_tid(),  # isolamento multi-tenant
     )
     flash(f"Faturamento Entidade gerado — {msg}" if ok else msg, "sucesso" if ok else "erro")
     return redirect("/admin/painel?tipo=fechamento_entidade")
@@ -3789,7 +4184,7 @@ def admin_faturamento_entidade_criar_mes():
         flash("Selecione a Entidade Favorecida antes de faturar.", "erro")
         return redirect("/admin/painel?tipo=fechamento_entidade")
 
-    # Busca todos os fornecedores distintos com compras pendentes no mês
+    # Busca todos os fornecedores distintos com compras pendentes no mês — filtrado por tenant
     conn   = get_db()
     cursor = conn.cursor()
     cursor.execute("""
@@ -3797,7 +4192,8 @@ def admin_faturamento_entidade_criar_mes():
         WHERE status = 'retirado'
           AND (faturamento_entidade_id IS NULL OR faturamento_entidade_id = 0)
           AND SUBSTR(COALESCE(data_validacao, ''), 1, 7) = ?
-    """, (mes_ref,))
+          AND tenant_id = ?
+    """, (mes_ref, get_tid()))
     fornecedores_ids = [row[0] for row in cursor.fetchall()]
     conn.close()
 
@@ -3817,7 +4213,8 @@ def admin_faturamento_entidade_criar_mes():
             perc_col    = 'perc_entidade',
             fat_col     = 'faturamento_entidade_id',
             campo_idx   = 2,
-            entidade_id = entidade_id
+            entidade_id = entidade_id,
+            tid         = get_tid(),  # isolamento multi-tenant
         )
         if ok:
             partes = msg.split("·")
@@ -3859,7 +4256,7 @@ def admin_faturamento_admin_criar_mes():
         flash("Mês inválido para faturamento.", "erro")
         return redirect("/admin/painel?tipo=fechamento_admin")
 
-    # Busca todos os fornecedores distintos com compras pendentes no mês
+    # Busca todos os fornecedores distintos com compras pendentes no mês — filtrado por tenant
     conn   = get_db()
     cursor = conn.cursor()
     cursor.execute("""
@@ -3867,7 +4264,8 @@ def admin_faturamento_admin_criar_mes():
         WHERE status = 'retirado'
           AND (faturamento_admin_id IS NULL OR faturamento_admin_id = 0)
           AND SUBSTR(COALESCE(data_validacao, ''), 1, 7) = ?
-    """, (mes_ref,))
+          AND tenant_id = ?
+    """, (mes_ref, get_tid()))
     fornecedores_ids = [row[0] for row in cursor.fetchall()]
     conn.close()
 
@@ -3886,7 +4284,8 @@ def admin_faturamento_admin_criar_mes():
             tabela    = 'faturamentos_admin',
             perc_col  = 'perc_admin',
             fat_col   = 'faturamento_admin_id',
-            campo_idx = 3
+            campo_idx = 3,
+            tid       = get_tid(),  # isolamento multi-tenant
         )
         if ok:
             # Extrai quantidade e valor do msg: "nº Baixa MMAAAA · N muda(s) · R$ X.XX"
@@ -4011,19 +4410,20 @@ def plantio_concluir():
     from datetime import date
     data_hoje = date.today().isoformat()
 
-    # Insere o registro definitivo do plantio em plantas_go
+    # Insere o plantio definitivo — tenant_id vincula ao projeto do usuário
     cursor.execute("""
         INSERT INTO plantas_go (
             data_plantio, responsavel_id, especie, municipio, bairro,
             latitude, longitude,
             foto_plantio, foto_1, acompanhamento_1,
-            fornecedor_id, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            fornecedor_id, status, tenant_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         data_hoje, session["usuario_id"], especie, municipio, bairro,
         latitude, longitude,
         foto_plantio, foto_1, data_hoje if foto_1 else None,
-        fornecedor_id, "em_analise"
+        fornecedor_id, "em_analise",
+        getattr(g, "tenant_id", None) or 1
     ))
 
     # Recupera o id do plantio recém-criado para vincular à compra
