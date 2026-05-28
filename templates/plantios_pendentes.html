@@ -74,7 +74,7 @@
                         <!-- Nome da espécie e dados básicos -->
                         <h2 class="text-base font-bold text-green-800">🌳 {{ p[2] }}</h2>
                         <p class="text-xs text-gray-400 mt-0.5">
-                            📅 {{ p[1] }} &nbsp;·&nbsp; 🏪 {{ p[8] }}
+                            📅 {{ p[1] | data_br }} &nbsp;·&nbsp; 🏪 {{ p[8] }}
                         </p>
                     </div>
 
@@ -101,7 +101,7 @@
                 <p class="text-sm text-gray-500">📍 {{ p[3] }}, {{ p[4] }}</p>
 
                 <!-- ID do registro e data de criação -->
-                <p class="text-xs text-gray-300 mt-1">#{{ p[0] }} · Registrado em {{ p[7] }}</p>
+                <p class="text-xs text-gray-300 mt-1">#{{ p[0] }} · Registrado em {{ p[7] | data_br }}</p>
 
                 <!-- Justificativa de reprovação — exibida apenas quando status = 'reprovado' -->
                 {% if p[5] == 'reprovado' and p[6] %}

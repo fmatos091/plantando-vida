@@ -89,6 +89,31 @@ def upload_cloudinary(arquivo, pasta="plantando-vida"):
     return resultado["secure_url"]
 
 from app import app
+from datetime import datetime, timezone, timedelta
+
+# Fuso horário do Brasil (UTC-3) — usado para datas locais e exibição de timestamps
+TZ_BRASIL = timezone(timedelta(hours=-3))
+
+# Filtro Jinja2: converte qualquer valor de data/datetime para DD/MM/YYYY no fuso Brasil.
+# Aceita strings ISO (YYYY-MM-DD, com ou sem hora e timezone) e objetos datetime/date.
+@app.template_filter('data_br')
+def data_br_filter(valor):
+    if not valor:
+        return ''
+    s = str(valor).strip()
+    try:
+        # Timestamp com timezone (ex: "2026-05-28 02:07:30.639063+00:00")
+        if '+' in s[10:] or s.endswith('Z'):
+            dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
+            return dt.astimezone(TZ_BRASIL).strftime('%d/%m/%Y')
+        # Datetime sem timezone (ex: "2026-05-28 02:07:30")
+        if ' ' in s or 'T' in s:
+            dt = datetime.fromisoformat(s)
+            return dt.strftime('%d/%m/%Y')
+        # Data pura (ex: "2026-05-28")
+        return datetime.strptime(s[:10], '%Y-%m-%d').strftime('%d/%m/%Y')
+    except Exception:
+        return s
 
 
 # ===================== HELPER: ENVIAR EMAIL (Brevo SMTP) =====================
@@ -608,8 +633,10 @@ def dashboard():
     )
     total_aprovados = cursor.fetchone()[0]
 
-    # Conta fornecedores ativos — se zero, o botão "Adquirir em Local Credenciado" fica desabilitado.
-    cursor.execute("SELECT COUNT(*) FROM fornecedores WHERE ativo = 1")
+    # Conta fornecedores ativos do tenant — se zero, o botão "Adquirir em Local Credenciado" é ocultado.
+    # Filtra por tenant_id para não exibir fornecedores de outros projetos.
+    tid_pub = getattr(g, "tenant_id", None) or 1
+    cursor.execute("SELECT COUNT(*) FROM fornecedores WHERE ativo = 1 AND tenant_id = ?", (tid_pub,))
     fornecedores_ativos = cursor.fetchone()[0]
 
     # Busca entidades educacionais ativas para exibir no card "Plantio Voluntário".
@@ -891,10 +918,17 @@ def plantio_credenciado():
         flash("Plantio registrado com sucesso! Aguardando aprovação.", "sucesso")
         return redirect("/dashboard")
 
-    # GET: busca fornecedores ativos para exibição no catálogo
+    # GET: busca fornecedores ativos do tenant para exibição no catálogo.
+    # Filtra por tenant_id para exibir somente fornecedores vinculados a este projeto.
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, razao_social, cnpj, cidade, uf, tipo_planta, whatsapp, maps_link FROM fornecedores WHERE ativo = 1 ORDER BY uf, cidade")
+    tid_pub = getattr(g, "tenant_id", None) or 1
+    cursor.execute("""
+        SELECT id, razao_social, cnpj, cidade, uf, tipo_planta, whatsapp, maps_link
+        FROM fornecedores
+        WHERE ativo = 1 AND tenant_id = ?
+        ORDER BY uf, cidade
+    """, (tid_pub,))
     fornecedores = cursor.fetchall()
     conn.close()
 
@@ -4669,8 +4703,8 @@ def plantio_concluir():
             if ext in EXTENSOES_PERMITIDAS:
                 foto_1 = upload_cloudinary(arq, pasta="plantando-vida/acompanhamentos")
 
-    from datetime import date
-    data_hoje = date.today().isoformat()
+    # Usa data no fuso Brasil (UTC-3) — evita registrar amanhã quando o servidor roda em UTC.
+    data_hoje = datetime.now(TZ_BRASIL).strftime("%Y-%m-%d")
 
     # Insere o plantio definitivo — tenant_id vincula ao projeto do usuário
     cursor.execute("""
