@@ -1133,8 +1133,21 @@
                         <!-- Valor com R$ 50,00 pré-preenchido -->
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1">Valor (R$)</label>
-                            <input type="number" name="valor" value="50.00" step="0.01" min="0"
+                            <input type="number" name="valor" id="valor-cadastro" value="50.00" step="0.01" min="0"
+                                onchange="toggleEntidadeEdu('valor-cadastro','entidade-cadastro')"
                                 class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- Entidade Educacional: visível somente quando valor = 0 (doação) -->
+                        <div id="entidade-cadastro" class="hidden">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Entidade Educacional (Doação)</label>
+                            <select name="entidade_educacional_id"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
+                                <option value="">— Selecione a Entidade —</option>
+                                {% for ent in entidades_edu_admin %}
+                                <option value="{{ ent[0] }}">{{ ent[1] }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
 
                         <button type="submit"
@@ -1199,8 +1212,22 @@
                                     {{ 'bg-orange-100 text-orange-700' if e[2] == 'Frutífera' else 'bg-green-100 text-green-700' }}">
                                     {{ '🍎 Frutífera' if e[2] == 'Frutífera' else '🌳 Nativa' }}
                                 </span>
+                                <!-- Exibe entidade vinculada quando for uma doação -->
+                                {% if e[3] == 0 and e[4] %}
+                                    {% for ent in entidades_edu_admin if ent[0] == e[4] %}
+                                    <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                        🏫 {{ ent[1] }}
+                                    </span>
+                                    {% endfor %}
+                                {% endif %}
                             </div>
-                            <span class="text-sm font-semibold text-gray-700">R$ {{ "%.2f"|format(e[3]) }}</span>
+                            <span class="text-sm font-semibold text-gray-700">
+                                {% if e[3] == 0 %}
+                                    <span class="text-emerald-600 font-bold">🎁 Gratuito</span>
+                                {% else %}
+                                    R$ {{ "%.2f"|format(e[3]) }}
+                                {% endif %}
+                            </span>
                             <div class="flex gap-2">
                                 <button type="button" onclick="toggleEditarEspecie({{ e[0] }})"
                                     class="bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
@@ -1223,6 +1250,8 @@
                                 <input type="text" name="nome" value="{{ e[1] }}" required
                                     class="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                                 <input type="number" name="valor" value="{{ e[3] }}" step="0.01" min="0"
+                                    id="valor-edit-{{ e[0] }}"
+                                    onchange="toggleEntidadeEdu('valor-edit-{{ e[0] }}','entidade-edit-{{ e[0] }}')"
                                     class="w-28 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
                             <div class="flex gap-4">
@@ -1234,6 +1263,17 @@
                                     <input type="radio" name="tipo" value="Nativa" class="accent-green-600" {{ 'checked'
                                         if e[2]=='Nativa' }} /> 🌳 Nativa
                                 </label>
+                            </div>
+                            <!-- Entidade Educacional: visível quando valor = 0 -->
+                            <div id="entidade-edit-{{ e[0] }}" class="{{ '' if e[3] == 0 else 'hidden' }}">
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Entidade Educacional (Doação)</label>
+                                <select name="entidade_educacional_id"
+                                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                    <option value="">— Nenhuma —</option>
+                                    {% for ent in entidades_edu_admin %}
+                                    <option value="{{ ent[0] }}" {{ 'selected' if ent[0] == e[4] }}>{{ ent[1] }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                             <div class="flex gap-2">
                                 <button type="submit"
@@ -3383,6 +3423,18 @@
         function toggleEditarEspecie(id) {
             const form = document.getElementById('editar-esp-' + id);
             if (form) form.classList.toggle('hidden');
+        }
+
+        // Exibe o dropdown de Entidade Educacional somente quando valor = 0 (doação)
+        function toggleEntidadeEdu(valorId, entidadeId) {
+            const valor = parseFloat(document.getElementById(valorId).value);
+            const div   = document.getElementById(entidadeId);
+            if (!div) return;
+            if (valor === 0) {
+                div.classList.remove('hidden');
+            } else {
+                div.classList.add('hidden');
+            }
         }
 
         // Filtra os cards de espécie pelo tipo selecionado no dropdown.

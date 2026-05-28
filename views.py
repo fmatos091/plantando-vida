@@ -797,10 +797,14 @@ def plantio_escolar_doacoes(entidade_id):
         )
         return redirect("/plantio/escolar")
 
-    # Busca espécies com valor = 0,00 (doações gratuitas) do tenant
+    # Busca espécies vinculadas a esta entidade educacional específica com valor = 0 (doação)
     cursor.execute(
-        "SELECT id, nome, tipo, valor FROM especies_plantas WHERE valor = 0 AND tenant_id = ? ORDER BY tipo, nome",
-        (tid,)
+        """SELECT id, nome, tipo, valor FROM especies_plantas
+           WHERE valor = 0
+             AND entidade_educacional_id = ?
+             AND tenant_id = ?
+           ORDER BY tipo, nome""",
+        (entidade_id, tid)
     )
     especies = cursor.fetchall()
     conn.close()
@@ -2265,11 +2269,19 @@ def admin_painel():
     }
 
     # ---- Consulta Espécies de Plantas do tenant ----
+    # e[4] = entidade_educacional_id (pode ser NULL para espécies pagas)
     cursor.execute(
-        "SELECT id, nome, tipo, valor FROM especies_plantas WHERE tenant_id = ? ORDER BY nome",
+        "SELECT id, nome, tipo, valor, entidade_educacional_id FROM especies_plantas WHERE tenant_id = ? ORDER BY nome",
         (tid,)
     )
     especies = cursor.fetchall()
+
+    # ---- Entidades Educacionais ativas do tenant (para dropdown no form de espécies) ----
+    cursor.execute(
+        "SELECT id, razao_social FROM entidades_educacionais WHERE ativa = 1 AND tenant_id = ? ORDER BY razao_social",
+        (tid,)
+    )
+    entidades_edu_admin = cursor.fetchall()
 
     # ---- Consulta Dados Bancários do tenant (registro único por tenant) ----
     cursor.execute(
@@ -2410,6 +2422,7 @@ def admin_painel():
                            entidades=entidades,
                            entidades_ativas=entidades_ativas,
                            entidades_edu=entidades_edu,
+                           entidades_edu_admin=entidades_edu_admin,
                            membros=membros,
                            percentuais=percentuais,
                            fechamento_pendente=fechamento_pendente,
@@ -2709,6 +2722,10 @@ def admin_cadastrar_especie():
     nome      = request.form.get("nome", "").strip()
     tipo      = request.form.get("tipo", "Nativa")
     valor_str = request.form.get("valor", "50").replace(",", ".")
+    # entidade_educacional_id: obrigatório quando valor=0 (doação escolar)
+    ent_edu_id = request.form.get("entidade_educacional_id") or None
+    if ent_edu_id:
+        ent_edu_id = int(ent_edu_id)
 
     if not nome:
         flash("Informe o nome da planta.", "erro")
@@ -2721,10 +2738,10 @@ def admin_cadastrar_especie():
 
     conn   = get_db()
     cursor = conn.cursor()
-    # Inclui tenant_id para vincular a espécie ao projeto do admin logado
+    # Inclui tenant_id e entidade_educacional_id (nullable para espécies pagas)
     cursor.execute(
-        "INSERT INTO especies_plantas (nome, tipo, valor, tenant_id) VALUES (?, ?, ?, ?)",
-        (nome, tipo, valor, get_tid())
+        "INSERT INTO especies_plantas (nome, tipo, valor, entidade_educacional_id, tenant_id) VALUES (?, ?, ?, ?, ?)",
+        (nome, tipo, valor, ent_edu_id, get_tid())
     )
     conn.commit()
     conn.close()
@@ -2742,6 +2759,10 @@ def admin_editar_especie(eid):
     nome      = request.form.get("nome", "").strip()
     tipo      = request.form.get("tipo", "Nativa")
     valor_str = request.form.get("valor", "50").replace(",", ".")
+    # entidade_educacional_id: vínculo da doação com a entidade educacional
+    ent_edu_id = request.form.get("entidade_educacional_id") or None
+    if ent_edu_id:
+        ent_edu_id = int(ent_edu_id)
 
     try:
         valor = float(valor_str)
@@ -2752,8 +2773,8 @@ def admin_editar_especie(eid):
     cursor = conn.cursor()
     # Filtro tenant_id garante que somente espécies do tenant logado são editadas
     cursor.execute(
-        "UPDATE especies_plantas SET nome = ?, tipo = ?, valor = ? WHERE id = ? AND tenant_id = ?",
-        (nome, tipo, valor, eid, get_tid())
+        "UPDATE especies_plantas SET nome = ?, tipo = ?, valor = ?, entidade_educacional_id = ? WHERE id = ? AND tenant_id = ?",
+        (nome, tipo, valor, ent_edu_id, eid, get_tid())
     )
     conn.commit()
     conn.close()

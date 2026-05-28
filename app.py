@@ -411,7 +411,8 @@ def init_db():
         ],
         # Tabelas que só recebem tenant_id (sem outras colunas novas nesta migração)
         "entidades_educacionais":  ["tenant_id INTEGER DEFAULT 1"],
-        "especies_plantas":        ["tenant_id INTEGER DEFAULT 1"],
+        # entidade_educacional_id: quando valor=0 (doação), vincula a espécie à entidade educacional
+        "especies_plantas":        ["tenant_id INTEGER DEFAULT 1", "entidade_educacional_id INTEGER"],
         "dados_bancarios":         ["tenant_id INTEGER DEFAULT 1"],
         "dados_bancarios_entidade":["tenant_id INTEGER DEFAULT 1"],
         "faturamentos":            ["tenant_id INTEGER DEFAULT 1"],
