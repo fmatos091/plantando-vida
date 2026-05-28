@@ -772,21 +772,20 @@ def plantio_escolar_doacoes(entidade_id):
         flash("Entidade educacional não encontrada ou inativa.", "erro")
         return redirect("/plantio/escolar")
 
-    # Busca o CPF do usuário logado e converte para a máscara xxx.xxx.xxx-xx,
-    # que é o formato salvo em membros.cpf. Isso evita divergência de formato
-    # (ex: usuario salvo sem máscara, membro salvo com máscara).
+    # Normaliza o CPF do usuário para somente dígitos.
+    # membros.cpf pode estar salvo com ou sem máscara — REPLACE() no SQL
+    # normaliza o campo do banco antes de comparar, tornando a comparação
+    # robusta independente do formato armazenado.
     cursor.execute("SELECT cpf FROM usuarios WHERE id = ?", (session["usuario_id"],))
     u = cursor.fetchone()
-    _cpf_digits = re.sub(r"\D", "", u[0] or "") if u and u[0] else ""
-    if len(_cpf_digits) == 11:
-        # Formata: 08463241999 → 084.632.419-99
-        cpf_usuario = f"{_cpf_digits[0:3]}.{_cpf_digits[3:6]}.{_cpf_digits[6:9]}-{_cpf_digits[9:11]}"
-    else:
-        cpf_usuario = _cpf_digits
+    cpf_usuario = re.sub(r"\D", "", u[0] or "") if u and u[0] else ""
 
-    # Compara CPF já formatado com o campo cpf de membros (armazenado com máscara)
+    # REPLACE() remove pontos, traços e espaços de membros.cpf antes de comparar
     cursor.execute(
-        "SELECT id FROM membros WHERE cpf = ? AND entidade_educacional_id = ? AND tenant_id = ?",
+        """SELECT id FROM membros
+           WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?
+             AND entidade_educacional_id = ?
+             AND tenant_id = ?""",
         (cpf_usuario, entidade_id, tid)
     )
     if not cursor.fetchone():
