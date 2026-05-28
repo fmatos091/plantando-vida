@@ -635,11 +635,33 @@
         </div>
 
         {% else %}
-        <!-- Mensagem quando nenhum usuário é encontrado com o filtro -->
+        <!-- Nenhum usuário encontrado: estado vazio com opção de migração legada -->
         <div class="bg-white rounded-xl shadow p-10 text-center text-gray-400">
             <div class="text-4xl mb-3">👤</div>
             <p>Nenhum cadastro encontrado{% if busca %} para "{{ busca }}"{% endif %}.</p>
         </div>
+
+        <!-- Botão de migração: aparece somente quando não há busca ativa e a lista está vazia.
+             Permite reatribuir usuários registrados com tenant_id=1 (padrão legado) ao tenant atual.
+             Necessário após a implantação do sistema multi-tenant em produção existente. -->
+        {% if not busca %}
+        <div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-5 text-center">
+            <p class="text-sm text-amber-800 font-semibold mb-1">⚠️ Usuários legados detectados?</p>
+            <p class="text-xs text-amber-700 mb-4">
+                Se você sabe que existem usuários cadastrados mas eles não aparecem aqui,
+                pode ser que estejam vinculados ao tenant padrão (legado).
+                Clique abaixo para migrá-los para este projeto.
+            </p>
+            <form method="POST" action="/admin/migrar-usuarios-padrao"
+                  onsubmit="return confirm('Migrar todos os usuários do tenant padrão para este projeto?')">
+                <button type="submit"
+                    class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold
+                           py-2 px-5 rounded-xl transition">
+                    🔄 Migrar Usuários Legados
+                </button>
+            </form>
+        </div>
+        {% endif %}
         {% endif %}
 
         <!-- ===================== ABA PLANTIOS =====================

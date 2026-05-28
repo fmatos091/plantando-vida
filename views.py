@@ -1216,6 +1216,41 @@ def admin_usuario_excluir(usuario_id):
     return redirect("/admin/painel?tipo=usuarios")
 
 
+# ===================== ROTA ADMIN: MIGRAR USUÁRIOS DO TENANT PADRÃO =====================
+# Move usuários com tenant_id=1 (padrão legado) para o tenant do admin logado.
+# Necessário quando o sistema foi implantado sem tenant_id correto nos registros antigos.
+# Operação idempotente: executar novamente não afeta usuários já no tenant correto.
+@app.route("/admin/migrar-usuarios-padrao", methods=["POST"])
+def admin_migrar_usuarios_padrao():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    tid = get_tid()
+    if not tid or tid == 1:
+        flash("Operação não permitida para o tenant padrão.", "erro")
+        return redirect("/admin/painel?tipo=usuarios")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Conta usuários elegíveis (tenant_id=1 = registros antigos sem tenant definido)
+    cursor.execute("SELECT COUNT(*) FROM usuarios WHERE tenant_id = 1")
+    total = cursor.fetchone()[0]
+
+    if total == 0:
+        conn.close()
+        flash("Nenhum usuário legado encontrado para migrar.", "info")
+        return redirect("/admin/painel?tipo=usuarios")
+
+    # Reatribui todos os usuários do tenant padrão (id=1) ao tenant atual
+    cursor.execute("UPDATE usuarios SET tenant_id = ? WHERE tenant_id = 1", (tid,))
+    conn.commit()
+    conn.close()
+
+    flash(f"{total} usuário(s) migrado(s) com sucesso para este projeto.", "sucesso")
+    return redirect("/admin/painel?tipo=usuarios")
+
+
 # ===================== ROTA ADMIN: APROVAR PLANTIO =====================
 # Altera o status do plantio para 'aprovado' e envia email de notificação ao usuário.
 # Acesso restrito ao administrador (session["admin"]).
