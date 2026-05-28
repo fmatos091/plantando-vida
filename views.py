@@ -545,21 +545,6 @@ def login():
             session["usuario_id"]   = usuario[0]
             session["usuario_nome"] = usuario[1]
 
-            # ── Verifica acesso ao Plantio Escolar ──
-            # O CPF do usuário é comparado (somente dígitos) com a tabela membros.
-            # tenant_id garante que a verificação é feita dentro do projeto correto.
-            # session["acesso_escolar"] = True libera a rota /plantio/escolar.
-            tid_login = getattr(g, "tenant_id", None) or 1
-            conn2   = get_db()
-            cur2    = conn2.cursor()
-            cur2.execute(
-                "SELECT id FROM membros WHERE cpf = ? AND tenant_id = ?",
-                (cpf, tid_login)
-            )
-            membro = cur2.fetchone()
-            conn2.close()
-            session["acesso_escolar"] = bool(membro)
-
             # Redireciona para aceite de termos a cada login (LGPD)
             return redirect("/termos")
 
@@ -679,26 +664,20 @@ def plantio_escolar():
     if "usuario_id" not in session:
         return redirect("/login")
 
-    # ── Controle de acesso: verifica se o usuário é membro de alguma entidade educacional ──
-    # session["acesso_escolar"] é definido no momento do login ao conferir o CPF na tabela membros.
-    # Se False (CPF não cadastrado) → bloqueia o acesso com mensagem explicativa.
-    if not session.get("acesso_escolar"):
-        flash(
-            "Seu CPF não está cadastrado na Entidade Educacional, "
-            "volte mais tarde. Obrigado!",
-            "erro"
-        )
-        return redirect("/dashboard")
+    # Tenant público detectado em before_request
+    tid = getattr(g, "tenant_id", None) or 1
 
-    # Busca todas as entidades educacionais ativas para exibir como cards de seleção.
+    # Busca todas as entidades educacionais ativas do tenant para seleção.
+    # A verificação de CPF acontece apenas ao selecionar uma entidade específica
+    # (rota /plantio/escolar/<id>/doacoes), não aqui.
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT id, razao_social, cnpj, whatsapp
         FROM entidades_educacionais
-        WHERE ativa = 1
+        WHERE ativa = 1 AND tenant_id = ?
         ORDER BY razao_social
-    """)
+    """, (tid,))
     entidades = cursor.fetchall()
     conn.close()
 
@@ -706,21 +685,24 @@ def plantio_escolar():
 
 
 # ===================== ROTA DOAÇÕES DE PLANTAS — PLANTIO ESCOLAR =====================
-# Exibe o catálogo de espécies disponíveis vinculado a uma entidade educacional específica.
-# GET: valida a entidade, busca espécies cadastradas e renderiza a página de seleção.
-# O usuário adiciona espécies ao carrinho e segue o fluxo normal de pagamento.
+# Exibe espécies com valor = 0,00 (doações) para a entidade educacional selecionada.
+# Verifica se o CPF do usuário logado está vinculado como membro dessa entidade.
+# Caso não esteja, exibe mensagem e redireciona para a seleção de entidades.
 @app.route("/plantio/escolar/<int:entidade_id>/doacoes")
 def plantio_escolar_doacoes(entidade_id):
     if "usuario_id" not in session:
         return redirect("/login")
 
+    # Tenant público detectado em before_request
+    tid = getattr(g, "tenant_id", None) or 1
+
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Valida se a entidade existe e está ativa
+    # Valida se a entidade existe, está ativa e pertence ao tenant
     cursor.execute(
-        "SELECT id, razao_social, cnpj, whatsapp FROM entidades_educacionais WHERE id = ? AND ativa = 1",
-        (entidade_id,)
+        "SELECT id, razao_social, cnpj, whatsapp FROM entidades_educacionais WHERE id = ? AND ativa = 1 AND tenant_id = ?",
+        (entidade_id, tid)
     )
     entidade = cursor.fetchone()
     if not entidade:
@@ -728,8 +710,31 @@ def plantio_escolar_doacoes(entidade_id):
         flash("Entidade educacional não encontrada ou inativa.", "erro")
         return redirect("/plantio/escolar")
 
-    # Busca todas as espécies cadastradas para o catálogo de doações
-    cursor.execute("SELECT id, nome, tipo, valor FROM especies_plantas ORDER BY tipo, nome")
+    # Busca o CPF do usuário logado (normalizado para somente dígitos)
+    cursor.execute("SELECT cpf FROM usuarios WHERE id = ?", (session["usuario_id"],))
+    u = cursor.fetchone()
+    cpf_usuario = re.sub(r"\D", "", u[0] or "") if u and u[0] else ""
+
+    # Verifica se o CPF está vinculado como membro desta entidade específica.
+    # A FK entidade_educacional_id + tenant_id garante isolamento correto.
+    cursor.execute(
+        "SELECT id FROM membros WHERE cpf = ? AND entidade_educacional_id = ? AND tenant_id = ?",
+        (cpf_usuario, entidade_id, tid)
+    )
+    if not cursor.fetchone():
+        conn.close()
+        flash(
+            "Seu CPF não está vinculado a Entidade Educacional, "
+            "volte mais tarde. Obrigado!",
+            "erro"
+        )
+        return redirect("/plantio/escolar")
+
+    # Busca espécies com valor = 0,00 (doações gratuitas) do tenant
+    cursor.execute(
+        "SELECT id, nome, tipo, valor FROM especies_plantas WHERE valor = 0 AND tenant_id = ? ORDER BY tipo, nome",
+        (tid,)
+    )
     especies = cursor.fetchall()
     conn.close()
 

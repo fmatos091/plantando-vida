@@ -71,11 +71,16 @@
     <!-- ===================== CABEÇALHO DA PÁGINA ===================== -->
     <div class="max-w-2xl mx-auto px-4 mt-6 mb-2 text-center">
         <div class="text-4xl mb-2">🌱</div>
-        <h1 class="text-xl font-bold text-green-800">Selecione as Mudas recebidas via doação</h1>
+        <h1 class="text-xl font-bold text-green-800">Mudas para Doação</h1>
         <p class="text-sm text-gray-500 mt-1">
-            Doação destinada à
+            Vinculadas à
             <strong class="text-emerald-700">{{ entidade[1] }}</strong>
         </p>
+        <!-- Badge de doação gratuita -->
+        <span class="inline-block mt-2 bg-emerald-100 text-emerald-700 text-xs font-bold
+                     px-3 py-1 rounded-full border border-emerald-300">
+            🎁 Aquisição Gratuita — Doação
+        </span>
     </div>
 
     <!-- ===================== MENSAGENS DE FEEDBACK ===================== -->
@@ -177,10 +182,12 @@
                     <p class="text-xs text-gray-400 mt-0.5">{{ esp[2] }}</p>
                 </div>
 
-                <!-- Valor e botão Adicionar -->
+                <!-- Badge gratuito e botão Adicionar -->
                 <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
-                    <span class="text-sm font-bold text-green-700">
-                        R$ {{ "%.2f"|format(esp[3]) }}
+                    <!-- Todas as espécies nesta tela têm valor = 0 (doação) -->
+                    <span class="text-xs font-bold text-emerald-600 bg-emerald-50
+                                 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        🎁 Gratuito
                     </span>
                     <button type="button"
                             onclick="adicionarAoCarrinho('{{ esp[1] | replace("'", "\\'") }}', '{{ esp[2] }}', {{ esp[3] }})"
@@ -206,14 +213,15 @@
     <!-- fim do catálogo -->
 
     {% else %}
-    <!-- Estado vazio: nenhuma espécie cadastrada no sistema -->
+    <!-- Estado vazio: nenhuma espécie com valor = 0 cadastrada para doação -->
     <div class="max-w-2xl mx-auto px-4 text-center py-16">
         <div class="text-5xl mb-4">🌿</div>
-        <p class="text-gray-500 text-sm">Nenhuma espécie cadastrada pelo administrador.</p>
+        <p class="text-gray-600 font-semibold text-sm">Nenhuma muda disponível para doação no momento.</p>
+        <p class="text-gray-400 text-xs mt-1">O administrador ainda não cadastrou espécies com valor R$ 0,00.</p>
         <a href="/plantio/escolar"
            class="inline-block mt-6 bg-green-600 hover:bg-green-700 text-white
                   font-bold px-6 py-2 rounded-xl transition shadow text-sm">
-            ← Voltar
+            ← Voltar às Entidades
         </a>
     </div>
     {% endif %}

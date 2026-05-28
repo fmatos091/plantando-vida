@@ -42,6 +42,25 @@
     <!-- ===================== CONTEÚDO PRINCIPAL ===================== -->
     <main class="max-w-2xl mx-auto mt-10 px-4 pb-16">
 
+        <!-- ===================== MENSAGENS DE FEEDBACK =====================
+             Exibidas quando o CPF do usuário não está vinculado à entidade selecionada.
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                {% if category == "erro" %}
+                <div class="bg-red-100 border border-red-300 text-red-700 text-sm
+                            px-4 py-3 rounded-xl mb-6 text-center">
+                    ⚠️ {{ message }}
+                </div>
+                {% elif category == "sucesso" %}
+                <div class="bg-green-100 border border-green-300 text-green-700 text-sm
+                            px-4 py-3 rounded-xl mb-6 text-center">
+                    ✅ {{ message }}
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+
         <!-- Cabeçalho da página -->
         <div class="mb-8 flex flex-col items-center text-center">
             <div class="text-5xl mb-3">🏫</div>
