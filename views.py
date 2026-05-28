@@ -653,6 +653,68 @@ def salvar_foto(campo_arquivo):
     return upload_cloudinary(arquivo, pasta="plantando-vida/plantios")
 
 
+# ===================== ROTA DE DIAGNÓSTICO TEMPORÁRIA =====================
+# Exibe estado real do banco para depuração do fluxo Plantio Escolar.
+# REMOVER após resolver o problema de CPF/tenant.
+@app.route("/debug/plantio-escolar")
+def debug_plantio_escolar():
+    # Só funciona se logado como usuário regular
+    if "usuario_id" not in session:
+        return jsonify({"erro": "nao autenticado"}), 401
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Estado do usuário logado
+    cursor.execute(
+        "SELECT id, nome, email, cpf, tenant_id FROM usuarios WHERE id = ?",
+        (session["usuario_id"],)
+    )
+    u = cursor.fetchone()
+
+    # Todos os tenants
+    cursor.execute("SELECT id, nome, slug, ativo FROM tenants")
+    tenants = cursor.fetchall()
+
+    # Todos os membros
+    cursor.execute("SELECT id, nome, cpf, entidade_educacional_id, tenant_id FROM membros")
+    membros = cursor.fetchall()
+
+    # Todas as entidades educacionais
+    cursor.execute("SELECT id, razao_social, ativa, tenant_id FROM entidades_educacionais")
+    entidades = cursor.fetchall()
+
+    # Todos os usuários
+    cursor.execute("SELECT id, nome, cpf, tenant_id FROM usuarios")
+    todos_usuarios = cursor.fetchall()
+
+    conn.close()
+
+    # CPF formatado que será usado na comparação
+    _cpf_digits = re.sub(r"\D", "", u[4] or "") if u and u[4] else ""
+    cpf_formatado = ""
+    if len(_cpf_digits) == 11:
+        cpf_formatado = f"{_cpf_digits[0:3]}.{_cpf_digits[3:6]}.{_cpf_digits[6:9]}-{_cpf_digits[9:11]}"
+
+    return jsonify({
+        "session": {
+            "usuario_id": session.get("usuario_id"),
+            "usuario_nome": session.get("usuario_nome"),
+            "tenant_id_admin": session.get("tenant_id"),
+        },
+        "g_tenant_id": getattr(g, "tenant_id", None),
+        "usuario_logado": {
+            "id": u[0], "nome": u[1], "email": u[2],
+            "cpf_raw": u[3], "tenant_id": u[4]
+        } if u else None,
+        "cpf_para_comparacao": cpf_formatado,
+        "tenants": [{"id": t[0], "nome": t[1], "slug": t[2], "ativo": t[3]} for t in tenants],
+        "membros": [{"id": m[0], "nome": m[1], "cpf": m[2], "entidade_id": m[3], "tenant_id": m[4]} for m in membros],
+        "entidades_educacionais": [{"id": e[0], "razao_social": e[1], "ativa": e[2], "tenant_id": e[3]} for e in entidades],
+        "todos_usuarios": [{"id": u2[0], "nome": u2[1], "cpf": u2[2], "tenant_id": u2[3]} for u2 in todos_usuarios],
+    })
+
+
 # ===================== ROTA PLANTIO EM LOCAL CREDENCIADO =====================
 # GET:  busca todos os fornecedores e exibe o formulário completo de registro.
 #       Acesso restrito a usuários logados (session["usuario_id"]).
