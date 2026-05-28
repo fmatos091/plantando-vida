@@ -408,6 +408,9 @@
     let qr1Escaneado = false;
     let plantioSemente = false;  // true quando checkbox "Registrar Plantio da Semente" está marcado
 
+    // Doação: valor = 0 → etapa 1 (QR Code) não se aplica, pula direto para etapa 2
+    const ehDoacao = {{ 'true' if compra[3] == 0 else 'false' }};
+
     // ---- Navegação entre etapas ----
 
     function avancar(etapa) {
@@ -422,6 +425,11 @@
 
     function voltar(etapa) {
       ocultarEtapa(etapa);
+      // Doações não têm etapa 1 — voltar da etapa 2 redireciona para a lista de plantios
+      if (ehDoacao && etapa === 2) {
+        window.location.href = '/plantios/pendentes';
+        return;
+      }
       // Voltando da etapa 5 com semente marcado → retorna para etapa 3 (pulou a 4)
       const anterior = (etapa === 5 && plantioSemente) ? 3 : etapa - 1;
       mostrarEtapa(anterior);
@@ -691,9 +699,16 @@
     }
 
     // ---- Inicialização ----
-    // Garante que apenas a etapa 1 está visível ao carregar a página
     document.addEventListener('DOMContentLoaded', () => {
-      atualizarIndicador(1);
+      if (ehDoacao) {
+        // Doação: pula etapa 1 (QR Code não se aplica) e vai direto para etapa 2
+        document.getElementById('campo-qr-scan').value = 'doacao';
+        document.getElementById('btn-proximo-1').disabled = false;
+        avancar(1);
+      } else {
+        // Compra paga: começa normalmente na etapa 1
+        atualizarIndicador(1);
+      }
     });
   </script>
 
