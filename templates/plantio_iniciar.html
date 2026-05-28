@@ -179,34 +179,30 @@
           <!-- Campos de localização do plantio (municipio/bairro) -->
           <div id="campos-localizacao" class="hidden space-y-3 mb-4">
 
-            <!-- Botão GPS: aparece primeiro para preencher Município e Bairro automaticamente -->
-            <button type="button" onclick="capturarGPS()"
-              class="w-full bg-green-50 hover:bg-green-100 text-green-800 text-sm font-semibold
-                     py-3 px-4 rounded-xl transition flex items-center justify-center gap-2
-                     border border-green-200 shadow-sm">
+            <!-- Botão GPS: obrigatório para registrar coordenadas e habilitar Próximo -->
+            <button type="button" id="btn-capturar-gps" onclick="capturarGPS()"
+              class="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-bold
+                     py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow">
               📍 Capturar localização GPS
             </button>
-            <!-- Status do GPS: mostra cidade encontrada ou mensagem de erro -->
-            <p id="status-gps" class="text-xs text-gray-400 text-center"></p>
-
-            <!-- Divider entre GPS e campos manuais -->
-            <div class="flex items-center gap-2">
-              <div class="flex-1 h-px bg-gray-200"></div>
-              <span class="text-xs text-gray-400">ou preencha manualmente</span>
-              <div class="flex-1 h-px bg-gray-200"></div>
-            </div>
+            <!-- Status do GPS: obrigatório — muda para verde após captura bem-sucedida -->
+            <p id="status-gps" class="text-xs text-amber-600 text-center font-semibold">
+              ⚠️ A captura de GPS é obrigatória para registrar o local do plantio.
+            </p>
 
             <div>
               <label class="text-xs font-semibold text-gray-600 block mb-1">Município</label>
-              <input type="text" id="input-municipio" placeholder="Ex: São Paulo"
-                class="w-full p-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                oninput="sincronizarLocalizacao()">
+              <!-- Somente leitura: preenchido automaticamente pelo GPS -->
+              <input type="text" id="input-municipio" placeholder="Preenchido pelo GPS"
+                readonly
+                class="w-full p-3 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
             </div>
             <div>
               <label class="text-xs font-semibold text-gray-600 block mb-1">Bairro</label>
-              <input type="text" id="input-bairro" placeholder="Ex: Centro"
-                class="w-full p-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                oninput="sincronizarLocalizacao()">
+              <!-- Somente leitura: preenchido automaticamente pelo GPS -->
+              <input type="text" id="input-bairro" placeholder="Preenchido pelo GPS"
+                readonly
+                class="w-full p-3 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
             </div>
           </div>
 
@@ -589,31 +585,49 @@
       }
     }
 
-    // Sincroniza os campos de municipio/bairro com os inputs ocultos do formulário
-    // e habilita o botão Próximo quando ambos estão preenchidos
+    // Sincroniza municipio/bairro nos campos ocultos e habilita Próximo.
+    // GPS é obrigatório: lat/lng devem estar preenchidos para habilitar o avanço.
     function sincronizarLocalizacao() {
       const mun = document.getElementById('input-municipio').value.trim();
       const bai = document.getElementById('input-bairro').value.trim();
+      const lat = document.getElementById('campo-latitude').value.trim();
+      const lng = document.getElementById('campo-longitude').value.trim();
       document.getElementById('campo-municipio').value = mun;
       document.getElementById('campo-bairro').value    = bai;
-      document.getElementById('btn-proximo-2').disabled = !(mun && bai);
+      // Habilita Próximo somente quando GPS capturou coordenadas E campos preenchidos
+      document.getElementById('btn-proximo-2').disabled = !(mun && bai && lat && lng);
+      atualizarStatusGPS(!!(lat && lng));
+    }
+
+    // Atualiza o feedback visual do status GPS no botão e na mensagem
+    function atualizarStatusGPS(capturado) {
+      const btn    = document.getElementById('btn-capturar-gps');
+      const status = document.getElementById('status-gps');
+      if (capturado) {
+        btn.className = 'w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow';
+        btn.textContent = '✅ GPS capturado — Capturar novamente';
+        status.className = 'text-xs text-emerald-600 text-center font-semibold';
+      } else {
+        btn.className = 'w-full bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow';
+        status.className = 'text-xs text-amber-600 text-center font-semibold';
+      }
     }
 
     // Captura GPS e preenche Município/Bairro via reverse geocoding (Nominatim/OpenStreetMap).
-    // Fluxo: navigator.geolocation → Nominatim API → preenche campos → habilita Próximo.
+    // GPS é OBRIGATÓRIO: sem coordenadas, o botão Próximo permanece desabilitado.
     function capturarGPS() {
       const statusEl = document.getElementById('status-gps');
-      const btnGPS   = document.querySelector('[onclick="capturarGPS()"]');
+      const btnGPS   = document.getElementById('btn-capturar-gps');
 
       if (!navigator.geolocation) {
-        statusEl.textContent = 'GPS não disponível neste dispositivo.';
-        statusEl.className   = 'text-xs text-red-500 text-center';
+        statusEl.textContent = '❌ GPS não disponível neste dispositivo.';
+        statusEl.className   = 'text-xs text-red-500 text-center font-semibold';
         return;
       }
 
       // Feedback visual durante a captura
-      statusEl.textContent = '🔄 Obtendo localização...';
-      statusEl.className   = 'text-xs text-gray-400 text-center';
+      statusEl.textContent = '🔄 Obtendo localização GPS...';
+      statusEl.className   = 'text-xs text-gray-500 text-center';
       if (btnGPS) { btnGPS.disabled = true; btnGPS.textContent = '🔄 Aguarde...'; }
 
       navigator.geolocation.getCurrentPosition(
@@ -643,33 +657,39 @@
             const bairro = addr.suburb || addr.neighbourhood ||
                            addr.quarter || addr.village || '';
 
-            // Preenche os inputs visíveis
+            // Preenche os inputs visíveis (read-only, preenchidos apenas via GPS)
             document.getElementById('input-municipio').value = cidade;
             document.getElementById('input-bairro').value    = bairro;
 
-            // Sincroniza com os campos ocultos e habilita o botão Próximo
+            // Sincroniza campos ocultos e habilita Próximo (lat/lng já preenchidos)
             sincronizarLocalizacao();
 
             statusEl.textContent = cidade
-              ? `✅ Localização encontrada: ${cidade}${bairro ? ' — ' + bairro : ''}`
-              : `📍 GPS capturado (${lat.toFixed(4)}, ${lon.toFixed(4)}) — preencha a cidade manualmente`;
-            statusEl.className = 'text-xs text-green-600 text-center font-semibold';
+              ? `📍 ${cidade}${bairro ? ' — ' + bairro : ''}`
+              : `📍 GPS capturado (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+            statusEl.className = 'text-xs text-emerald-600 text-center font-semibold';
 
           } catch (_) {
-            // Falha no geocoding: salva coordenadas e informa o usuário
-            statusEl.textContent = `📍 GPS capturado (${lat.toFixed(4)}, ${lon.toFixed(4)}) — preencha a cidade manualmente`;
-            statusEl.className   = 'text-xs text-yellow-600 text-center';
+            // Falha no geocoding: coordenadas salvas, mas campos de texto vazios
+            // sincronizarLocalizacao vai exigir que o usuário preencha cidade/bairro manualmente
+            statusEl.textContent = `📍 GPS capturado (${lat.toFixed(4)}, ${lon.toFixed(4)}) — cidade não encontrada automaticamente`;
+            statusEl.className   = 'text-xs text-yellow-600 text-center font-semibold';
+            // Remove readonly temporariamente para permitir preenchimento manual
+            document.getElementById('input-municipio').removeAttribute('readonly');
+            document.getElementById('input-municipio').classList.remove('bg-gray-50','text-gray-500','cursor-not-allowed');
+            document.getElementById('input-municipio').addEventListener('input', sincronizarLocalizacao);
+            document.getElementById('input-bairro').removeAttribute('readonly');
+            document.getElementById('input-bairro').classList.remove('bg-gray-50','text-gray-500','cursor-not-allowed');
+            document.getElementById('input-bairro').addEventListener('input', sincronizarLocalizacao);
+            sincronizarLocalizacao();
           }
 
-          // Restaura o botão
-          if (btnGPS) {
-            btnGPS.disabled    = false;
-            btnGPS.textContent = '📍 Capturar localização GPS';
-          }
+          // Restaura botão GPS com estado "capturado"
+          if (btnGPS) { btnGPS.disabled = false; }
         },
         () => {
-          statusEl.textContent = '⚠️ Não foi possível obter a localização. Preencha manualmente.';
-          statusEl.className   = 'text-xs text-red-500 text-center';
+          statusEl.textContent = '❌ Não foi possível obter o GPS. Verifique as permissões do navegador e tente novamente.';
+          statusEl.className   = 'text-xs text-red-500 text-center font-semibold';
           if (btnGPS) {
             btnGPS.disabled    = false;
             btnGPS.textContent = '📍 Capturar localização GPS';
