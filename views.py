@@ -3715,7 +3715,7 @@ def admin_aprovar_compra(cid):
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Busca dados para o email antes de atualizar
+    # Busca dados para o email antes de atualizar (valor determina se é doação)
     cursor.execute("""
         SELECT c.especie_nome, c.tipo_planta, c.valor, u.nome, u.email
         FROM compras c JOIN usuarios u ON u.id = c.usuario_id
@@ -3723,10 +3723,15 @@ def admin_aprovar_compra(cid):
     """, (cid,))
     dados = cursor.fetchone()
 
-    # tenant_id garante que somente compras do tenant logado são aprovadas
+    # Doações (valor = 0) pulam a etapa de voucher/fornecedor:
+    # status vai direto para 'retirado' permitindo ao usuário realizar o plantio imediatamente.
+    # Compras pagas ficam em 'aprovado' até o fornecedor validar o voucher.
+    eh_doacão = dados and float(dados[2]) == 0.0
+    novo_status = "retirado" if eh_doacão else "aprovado"
+
     cursor.execute(
-        "UPDATE compras SET status = 'aprovado' WHERE id = ? AND tenant_id = ?",
-        (cid, get_tid())
+        "UPDATE compras SET status = ? WHERE id = ? AND tenant_id = ?",
+        (novo_status, cid, get_tid())
     )
     conn.commit()
     conn.close()
@@ -3734,24 +3739,45 @@ def admin_aprovar_compra(cid):
     # Notifica o usuário por email
     if dados:
         especie, tipo, valor, nome_usuario, email_usuario = dados
-        corpo_html = f"""
-        <div style="font-family:sans-serif;max-width:520px;margin:auto;background:#f0fdf4;
-                    border-radius:12px;padding:32px;border:1px solid #bbf7d0">
-            <div style="text-align:center;margin-bottom:20px">
-                <span style="font-size:48px">✅</span>
-                <h1 style="color:#15803d;font-size:20px;margin:12px 0 4px">Pagamento Aprovado!</h1>
-                <p style="color:#4b7a58;font-size:14px">Olá, {nome_usuario}! Seu pagamento foi validado.</p>
+        if eh_doacão:
+            # Email específico para doação: instrui a realizar o plantio
+            corpo_html = f"""
+            <div style="font-family:sans-serif;max-width:520px;margin:auto;background:#f0fdf4;
+                        border-radius:12px;padding:32px;border:1px solid #bbf7d0">
+                <div style="text-align:center;margin-bottom:20px">
+                    <span style="font-size:48px">🎁</span>
+                    <h1 style="color:#15803d;font-size:20px;margin:12px 0 4px">Doação Aprovada!</h1>
+                    <p style="color:#4b7a58;font-size:14px">Olá, {nome_usuario}! Sua muda foi disponibilizada.</p>
+                </div>
+                <div style="background:#fff;border-radius:8px;padding:16px;border-left:4px solid #16a34a;margin-bottom:16px">
+                    <p style="margin:4px 0;font-size:14px;color:#111827">🌿 <strong>{especie}</strong> — {tipo}</p>
+                    <p style="margin:4px 0;font-size:14px;color:#111827">🎁 Doação Gratuita</p>
+                </div>
+                <p style="font-size:13px;color:#4b5563;text-align:center">
+                    Acesse o aplicativo para registrar o plantio da sua muda. Bom plantio! 🌱
+                </p>
             </div>
-            <div style="background:#fff;border-radius:8px;padding:16px;border-left:4px solid #16a34a;margin-bottom:16px">
-                <p style="margin:4px 0;font-size:14px;color:#111827">🌿 <strong>{especie}</strong> — {tipo}</p>
-                <p style="margin:4px 0;font-size:14px;color:#111827">💰 R$ {valor:.2f}</p>
+            """
+            enviar_email(email_usuario, "🎁 Doação aprovada — Plantando Vida", corpo_html)
+        else:
+            corpo_html = f"""
+            <div style="font-family:sans-serif;max-width:520px;margin:auto;background:#f0fdf4;
+                        border-radius:12px;padding:32px;border:1px solid #bbf7d0">
+                <div style="text-align:center;margin-bottom:20px">
+                    <span style="font-size:48px">✅</span>
+                    <h1 style="color:#15803d;font-size:20px;margin:12px 0 4px">Pagamento Aprovado!</h1>
+                    <p style="color:#4b7a58;font-size:14px">Olá, {nome_usuario}! Seu pagamento foi validado.</p>
+                </div>
+                <div style="background:#fff;border-radius:8px;padding:16px;border-left:4px solid #16a34a;margin-bottom:16px">
+                    <p style="margin:4px 0;font-size:14px;color:#111827">🌿 <strong>{especie}</strong> — {tipo}</p>
+                    <p style="margin:4px 0;font-size:14px;color:#111827">💰 R$ {valor:.2f}</p>
+                </div>
+                <p style="font-size:13px;color:#4b5563;text-align:center">
+                    Sua muda já pode ser retirada no fornecedor credenciado. Bom plantio! 🌱
+                </p>
             </div>
-            <p style="font-size:13px;color:#4b5563;text-align:center">
-                Sua muda já pode ser retirada no fornecedor credenciado. Bom plantio! 🌱
-            </p>
-        </div>
-        """
-        enviar_email(email_usuario, "✅ Pagamento aprovado — Plantando Vida", corpo_html)
+            """
+            enviar_email(email_usuario, "✅ Pagamento aprovado — Plantando Vida", corpo_html)
 
     flash("Compra aprovada.", "sucesso")
     return redirect("/admin/painel?tipo=plantios")
