@@ -4634,10 +4634,13 @@ def plantio_concluir():
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Reconfirma que a compra pertence ao usuário e ainda está sem plantio vinculado
+    # Reconfirma que a compra pertence ao usuário e ainda está sem plantio vinculado.
+    # Aceita status='retirado' (compra paga, voucher validado) ou
+    # status='aprovado' AND valor=0 (doação aprovada sem etapa de voucher).
     cursor.execute("""
         SELECT id, fornecedor_id FROM compras
-        WHERE id = ? AND usuario_id = ? AND status = 'retirado' AND plantio_id IS NULL
+        WHERE id = ? AND usuario_id = ? AND plantio_id IS NULL
+          AND (status = 'retirado' OR (status = 'aprovado' AND valor = 0))
     """, (int(compra_id), session["usuario_id"]))
     compra = cursor.fetchone()
 
