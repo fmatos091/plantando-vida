@@ -716,9 +716,14 @@ def plantio_escolar_doacoes(entidade_id):
     cpf_usuario = re.sub(r"\D", "", u[0] or "") if u and u[0] else ""
 
     # Verifica se o CPF está vinculado como membro desta entidade específica.
-    # A FK entidade_educacional_id + tenant_id garante isolamento correto.
+    # REPLACE() normaliza o CPF armazenado (ex: "084.632.419-99" → "08463241999")
+    # para comparar com cpf_usuario que já está sem formatação.
+    # REPLACE() funciona tanto em SQLite quanto em PostgreSQL.
     cursor.execute(
-        "SELECT id FROM membros WHERE cpf = ? AND entidade_educacional_id = ? AND tenant_id = ?",
+        """SELECT id FROM membros
+           WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?
+             AND entidade_educacional_id = ?
+             AND tenant_id = ?""",
         (cpf_usuario, entidade_id, tid)
     )
     if not cursor.fetchone():
