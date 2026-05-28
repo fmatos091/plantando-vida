@@ -690,8 +690,8 @@ def debug_plantio_escolar():
 
     conn.close()
 
-    # CPF formatado que será usado na comparação
-    _cpf_digits = re.sub(r"\D", "", u[4] or "") if u and u[4] else ""
+    # CPF formatado que será usado na comparação (u[3] = cpf, u[4] = tenant_id)
+    _cpf_digits = re.sub(r"\D", "", u[3] or "") if u and u[3] else ""
     cpf_formatado = ""
     if len(_cpf_digits) == 11:
         cpf_formatado = f"{_cpf_digits[0:3]}.{_cpf_digits[3:6]}.{_cpf_digits[6:9]}-{_cpf_digits[9:11]}"
