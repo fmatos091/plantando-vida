@@ -4581,15 +4581,18 @@ def plantio_iniciar(compra_id):
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Valida que a compra pertence ao usuário logado, está com status 'retirado'
-    # e ainda não possui um plantio registrado (plantio_id nulo).
+    # Valida que a compra pertence ao usuário logado e está pronta para plantio.
+    # Aceita dois casos:
+    #   - status='retirado': compra paga com voucher validado pelo fornecedor
+    #   - status='aprovado' AND valor=0: doação aprovada (sem etapa de voucher/fornecedor)
     cursor.execute("""
         SELECT c.id, c.especie_nome, c.tipo_planta, c.valor,
                COALESCE(f.razao_social, 'Fornecedor não informado'),
                f.cidade, f.uf, c.plantio_id
         FROM compras c
         LEFT JOIN fornecedores f ON f.id = c.fornecedor_id
-        WHERE c.id = ? AND c.usuario_id = ? AND c.status = 'retirado'
+        WHERE c.id = ? AND c.usuario_id = ?
+          AND (c.status = 'retirado' OR (c.status = 'aprovado' AND c.valor = 0))
     """, (compra_id, session["usuario_id"]))
     compra = cursor.fetchone()
     conn.close()
