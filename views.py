@@ -1934,16 +1934,25 @@ def detectar_tenant_publico():
         slug = os.environ.get("TENANT_SLUG", "padrao")
 
     # Busca o tenant ativo pelo slug.
-    # Protegido com try/except: se a tabela tenants ainda não existir (ex: primeiro deploy
-    # antes do init_db completar) ou houver falha de conexão, usa fallback tenant_id=1
-    # sem lançar 500 em todas as rotas públicas.
+    # Se o slug do domínio não corresponder a nenhum tenant (ex: domínio principal
+    # como "projetoplantandovida.com.br" → slug="projetoplantandovida" não cadastrado),
+    # tenta o slug configurado em TENANT_SLUG no ambiente antes de cair no tenant_id=1.
+    # Isso permite configurar qual tenant o domínio principal serve via variável de ambiente.
     try:
         conn   = get_db()
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM tenants WHERE slug = ? AND ativo = 1", (slug,))
         t = cursor.fetchone()
+
+        # Domínio não mapeou nenhum tenant → tenta o TENANT_SLUG do ambiente
+        if not t:
+            slug_env = os.environ.get("TENANT_SLUG", "padrao")
+            if slug_env != slug:
+                cursor.execute("SELECT id FROM tenants WHERE slug = ? AND ativo = 1", (slug_env,))
+                t = cursor.fetchone()
+
         conn.close()
-        g.tenant_id = t[0] if t else 1  # fallback = tenant 1 (padrão)
+        g.tenant_id = t[0] if t else 1  # fallback final = tenant 1
     except Exception:
         g.tenant_id = 1  # fallback seguro — nunca lança 500 por falha de detecção
 
