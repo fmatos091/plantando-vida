@@ -688,6 +688,10 @@ def debug_plantio_escolar():
     cursor.execute("SELECT id, nome, cpf, tenant_id FROM usuarios")
     todos_usuarios = cursor.fetchall()
 
+    # Todas as espécies (inclui entidade_educacional_id para diagnóstico)
+    cursor.execute("SELECT id, nome, tipo, valor, entidade_educacional_id, tenant_id FROM especies_plantas")
+    todas_especies = cursor.fetchall()
+
     conn.close()
 
     # CPF formatado que será usado na comparação (u[3] = cpf, u[4] = tenant_id)
@@ -712,6 +716,8 @@ def debug_plantio_escolar():
         "membros": [{"id": m[0], "nome": m[1], "cpf": m[2], "entidade_id": m[3], "tenant_id": m[4]} for m in membros],
         "entidades_educacionais": [{"id": e[0], "razao_social": e[1], "ativa": e[2], "tenant_id": e[3]} for e in entidades],
         "todos_usuarios": [{"id": u2[0], "nome": u2[1], "cpf": u2[2], "tenant_id": u2[3]} for u2 in todos_usuarios],
+        "todas_especies": [{"id": s[0], "nome": s[1], "tipo": s[2], "valor": s[3], "entidade_educacional_id": s[4], "tenant_id": s[5]} for s in todas_especies],
+        "query_doacoes_seria": f"WHERE entidade_educacional_id = 1 AND tenant_id = {getattr(g, 'tenant_id', None) or 1} AND valor = 0",
     })
 
 
