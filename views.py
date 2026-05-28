@@ -710,20 +710,21 @@ def plantio_escolar_doacoes(entidade_id):
         flash("Entidade educacional não encontrada ou inativa.", "erro")
         return redirect("/plantio/escolar")
 
-    # Busca o CPF do usuário logado (normalizado para somente dígitos)
+    # Busca o CPF do usuário logado e converte para a máscara xxx.xxx.xxx-xx,
+    # que é o formato salvo em membros.cpf. Isso evita divergência de formato
+    # (ex: usuario salvo sem máscara, membro salvo com máscara).
     cursor.execute("SELECT cpf FROM usuarios WHERE id = ?", (session["usuario_id"],))
     u = cursor.fetchone()
-    cpf_usuario = re.sub(r"\D", "", u[0] or "") if u and u[0] else ""
+    _cpf_digits = re.sub(r"\D", "", u[0] or "") if u and u[0] else ""
+    if len(_cpf_digits) == 11:
+        # Formata: 08463241999 → 084.632.419-99
+        cpf_usuario = f"{_cpf_digits[0:3]}.{_cpf_digits[3:6]}.{_cpf_digits[6:9]}-{_cpf_digits[9:11]}"
+    else:
+        cpf_usuario = _cpf_digits
 
-    # Verifica se o CPF está vinculado como membro desta entidade específica.
-    # REPLACE() normaliza o CPF armazenado (ex: "084.632.419-99" → "08463241999")
-    # para comparar com cpf_usuario que já está sem formatação.
-    # REPLACE() funciona tanto em SQLite quanto em PostgreSQL.
+    # Compara CPF já formatado com o campo cpf de membros (armazenado com máscara)
     cursor.execute(
-        """SELECT id FROM membros
-           WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?
-             AND entidade_educacional_id = ?
-             AND tenant_id = ?""",
+        "SELECT id FROM membros WHERE cpf = ? AND entidade_educacional_id = ? AND tenant_id = ?",
         (cpf_usuario, entidade_id, tid)
     )
     if not cursor.fetchone():
