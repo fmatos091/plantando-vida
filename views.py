@@ -2596,6 +2596,65 @@ def admin_mapa():
                            total=len(marcadores))
 
 
+# ===================== ROTA ADMIN: CADASTRAR NOVO FORNECEDOR =====================
+# Cria um fornecedor diretamente pelo painel do admin, sem exigir auto-cadastro.
+# O tenant_id vem da sessão do admin — garante isolamento multi-tenant.
+# Senha é opcional: se não informada, é gerada aleatoriamente (fornecedor redefine depois).
+@app.route("/admin/fornecedor/cadastrar", methods=["POST"])
+def admin_cadastrar_fornecedor():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    tid = get_tid()
+    if not tid:
+        flash("Sessão inválida. Faça login novamente.", "erro")
+        return redirect("/admin/login")
+
+    # Lê todos os campos do formulário de cadastro
+    razao_social = request.form.get("razao_social", "").strip()
+    cnpj         = request.form.get("cnpj", "").strip()
+    whatsapp     = request.form.get("whatsapp", "").strip()
+    email        = request.form.get("email", "").strip()
+    cidade       = request.form.get("cidade", "").strip()
+    uf           = request.form.get("uf", "").strip().upper()
+    maps_link    = request.form.get("maps_link", "").strip()
+    tipo_planta  = request.form.get("tipo_planta", "Nativas").strip()
+
+    # Valida campos obrigatórios
+    if not razao_social or not cnpj or not whatsapp:
+        flash("Razão Social, CNPJ e WhatsApp são obrigatórios.", "erro")
+        return redirect("/admin/painel?tipo=fornecedores")
+
+    # Senha: usa a informada ou gera uma aleatória (fornecedor redefine pelo painel deles)
+    senha_raw = request.form.get("senha", "").strip()
+    senha_hash = generate_password_hash(senha_raw if senha_raw else secrets.token_hex(16))
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    try:
+        # Insere com tenant_id do admin — vincula ao projeto correto
+        cursor.execute("""
+            INSERT INTO fornecedores
+                (razao_social, cnpj, whatsapp, tipo_planta, maps_link, senha, cidade, uf, email, tenant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (razao_social, cnpj, whatsapp, tipo_planta, maps_link, senha_hash, cidade, uf, email, tid))
+        conn.commit()
+
+        # Gera QR Code do CNPJ e tenta enviar por email se informado
+        gerar_qrcode(cnpj)
+        if email:
+            enviar_qrcode_email(email, razao_social, cnpj)
+
+        flash(f"Fornecedor '{razao_social}' cadastrado com sucesso!", "sucesso")
+    except Exception:
+        flash("CNPJ já cadastrado ou erro ao salvar. Verifique os dados.", "erro")
+    finally:
+        conn.close()
+
+    return redirect("/admin/painel?tipo=fornecedores")
+
+
 # ===================== ROTA ADMIN: SALVAR / EDITAR FORNECEDOR =====================
 # Permite ao administrador atualizar todos os campos do fornecedor.
 # Acesso restrito ao administrador (session["admin"]).

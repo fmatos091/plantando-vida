@@ -339,7 +339,7 @@
         -->
         {% if tipo == 'fornecedores' %}
 
-        <!-- Mensagens de flash (salvar, excluir, inativar) -->
+        <!-- Mensagens de flash (salvar, excluir, inativar, cadastrar) -->
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
         {% if category == "erro" %}
@@ -349,6 +349,112 @@
         {% endif %}
         {% endfor %}
         {% endwith %}
+
+        <!-- ── Botão + Formulário: Cadastrar Novo Fornecedor ──
+             O formulário fica oculto por padrão e expande ao clicar no botão.
+             Todos os campos migrados da rota pública /fornecedor.
+             Senha é opcional: se em branco, gerada automaticamente pelo servidor. -->
+        <div class="mb-5">
+            <button type="button" onclick="toggleNovoFornecedor()"
+                class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold
+                       px-5 py-3 rounded-xl transition shadow">
+                ➕ Cadastrar Fornecedor
+            </button>
+
+            <!-- Formulário colapsável de cadastro -->
+            <div id="form-novo-fornecedor" class="hidden mt-4 bg-white rounded-xl shadow p-6">
+                <h3 class="text-base font-bold text-gray-800 mb-4">🌿 Novo Fornecedor</h3>
+                <form method="POST" action="/admin/fornecedor/cadastrar">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                        <!-- Razão Social (coluna dupla) -->
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Razão Social *</label>
+                            <input type="text" name="razao_social" required placeholder="Nome da empresa"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- CNPJ -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">CNPJ *</label>
+                            <input type="text" name="cnpj" required placeholder="00.000.000/0001-00"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- WhatsApp -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">WhatsApp *</label>
+                            <input type="text" name="whatsapp" required placeholder="(43) 99999-9999"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- Cidade -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Cidade</label>
+                            <input type="text" name="cidade" placeholder="Ex: Telêmaco Borba"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- UF -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">UF</label>
+                            <input type="text" name="uf" maxlength="2" placeholder="PR"
+                                oninput="this.value = this.value.toUpperCase()"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- Tipo de Planta -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Tipo de Planta</label>
+                            <select name="tipo_planta"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
+                                <option value="Nativas">🌳 Nativas</option>
+                                <option value="Frutíferas">🍎 Frutíferas</option>
+                                <option value="Ambas">🍎🌳 Ambas</option>
+                            </select>
+                        </div>
+
+                        <!-- Link Google Maps -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Link Google Maps</label>
+                            <input type="text" name="maps_link" placeholder="https://maps.google.com/..."
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- Email -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                            <input type="email" name="email" placeholder="contato@empresa.com.br"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- Senha do painel do fornecedor (opcional) -->
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">
+                                Senha do painel
+                                <span class="text-gray-400 font-normal">(opcional — gerada automaticamente se em branco)</span>
+                            </label>
+                            <input type="password" name="senha" placeholder="Deixe em branco para gerar automaticamente"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                    </div>
+
+                    <!-- Botões do formulário -->
+                    <div class="flex gap-3 mt-5">
+                        <button type="submit"
+                            class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-5 py-2 rounded-xl transition shadow">
+                            💾 Salvar Fornecedor
+                        </button>
+                        <button type="button" onclick="toggleNovoFornecedor()"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold px-5 py-2 rounded-xl transition">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <!-- fim do formulário de cadastro -->
 
         {% if fornecedores %}
         <div class="flex flex-col gap-4">
@@ -3435,6 +3541,12 @@
          Cada elemento usa um id único baseado no id do registro para evitar conflitos.
     -->
     <script>
+        // Alterna a visibilidade do formulário de cadastro de novo fornecedor
+        function toggleNovoFornecedor() {
+            const form = document.getElementById('form-novo-fornecedor');
+            if (form) form.classList.toggle('hidden');
+        }
+
         // Alterna a visibilidade do formulário de edição do fornecedor com o id informado
         function toggleEditar(id) {
             const form = document.getElementById('editar-' + id);
