@@ -4754,9 +4754,21 @@ def plantio_concluir():
     longitude   = request.form.get("longitude", "").strip() or None
     qr_scan     = request.form.get("qr_scan", "").strip()
 
-    # Validações básicas dos campos obrigatórios
-    if not compra_id or not especie or not municipio or not bairro:
+    # Validações básicas dos campos obrigatórios.
+    # Municipio e bairro são dispensáveis quando há coordenadas GPS (GPS manual de emergência).
+    if not compra_id or not especie:
         flash("Preencha todos os campos obrigatórios.", "erro")
+        return redirect("/plantios/pendentes")
+
+    # Se GPS foi informado mas município/bairro ficaram vazios, usa fallback descritivo
+    if not municipio:
+        municipio = "Não informado" if (latitude and longitude) else ""
+    if not bairro:
+        bairro = "Não informado" if (latitude and longitude) else ""
+
+    # Após fallback, revalida: sem GPS E sem município/bairro é inválido
+    if not municipio or not bairro:
+        flash("Preencha o município e o bairro, ou capture a localização GPS.", "erro")
         return redirect("/plantios/pendentes")
 
     conn   = get_db()
@@ -4780,22 +4792,28 @@ def plantio_concluir():
     fornecedor_id = compra[1]
 
     # Salva foto ao lado da cova (Etapa 3) — foto_plantio
+    # Verifica primeiro o input de câmera; se vazio, usa o input de galeria (temporário/emergência)
     foto_plantio = None
-    if "foto_plantio" in request.files:
-        arq = request.files["foto_plantio"]
-        if arq and arq.filename:
-            ext = arq.filename.rsplit(".", 1)[-1].lower()
-            if ext in EXTENSOES_PERMITIDAS:
-                foto_plantio = upload_cloudinary(arq, pasta="plantando-vida/plantios")
+    for campo_foto in ("foto_plantio", "foto_plantio_galeria"):
+        if campo_foto in request.files:
+            arq = request.files[campo_foto]
+            if arq and arq.filename:
+                ext = arq.filename.rsplit(".", 1)[-1].lower()
+                if ext in EXTENSOES_PERMITIDAS:
+                    foto_plantio = upload_cloudinary(arq, pasta="plantando-vida/plantios")
+                    break  # usa o primeiro arquivo válido encontrado
 
     # Salva foto com a planta na cova e regada (Etapa 4) — acompanhamento_1
+    # Verifica primeiro o input de câmera; se vazio, usa o input de galeria (temporário/emergência)
     foto_1 = None
-    if "foto_acomp1" in request.files:
-        arq = request.files["foto_acomp1"]
-        if arq and arq.filename:
-            ext = arq.filename.rsplit(".", 1)[-1].lower()
-            if ext in EXTENSOES_PERMITIDAS:
-                foto_1 = upload_cloudinary(arq, pasta="plantando-vida/acompanhamentos")
+    for campo_foto in ("foto_acomp1", "foto_acomp1_galeria"):
+        if campo_foto in request.files:
+            arq = request.files[campo_foto]
+            if arq and arq.filename:
+                ext = arq.filename.rsplit(".", 1)[-1].lower()
+                if ext in EXTENSOES_PERMITIDAS:
+                    foto_1 = upload_cloudinary(arq, pasta="plantando-vida/acompanhamentos")
+                    break  # usa o primeiro arquivo válido encontrado
 
     # Usa data no fuso Brasil (UTC-3) — evita registrar amanhã quando o servidor roda em UTC.
     data_hoje = datetime.now(TZ_BRASIL).strftime("%Y-%m-%d")
