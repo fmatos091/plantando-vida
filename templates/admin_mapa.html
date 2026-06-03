@@ -8,6 +8,9 @@
 
     <!-- Leaflet.js CSS: estilos do mapa interativo -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- MarkerCluster CSS: estilos base dos clusters de marcadores -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <!-- Tailwind CSS via CDN para navbar e overlay -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -132,6 +135,35 @@
             opacity: 0.8;
         }
         #lightbox-fechar:hover { opacity: 1; }
+
+        /* ---- Cluster de marcadores — tema verde ---- */
+        /* Bolha circular exibida quando vários plantios estão próximos */
+        .cluster-verde { background: transparent !important; border: none !important; }
+
+        .cluster-inner {
+            width: 46px;
+            height: 46px;
+            background: #16a34a;
+            color: #fff;
+            font-weight: 800;
+            font-size: 15px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid #dcfce7;
+            box-shadow: 0 2px 10px rgba(22,163,74,0.45);
+            transition: transform 0.15s;
+        }
+        /* Cluster maior quando tem muitos marcadores (>= 10) */
+        .cluster-inner.grande {
+            width: 54px;
+            height: 54px;
+            font-size: 17px;
+            background: #15803d;
+            border-color: #bbf7d0;
+        }
+        .cluster-verde:hover .cluster-inner { transform: scale(1.12); }
     </style>
 </head>
 
@@ -192,8 +224,10 @@
         <img id="lightbox-img" src="" alt="Foto ampliada" onclick="event.stopPropagation()">
     </div>
 
-    <!-- ===================== LEAFLET.JS ===================== -->
+    <!-- ===================== LEAFLET.JS + MARKERCLUSTER ===================== -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- MarkerCluster JS: agrupa marcadores próximos ao dar zoom out -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
     <script>
         // Dados dos marcadores injetados pelo Flask como JSON seguro
@@ -238,7 +272,25 @@
             popupAnchor: [0, -34]
         });
 
-        const grupo = L.featureGroup();
+        // MarkerClusterGroup: agrupa marcadores próximos no zoom out,
+        // revela individualmente conforme o usuário aproxima o mapa.
+        const grupo = L.markerClusterGroup({
+            maxClusterRadius: 60,        // distância (px) para agrupar marcadores
+            spiderfyOnMaxZoom: true,     // no zoom máximo, abre em leque para ver todos
+            showCoverageOnHover: false,  // não exibe polígono de cobertura do cluster
+            zoomToBoundsOnClick: true,   // clique no cluster dá zoom para seus marcadores
+            // Ícone personalizado no tema verde do projeto
+            iconCreateFunction: function(cluster) {
+                const count = cluster.getChildCount();
+                const cls   = count >= 10 ? 'cluster-inner grande' : 'cluster-inner';
+                return L.divIcon({
+                    className:  'cluster-verde',
+                    html:       '<div class="' + cls + '">🌳 ' + count + '</div>',
+                    iconSize:   [54, 54],
+                    iconAnchor: [27, 27]
+                });
+            }
+        });
 
         marcadores.forEach(function(m) {
             const tooltipHtml =
@@ -293,6 +345,7 @@
 
         grupo.addTo(mapa);
 
+        // Ajusta o zoom inicial para enquadrar todos os marcadores (ou Brasil inteiro se vazio)
         if (marcadores.length > 0) {
             mapa.fitBounds(grupo.getBounds(), { padding: [40, 40] });
         } else {

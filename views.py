@@ -2579,9 +2579,16 @@ def admin_mapa():
         fotos = [u for u in [_foto_url(p[7]), _foto_url(p[8]), _foto_url(p[9]), _foto_url(p[10])] if u]
         fotos += [_foto_url(f) for f in acomp_fotos.get(p[0], []) if f]
 
+        # Converte data para o padrão brasileiro DD/MM/AA
+        data_raw = str(p[1]) if p[1] else ""
+        try:
+            data_br = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%y") if data_raw else ""
+        except ValueError:
+            data_br = data_raw
+
         marcadores.append({
             "id":        p[0],
-            "data":      str(p[1]) if p[1] else "",
+            "data":      data_br,
             "especie":   p[2] or "",
             "municipio": p[3] or "",
             "bairro":    p[4] or "",
