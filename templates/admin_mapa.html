@@ -15,6 +15,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
+        /* html e body com height 100% para que o position:absolute do mapa
+           calcule corretamente bottom:0 em todos os browsers/PCs */
+        html, body { height: 100%; margin: 0; padding: 0; }
+
         /* O mapa ocupa toda a viewport abaixo da navbar */
         #mapa {
             position: absolute;
@@ -259,10 +263,16 @@
         // ---- Mapa ----
         const mapa = L.map('mapa');
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
-            maxZoom: 19
+        // CartoDB Voyager: CDN global, sem rate limit para uso normal em produção.
+        // Substitui tile.openstreetmap.org que bloqueia/limita IPs de domínios em produção.
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
         }).addTo(mapa);
+
+        // Garante que o mapa recalcule as dimensões do container após o DOM estabilizar
+        setTimeout(function() { mapa.invalidateSize(); }, 200);
 
         const iconeVerde = L.divIcon({
             className: '',
@@ -345,9 +355,12 @@
 
         grupo.addTo(mapa);
 
-        // Ajusta o zoom inicial para enquadrar todos os marcadores (ou Brasil inteiro se vazio)
+        // Ajusta o zoom inicial para enquadrar todos os marcadores.
+        // Usa as coordenadas brutas em vez de grupo.getBounds() para evitar
+        // timing issue do MarkerCluster antes de terminar o processamento interno.
         if (marcadores.length > 0) {
-            mapa.fitBounds(grupo.getBounds(), { padding: [40, 40] });
+            const bounds = L.latLngBounds(marcadores.map(function(m) { return [m.lat, m.lng]; }));
+            mapa.fitBounds(bounds, { padding: [50, 50] });
         } else {
             mapa.setView([-15.78, -47.93], 5);
         }
