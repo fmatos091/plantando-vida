@@ -974,22 +974,17 @@ def plantios_pendentes():
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Busca todos os plantios do usuário (todos os status).
-    # Plantios aprovados exibem o formulário de acompanhamentos inline.
+    # Busca plantios do usuário exceto os APROVADOS (que ficam em /plantios/aprovados).
+    # Exibe: em_analise, reprovado, retirado.
     # p[0]=id  p[1]=data_plantio  p[2]=especie  p[3]=municipio  p[4]=bairro
     # p[5]=status  p[6]=justificativa  p[7]=criado_em  p[8]=fornecedor_nome
-    # p[9]=acompanhamento_1  p[10]=foto_1  p[11]=acompanhamento_2  p[12]=foto_2
-    # p[13]=acompanhamento_3  p[14]=foto_3
     cursor.execute("""
         SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio, pg.bairro,
                pg.status, pg.justificativa, pg.criado_em,
-               COALESCE(f.razao_social, 'Fornecedor não informado') AS fornecedor_nome,
-               pg.acompanhamento_1, pg.foto_1,
-               pg.acompanhamento_2, pg.foto_2,
-               pg.acompanhamento_3, pg.foto_3
+               COALESCE(f.razao_social, 'Fornecedor não informado') AS fornecedor_nome
         FROM plantas_go pg
         LEFT JOIN fornecedores f ON f.id = pg.fornecedor_id
-        WHERE pg.responsavel_id = ?
+        WHERE pg.responsavel_id = ? AND pg.status != 'aprovado'
         ORDER BY pg.criado_em DESC
     """, (session["usuario_id"],))
     plantios = cursor.fetchall()
@@ -1009,21 +1004,10 @@ def plantios_pendentes():
     """, (session["usuario_id"],))
     compras = cursor.fetchall()
 
-    # Busca acompanhamentos da tabela ilimitada para todos os plantios do usuário
-    acomps = {}
-    if plantios:
-        pids = [p[0] for p in plantios]
-        placeholders = ','.join(['?'] * len(pids))
-        cursor.execute(
-            f"SELECT id, plantio_id, data_acomp, foto FROM acompanhamentos WHERE plantio_id IN ({placeholders}) ORDER BY plantio_id, id",
-            pids
-        )
-        for row in cursor.fetchall():
-            acomps.setdefault(row[1], []).append(row)
-
     conn.close()
 
-    return render_template("plantios_pendentes.html", plantios=plantios, compras=compras, acomps=acomps)
+    # acomps não é mais necessário em pendentes — aprovados ficam em /plantios/aprovados
+    return render_template("plantios_pendentes.html", plantios=plantios, compras=compras)
 
 
 # ===================== ROTA ACOMPANHAMENTOS DO PLANTIO =====================
