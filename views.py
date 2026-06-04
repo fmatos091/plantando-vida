@@ -2430,6 +2430,7 @@ def admin_painel():
         LEFT JOIN fornecedores f ON f.id = pg.fornecedor_id
         LEFT JOIN compras c ON c.plantio_id = pg.id
         WHERE pg.tenant_id = ?
+          AND (pg.tipo IS NULL OR pg.tipo != 'voluntario')
         ORDER BY pg.criado_em DESC
     """, (tid,))
     plantios = cursor.fetchall()
@@ -2447,6 +2448,7 @@ def admin_painel():
         JOIN usuarios u ON u.id = c.usuario_id
         LEFT JOIN fornecedores f ON f.id = c.fornecedor_id
         WHERE c.tenant_id = ?
+          AND (c.tipo_planta IS NULL OR c.tipo_planta != 'Voluntário')
         ORDER BY c.criado_em DESC
     """, (tid,))
     compras = cursor.fetchall()
@@ -5089,6 +5091,10 @@ def plantio_concluir():
     # Usa data no fuso Brasil (UTC-3) — evita registrar amanhã quando o servidor roda em UTC.
     data_hoje = datetime.now(TZ_BRASIL).strftime("%Y-%m-%d")
 
+    # Voluntário é aprovado automaticamente — não precisa de revisão do admin.
+    # Demais tipos iniciam em 'em_analise' para aprovação manual.
+    status_plantio = "aprovado" if tipo_plantio == "voluntario" else "em_analise"
+
     # Insere o plantio definitivo — tipo classifica a origem; tipo_planta = Nativa/Frutífera
     cursor.execute("""
         INSERT INTO plantas_go (
@@ -5101,7 +5107,7 @@ def plantio_concluir():
         data_hoje, session["usuario_id"], especie, municipio, bairro,
         latitude, longitude,
         foto_plantio, foto_1, data_hoje if foto_1 else None,
-        fornecedor_id, "em_analise",
+        fornecedor_id, status_plantio,
         getattr(g, "tenant_id", None) or 1,
         tipo_plantio,
         tipo_muda_voluntario
