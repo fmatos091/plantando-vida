@@ -138,32 +138,34 @@
                     {% endif %}
 
                     <!-- Opção 2: Plantio Escolar
-                         Ativo somente quando há ao menos 1 entidade educacional ativa.
-                         Navega para /plantio/escolar onde as entidades são exibidas como cards. -->
-                    {% if entidades_edu_ativas %}
-                    <a href="/plantio/escolar">
-                        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-4
-                                    hover:bg-emerald-100 hover:border-emerald-400 transition cursor-pointer">
+                         Exibido somente quando o CPF do usuário está cadastrado como
+                         membro de uma Entidade Educacional (tabela membros). -->
+                    {% if e_membro_escolar %}
+                        {% if entidades_edu_ativas %}
+                        <a href="/plantio/escolar">
+                            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-4
+                                        hover:bg-emerald-100 hover:border-emerald-400 transition cursor-pointer">
+                                <div class="text-3xl">🏫</div>
+                                <div>
+                                    <h3 class="text-base font-semibold text-emerald-700">Plantio Escolar</h3>
+                                    <p class="text-xs text-gray-500 mt-0.5">Registre um plantio vinculado à sua escola ou entidade educacional</p>
+                                </div>
+                                <span class="ml-auto text-emerald-400">→</span>
+                            </div>
+                        </a>
+                        {% else %}
+                        <!-- Membro cadastrado, mas sem entidade ativa no momento -->
+                        <div class="bg-gray-100 border border-gray-200 rounded-xl p-4 flex items-center gap-4
+                                    opacity-60 cursor-not-allowed">
                             <div class="text-3xl">🏫</div>
                             <div>
-                                <h3 class="text-base font-semibold text-emerald-700">Plantio Escolar</h3>
-                                <p class="text-xs text-gray-500 mt-0.5">Registre um plantio vinculado à sua escola ou entidade educacional</p>
+                                <h3 class="text-base font-semibold text-gray-500">Plantio Escolar</h3>
+                                <p class="text-xs text-red-400 mt-0.5 font-medium">
+                                    ⚠️ Não há nenhuma Entidade Educacional ATIVA
+                                </p>
                             </div>
-                            <span class="ml-auto text-emerald-400">→</span>
                         </div>
-                    </a>
-                    {% else %}
-                    <!-- Sem entidades ativas: card desabilitado sem ação -->
-                    <div class="bg-gray-100 border border-gray-200 rounded-xl p-4 flex items-center gap-4
-                                opacity-60 cursor-not-allowed">
-                        <div class="text-3xl">🏫</div>
-                        <div>
-                            <h3 class="text-base font-semibold text-gray-500">Plantio Escolar</h3>
-                            <p class="text-xs text-red-400 mt-0.5 font-medium">
-                                ⚠️ Não há nenhuma Entidade Educacional ATIVA
-                            </p>
-                        </div>
-                    </div>
+                        {% endif %}
                     {% endif %}
 
                 </div>

@@ -646,7 +646,8 @@ def dashboard():
     usuario_row  = cursor.fetchone()
     cpf_usuario  = re.sub(r"\D", "", usuario_row[0] or "") if usuario_row else ""
 
-    e_membro_admin = False
+    e_membro_admin   = False
+    e_membro_escolar = False
     if cpf_usuario:
         # Comparação robusta: ignora formatação do CPF armazenado
         cursor.execute("""
@@ -655,6 +656,14 @@ def dashboard():
               AND tenant_id = ?
         """, (cpf_usuario, tid_pub))
         e_membro_admin = cursor.fetchone() is not None
+
+        # Verifica vínculo com qualquer Entidade Educacional do tenant
+        cursor.execute("""
+            SELECT m.id FROM membros m
+            WHERE REPLACE(REPLACE(REPLACE(m.cpf, '.', ''), '-', ''), ' ', '') = ?
+              AND m.tenant_id = ?
+        """, (cpf_usuario, tid_pub))
+        e_membro_escolar = cursor.fetchone() is not None
 
     # Busca entidades educacionais ativas para exibir no card "Plantio Voluntário".
     # Se nenhuma ativa, o card fica desabilitado com aviso.
@@ -674,6 +683,7 @@ def dashboard():
                            total_aprovados=total_aprovados,
                            fornecedores_ativos=fornecedores_ativos,
                            e_membro_admin=e_membro_admin,
+                           e_membro_escolar=e_membro_escolar,
                            entidades_edu_ativas=entidades_edu_ativas)
 
 
