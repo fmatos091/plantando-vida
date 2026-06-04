@@ -59,7 +59,7 @@
              Totais do sistema inteiro (todos os tenants somados).
              Útil para o responsável técnico monitorar o crescimento da plataforma.
         -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
 
             <!-- Total de usuários cadastrados no sistema -->
             <div class="bg-white rounded-xl shadow p-5 border-l-4 border-blue-500 text-center">
@@ -77,6 +77,17 @@
             <div class="bg-white rounded-xl shadow p-5 border-l-4 border-yellow-500 text-center">
                 <div class="text-3xl font-bold text-yellow-600">{{ total_fornecedores }}</div>
                 <div class="text-gray-500 text-sm mt-1">🏪 Fornecedores Ativos</div>
+            </div>
+
+            <!-- Total de plantios voluntários — novo tipo da população em geral -->
+            <div class="bg-white rounded-xl shadow p-5 border-l-4 border-teal-500 text-center">
+                <div class="text-3xl font-bold text-teal-600">{{ total_voluntarios }}</div>
+                <div class="text-gray-500 text-sm mt-1">🌿 Plantios Voluntários</div>
+                <a href="/super-admin/mapa-voluntarios"
+                   class="inline-block mt-3 bg-teal-600 hover:bg-teal-700 text-white
+                          text-xs font-semibold px-4 py-1.5 rounded-lg transition">
+                    🗺️ Ver no Mapa
+                </a>
             </div>
 
         </div>

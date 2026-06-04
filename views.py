@@ -2118,13 +2118,91 @@ def super_admin_painel():
     cursor.execute("SELECT COUNT(*) FROM fornecedores WHERE ativo = 1")
     total_fornecedores = cursor.fetchone()[0]
 
+    # Total de plantios voluntários no sistema (todos os tenants)
+    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE tipo = 'voluntario'")
+    total_voluntarios = cursor.fetchone()[0]
+
     conn.close()
 
     return render_template("super_admin_painel.html",
                            tenants=tenants,
                            total_usuarios=total_usuarios,
                            total_plantios=total_plantios,
-                           total_fornecedores=total_fornecedores)
+                           total_fornecedores=total_fornecedores,
+                           total_voluntarios=total_voluntarios)
+
+
+# ===================== ROTA SUPER ADMIN: MAPA DE PLANTIOS VOLUNTÁRIOS =====================
+# Exibe mapa global com todos os plantios do tipo 'voluntario' de todos os tenants.
+# Sem filtro de tenant — o super admin vê dados globais do sistema.
+@app.route("/super-admin/mapa-voluntarios")
+def super_admin_mapa_voluntarios():
+    if not session.get("super_admin"):
+        flash("Acesso restrito ao Super Admin.", "erro")
+        return redirect("/super-admin/login")
+
+    import json
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Busca plantios voluntários com coordenadas de todos os tenants
+    cursor.execute("""
+        SELECT pg.id,
+               pg.latitude,
+               pg.longitude,
+               pg.especie,
+               pg.municipio,
+               pg.bairro,
+               pg.data_plantio,
+               u.nome        AS nome_usuario,
+               t.nome        AS tenant_nome,
+               pg.foto_plantio,
+               pg.foto_1
+        FROM plantas_go pg
+        JOIN  usuarios u ON u.id  = pg.responsavel_id
+        LEFT JOIN tenants t ON t.id = pg.tenant_id
+        WHERE pg.tipo = 'voluntario'
+          AND pg.latitude  IS NOT NULL
+          AND pg.longitude IS NOT NULL
+        ORDER BY pg.data_plantio DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+
+    def _foto_url(val):
+        if not val:
+            return None
+        return val if val.startswith("http") else f"/static/uploads/{val}"
+
+    marcadores = []
+    for r in rows:
+        # Converte data para padrão BR DD/MM/AA
+        data_raw = str(r[6]) if r[6] else ""
+        try:
+            data_br = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%y") if data_raw else ""
+        except ValueError:
+            data_br = data_raw
+
+        fotos = [u for u in [_foto_url(r[9]), _foto_url(r[10])] if u]
+        marcadores.append({
+            "id":        r[0],
+            "lat":       float(r[1]),
+            "lng":       float(r[2]),
+            "especie":   r[3] or "",
+            "municipio": r[4] or "",
+            "bairro":    r[5] or "",
+            "data":      data_br,
+            "nome":      r[7] or "",
+            "tenant":    r[8] or "—",
+            "fotos":     fotos,
+        })
+
+    return render_template(
+        "super_admin_mapa_voluntarios.html",
+        marcadores_json=json.dumps(marcadores, ensure_ascii=False),
+        total=len(marcadores),
+    )
 
 
 @app.route("/super-admin/tenant/criar", methods=["POST"])
@@ -4815,6 +4893,58 @@ def admin_faturamento_admin_criar_mes():
     return redirect("/admin/painel?tipo=fechamento_admin")
 
 
+# ===================== ROTA PLANTIO VOLUNTÁRIO — CONFIRMAÇÃO =====================
+# Exibe a página de confirmação com dois cards (Sim / Não) antes de iniciar o plantio.
+# Disponível para qualquer usuário logado — sem restrição de membro.
+@app.route("/plantio/voluntario")
+def plantio_voluntario():
+    if "usuario_id" not in session:
+        return redirect("/login")
+    if not session.get("termos_aceitos"):
+        return redirect("/termos")
+    return render_template("plantio_voluntario.html")
+
+
+# ===================== ROTA PLANTIO VOLUNTÁRIO — INICIAR =====================
+# Cria uma compra virtual (valor=0, status='aprovado', tipo_planta='Voluntário')
+# e redireciona para o fluxo padrão de 5 etapas em /plantio/iniciar.
+# ehDoacao=true (valor=0) pula automaticamente a Etapa 1 (QR Code).
+@app.route("/plantio/voluntario/iniciar")
+def plantio_voluntario_iniciar():
+    if "usuario_id" not in session:
+        return redirect("/login")
+    if not session.get("termos_aceitos"):
+        return redirect("/termos")
+
+    tid = getattr(g, "tenant_id", None) or 1
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Insere compra virtual sem fornecedor nem entidade — tipo marca como voluntário
+    cursor.execute("""
+        INSERT INTO compras
+            (usuario_id, fornecedor_id, especie_nome, tipo_planta,
+             valor, comprovante, status, entidade_educacional_id, tenant_id)
+        VALUES (?, NULL, ?, ?, 0.0, NULL, 'aprovado', NULL, ?)
+    """, (session["usuario_id"], "Muda Voluntária", "Voluntário", tid))
+    conn.commit()
+
+    # Recupera o id da compra recém-inserida
+    cursor.execute(
+        "SELECT id FROM compras WHERE usuario_id = ? ORDER BY id DESC LIMIT 1",
+        (session["usuario_id"],)
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        flash("Erro ao iniciar plantio voluntário. Tente novamente.", "erro")
+        return redirect("/dashboard")
+
+    return redirect(f"/plantio/iniciar/{row[0]}")
+
+
 # ===================== ROTA INICIAR PLANTIO (5 ETAPAS) =====================
 # Exibe a página com o fluxo guiado de 5 etapas para registrar o plantio definitivo.
 # Acesso restrito ao dono da compra com status 'retirado' e sem plantio já vinculado.
@@ -4894,8 +5024,9 @@ def plantio_concluir():
     # Reconfirma que a compra pertence ao usuário e ainda está sem plantio vinculado.
     # Aceita status='retirado' (compra paga, voucher validado) ou
     # status='aprovado' AND valor=0 (doação aprovada sem etapa de voucher).
+    # tipo_planta e entidade_educacional_id são usados para gravar o tipo do plantio.
     cursor.execute("""
-        SELECT id, fornecedor_id FROM compras
+        SELECT id, fornecedor_id, tipo_planta, entidade_educacional_id FROM compras
         WHERE id = ? AND usuario_id = ? AND plantio_id IS NULL
           AND (status = 'retirado' OR (status = 'aprovado' AND valor = 0))
     """, (int(compra_id), session["usuario_id"]))
@@ -4906,7 +5037,17 @@ def plantio_concluir():
         flash("Operação inválida. A compra não foi encontrada ou já possui plantio.", "erro")
         return redirect("/plantios/pendentes")
 
-    fornecedor_id = compra[1]
+    fornecedor_id           = compra[1]
+    tipo_planta_compra      = compra[2] or ""
+    entidade_educacional_id = compra[3]
+
+    # Deriva o tipo do plantio com base na origem da compra
+    if tipo_planta_compra == "Voluntário":
+        tipo_plantio = "voluntario"
+    elif entidade_educacional_id:
+        tipo_plantio = "escolar"
+    else:
+        tipo_plantio = "credenciado"
 
     # Salva foto ao lado da cova (Etapa 3) — foto_plantio
     # Verifica primeiro o input de câmera; se vazio, usa o input de galeria (temporário/emergência)
@@ -4935,20 +5076,21 @@ def plantio_concluir():
     # Usa data no fuso Brasil (UTC-3) — evita registrar amanhã quando o servidor roda em UTC.
     data_hoje = datetime.now(TZ_BRASIL).strftime("%Y-%m-%d")
 
-    # Insere o plantio definitivo — tenant_id vincula ao projeto do usuário
+    # Insere o plantio definitivo — tipo classifica a origem (credenciado/escolar/voluntario)
     cursor.execute("""
         INSERT INTO plantas_go (
             data_plantio, responsavel_id, especie, municipio, bairro,
             latitude, longitude,
             foto_plantio, foto_1, acompanhamento_1,
-            fornecedor_id, status, tenant_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            fornecedor_id, status, tenant_id, tipo
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         data_hoje, session["usuario_id"], especie, municipio, bairro,
         latitude, longitude,
         foto_plantio, foto_1, data_hoje if foto_1 else None,
         fornecedor_id, "em_analise",
-        getattr(g, "tenant_id", None) or 1
+        getattr(g, "tenant_id", None) or 1,
+        tipo_plantio
     ))
 
     # Recupera o id do plantio recém-criado para vincular à compra

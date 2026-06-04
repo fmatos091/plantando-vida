@@ -437,6 +437,8 @@ def init_db():
         "membros":                 ["tenant_id INTEGER DEFAULT 1"],
         # acompanhamentos: tabela nova — tenant_id para isolamento por projeto
         "acompanhamentos":         ["tenant_id INTEGER DEFAULT 1"],
+        # tipo: diferencia plantios credenciado / escolar / voluntario
+        "plantas_go":              ["tipo TEXT"],
     }
 
     for tabela, colunas in migracoes.items():

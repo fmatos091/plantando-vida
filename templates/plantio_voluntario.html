@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <!-- Configurações básicas: codificação UTF-8, responsividade e título -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plantio Voluntário — Plantando Vida</title>
+  <!-- Tailwind CSS via CDN para estilização -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Animação de entrada dos cards de escolha */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in          { animation: fadeInUp 0.45s ease forwards; }
+    .delay-header     { animation-delay: 0.05s; opacity: 0; }
+    .delay-card-sim   { animation-delay: 0.18s; opacity: 0; }
+    .delay-card-nao   { animation-delay: 0.30s; opacity: 0; }
+  </style>
+</head>
+
+<body class="bg-green-50 min-h-screen">
+
+  <!-- ===================== NAVBAR ===================== -->
+  <nav class="bg-green-700 text-white px-6 py-4 flex justify-between items-center shadow-md">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">🌱</span>
+      <a href="/" class="font-bold text-sm hover:text-green-200 transition">Plantando Vida</a>
+    </div>
+    <a href="/dashboard" class="text-green-200 hover:text-white text-sm transition">
+      ← Voltar ao painel
+    </a>
+  </nav>
+
+  <!-- ===================== CONTEÚDO PRINCIPAL ===================== -->
+  <main class="max-w-md mx-auto mt-12 px-4 pb-16">
+
+    <!-- Cabeçalho com pergunta de confirmação -->
+    <div class="text-center mb-8 fade-in delay-header">
+      <div class="text-5xl mb-3">🌿</div>
+      <h1 class="text-2xl font-bold text-green-800">Plantio Voluntário</h1>
+      <p class="text-gray-600 mt-3 text-sm leading-relaxed">
+        Confirma Plantio Voluntário?<br>
+        <strong class="text-green-700">
+          Para este Plantio você deve estar com a muda em mãos.
+        </strong>
+      </p>
+    </div>
+
+    <!-- ===================== CARDS DE ESCOLHA ===================== -->
+    <div class="flex flex-col gap-4">
+
+      <!-- Card SIM — inicia o fluxo de plantio -->
+      <a href="/plantio/voluntario/iniciar" class="fade-in delay-card-sim block">
+        <div class="bg-green-600 hover:bg-green-700 text-white rounded-2xl shadow-lg
+                    p-6 flex items-center gap-5 transition cursor-pointer">
+          <div class="text-4xl flex-shrink-0">✅</div>
+          <div>
+            <h2 class="text-lg font-bold leading-tight">Sim, Bora Plantar!</h2>
+            <p class="text-green-100 text-xs mt-1">
+              Estou com a muda em mãos — vamos iniciar o registro
+            </p>
+          </div>
+          <span class="ml-auto text-green-200 text-2xl font-bold">→</span>
+        </div>
+      </a>
+
+      <!-- Card NÃO — orienta a adquirir a muda primeiro -->
+      <a href="/dashboard" class="fade-in delay-card-nao block">
+        <div class="bg-white border border-gray-200 hover:bg-gray-50 rounded-2xl shadow
+                    p-6 flex items-center gap-5 transition cursor-pointer">
+          <div class="text-4xl flex-shrink-0">🛒</div>
+          <div>
+            <h2 class="text-lg font-semibold text-gray-700 leading-tight">Não</h2>
+            <p class="text-gray-400 text-xs mt-1 leading-relaxed">
+              Adquira sua Muda e abra o App novamente,<br>esperamos por você!
+            </p>
+          </div>
+          <span class="ml-auto text-gray-300 text-2xl font-bold">→</span>
+        </div>
+      </a>
+
+    </div>
+
+  </main>
+
+</body>
+</html>
