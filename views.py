@@ -5131,6 +5131,12 @@ def plantio_concluir():
     conn.commit()
     conn.close()
 
+    # Voluntário: redireciona para o painel Super Admin e exibe o registro confirmado.
+    # Demais tipos: redireciona para a lista de plantios pendentes do usuário.
+    if tipo_plantio == "voluntario":
+        flash("🌿 Plantio Voluntário registrado com sucesso!", "sucesso")
+        return redirect("/super-admin/painel")
+
     flash("Plantio registrado com sucesso! Acompanhe o desenvolvimento da sua muda.", "sucesso")
     return redirect("/plantios/pendentes")
 
