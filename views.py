@@ -633,11 +633,28 @@ def dashboard():
     )
     total_aprovados = cursor.fetchone()[0]
 
-    # Conta fornecedores ativos do tenant — se zero, o botão "Adquirir em Local Credenciado" é ocultado.
+    # Conta fornecedores ativos do tenant — usado em conjunto com membros_admin.
     # Filtra por tenant_id para não exibir fornecedores de outros projetos.
     tid_pub = getattr(g, "tenant_id", None) or 1
     cursor.execute("SELECT COUNT(*) FROM fornecedores WHERE ativo = 1 AND tenant_id = ?", (tid_pub,))
     fornecedores_ativos = cursor.fetchone()[0]
+
+    # Verifica se o CPF do usuário logado está cadastrado como membro da administração.
+    # Somente membros cadastrados em "Cad. Administração" podem ver o botão
+    # "Adquirir em Local Credenciado" no dashboard.
+    cursor.execute("SELECT cpf FROM usuarios WHERE id = ?", (session["usuario_id"],))
+    usuario_row  = cursor.fetchone()
+    cpf_usuario  = re.sub(r"\D", "", usuario_row[0] or "") if usuario_row else ""
+
+    e_membro_admin = False
+    if cpf_usuario:
+        # Comparação robusta: ignora formatação do CPF armazenado
+        cursor.execute("""
+            SELECT id FROM membros_admin
+            WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?
+              AND tenant_id = ?
+        """, (cpf_usuario, tid_pub))
+        e_membro_admin = cursor.fetchone() is not None
 
     # Busca entidades educacionais ativas para exibir no card "Plantio Voluntário".
     # Se nenhuma ativa, o card fica desabilitado com aviso.
@@ -656,6 +673,7 @@ def dashboard():
                            nome=session["usuario_nome"],
                            total_aprovados=total_aprovados,
                            fornecedores_ativos=fornecedores_ativos,
+                           e_membro_admin=e_membro_admin,
                            entidades_edu_ativas=entidades_edu_ativas)
 
 
@@ -2417,6 +2435,17 @@ def admin_painel():
     """, (tid,))
     membros = cursor.fetchall()
 
+    # ---- Consulta Membros da Administração do tenant ----
+    # ma[0]=id  ma[1]=nome  ma[2]=cpf  ma[3]=criado_em
+    # CPFs autorizados a exibir o botão "Adquirir em Local Credenciado" no dashboard.
+    cursor.execute("""
+        SELECT id, nome, cpf, criado_em
+        FROM membros_admin
+        WHERE tenant_id = ?
+        ORDER BY nome
+    """, (tid,))
+    membros_admin = cursor.fetchall()
+
     # ---- Consulta Percentuais de Vigência do tenant ----
     # p[0]=id  p[1]=inicio_vigencia  p[2]=perc_fornecedor  p[3]=perc_entidade  p[4]=perc_admin
     cursor.execute("""
@@ -2508,6 +2537,7 @@ def admin_painel():
                            entidades_edu=entidades_edu,
                            entidades_edu_admin=entidades_edu_admin,
                            membros=membros,
+                           membros_admin=membros_admin,
                            percentuais=percentuais,
                            fechamento_pendente=fechamento_pendente,
                            fechamento_entidade_pendente=fechamento_entidade_pendente,
@@ -3066,6 +3096,76 @@ def admin_salvar_dados_bancarios():
     conn.close()
 
     flash("Dados bancários salvos com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=dados_bancarios")
+
+
+# ===================== ROTA ADMIN: SALVAR MEMBRO DA ADMINISTRAÇÃO =====================
+# Cadastra um CPF como membro autorizado a adquirir em Local Credenciado.
+# FK: dados_bancarios_id → dados_bancarios.id (1 registro por tenant).
+@app.route("/admin/membro-admin/salvar", methods=["POST"])
+def admin_salvar_membro_admin():
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    nome    = request.form.get("nome", "").strip()
+    cpf_raw = request.form.get("cpf", "")
+    # Normaliza CPF para somente dígitos — mesmo padrão da tabela membros
+    cpf     = re.sub(r"\D", "", cpf_raw)
+
+    if not nome:
+        flash("O campo Nome é obrigatório.", "erro")
+        return redirect("/admin/painel?tipo=dados_bancarios")
+
+    if len(cpf) != 11:
+        flash("CPF inválido. Informe os 11 dígitos.", "erro")
+        return redirect("/admin/painel?tipo=dados_bancarios")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Busca o id de dados_bancarios do tenant para manter a FK explícita
+    cursor.execute("SELECT id FROM dados_bancarios WHERE tenant_id = ? LIMIT 1", (get_tid(),))
+    db_row             = cursor.fetchone()
+    dados_bancarios_id = db_row[0] if db_row else None
+
+    # Impede CPF duplicado no mesmo tenant
+    cursor.execute(
+        "SELECT id FROM membros_admin WHERE cpf = ? AND tenant_id = ?",
+        (cpf, get_tid())
+    )
+    if cursor.fetchone():
+        conn.close()
+        flash("Este CPF já está cadastrado como membro da administração.", "erro")
+        return redirect("/admin/painel?tipo=dados_bancarios")
+
+    cursor.execute(
+        "INSERT INTO membros_admin (dados_bancarios_id, nome, cpf, tenant_id) VALUES (?, ?, ?, ?)",
+        (dados_bancarios_id, nome, cpf, get_tid())
+    )
+    conn.commit()
+    conn.close()
+
+    flash(f"Membro '{nome}' cadastrado com sucesso.", "sucesso")
+    return redirect("/admin/painel?tipo=dados_bancarios")
+
+
+# ===================== ROTA ADMIN: EXCLUIR MEMBRO DA ADMINISTRAÇÃO =====================
+# Remove o membro pelo id, garantindo isolamento de tenant.
+@app.route("/admin/membro-admin/<int:mid>/excluir", methods=["POST"])
+def admin_excluir_membro_admin(mid):
+    if not session.get("admin"):
+        return redirect("/admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM membros_admin WHERE id = ? AND tenant_id = ?",
+        (mid, get_tid())
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Membro removido da administração.", "sucesso")
     return redirect("/admin/painel?tipo=dados_bancarios")
 
 

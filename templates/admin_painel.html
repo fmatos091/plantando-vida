@@ -179,11 +179,11 @@
                 <div id="submenu-financeiro" class="hidden absolute left-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-xl border border-gray-100
                             flex flex-col min-w-[220px] py-1.5 overflow-hidden">
 
-                    <!-- Item: Dados Bancários -->
+                    <!-- Item: Cad. Administração (antes "Dados Bancários") -->
                     <a href="/admin/painel?tipo=dados_bancarios"
                         class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition
                               {{ 'bg-emerald-50 text-emerald-800 font-semibold' if tipo == 'dados_bancarios' else 'text-gray-700 hover:bg-gray-50' }}">
-                        🏦 Dados Bancários
+                        🏛️ Cad. Administração
                         {% if tipo == 'dados_bancarios' %}
                         <span class="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                         {% endif %}
@@ -2009,8 +2009,114 @@
 
             </div>
         </div>
+
+        <!-- ===================== MEMBROS DA ADMINISTRAÇÃO =====================
+             CPFs autorizados a ver o botão "Adquirir em Local Credenciado" no dashboard.
+             FK: membros_admin.dados_bancarios_id → dados_bancarios.id
+        -->
+        <div class="mt-8">
+            <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                👥 Membros da Administração
+                <span class="text-xs font-normal text-gray-400">
+                    — CPFs com acesso ao botão "Adquirir em Local Credenciado"
+                </span>
+            </h3>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                <!-- Formulário de cadastro de membro -->
+                <div class="bg-white rounded-xl shadow p-6">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-4">➕ Adicionar Membro</h4>
+                    <form method="POST" action="/admin/membro-admin/salvar" class="space-y-3">
+
+                        <!-- Nome do membro -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Nome Completo</label>
+                            <input type="text" name="nome" placeholder="Nome do membro"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <!-- CPF com máscara visual -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">CPF</label>
+                            <input type="text" name="cpf" placeholder="000.000.000-00"
+                                maxlength="14" id="cpf-membro-admin"
+                                class="w-full p-2 border border-gray-300 rounded-lg text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        </div>
+
+                        <button type="submit"
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold
+                                   py-2 rounded-lg transition text-sm">
+                            ✔ Cadastrar Membro
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Lista de membros cadastrados -->
+                <div class="bg-white rounded-xl shadow p-6">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-4">
+                        📋 Membros Cadastrados
+                        <span class="ml-2 bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                            {{ membros_admin|length }}
+                        </span>
+                    </h4>
+
+                    {% if membros_admin %}
+                    <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {% for ma in membros_admin %}
+                        <!-- ma[0]=id  ma[1]=nome  ma[2]=cpf  ma[3]=criado_em -->
+                        <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 gap-2">
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-gray-800 truncate">{{ ma[1] }}</p>
+                                <p class="text-xs text-gray-400">
+                                    <!-- Exibe CPF formatado (000.000.000-00) -->
+                                    {{ ma[2][:3] }}.{{ ma[2][3:6] }}.{{ ma[2][6:9] }}-{{ ma[2][9:] }}
+                                </p>
+                            </div>
+                            <!-- Botão excluir: POST para garantir ação intencional -->
+                            <form method="POST" action="/admin/membro-admin/{{ ma[0] }}/excluir"
+                                  onsubmit="return confirm('Remover {{ ma[1] }} da administração?')">
+                                <button type="submit"
+                                    class="text-red-400 hover:text-red-600 text-xs font-semibold
+                                           px-2 py-1 rounded hover:bg-red-50 transition flex-shrink-0">
+                                    🗑 Remover
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-gray-400 py-8">
+                        <div class="text-3xl mb-2">👥</div>
+                        <p class="text-sm">Nenhum membro cadastrado ainda.</p>
+                        <p class="text-xs mt-1">Cadastre CPFs para liberar o acesso ao Local Credenciado.</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+        <!-- fim membros da administração -->
+
         {% endif %}
         <!-- fim da aba dados bancários -->
+
+        <script>
+            /* Máscara de CPF no campo de cadastro de membro da administração */
+            (function() {
+                const campo = document.getElementById('cpf-membro-admin');
+                if (!campo) return;
+                campo.addEventListener('input', function() {
+                    let v = this.value.replace(/\D/g, '').slice(0, 11);
+                    if (v.length > 9)      v = v.replace(/^(\d{3})(\d{3})(\d{3})(\d{0,2})/, '$1.$2.$3-$4');
+                    else if (v.length > 6) v = v.replace(/^(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3');
+                    else if (v.length > 3) v = v.replace(/^(\d{3})(\d{0,3})/, '$1.$2');
+                    this.value = v;
+                });
+            })();
+        </script>
 
 
         <!-- ===================== ABA PERCENTUAIS DE DISTRIBUIÇÃO =====================

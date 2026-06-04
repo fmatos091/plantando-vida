@@ -161,6 +161,19 @@ def init_db():
     )
     """)
 
+    # Membros da Administração: CPFs autorizados a adquirir em Local Credenciado.
+    # dados_bancarios_id: FK para o registro de "Cad. Administração" do tenant (1:1).
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS membros_admin (
+        id                 {pk},
+        dados_bancarios_id INTEGER,
+        nome               TEXT NOT NULL,
+        cpf                TEXT NOT NULL,
+        tenant_id          INTEGER DEFAULT 1,
+        criado_em          TEXT DEFAULT ({ts})
+    )
+    """)
+
     # Tabela de dados bancários da Entidade Favorecida (registro único).
     # Mesma estrutura de dados_bancarios — exibida na aba de Fechamento Entidade.
     cursor.execute(f"""
