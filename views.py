@@ -1130,8 +1130,11 @@ def acompanhamento_add(pid):
 
 
 # ===================== ROTA PLANTIOS APROVADOS =====================
-# Exibe somente os plantios com status 'aprovado' do usuário logado.
-# Acesso restrito a usuários autenticados (session["usuario_id"]).
+# Exibe plantios aprovados com acompanhamentos e link para mapa pessoal.
+# p[0]=id  p[1]=data_plantio  p[2]=especie  p[3]=municipio  p[4]=bairro
+# p[5]=criado_em  p[6]=fornecedor_nome  p[7]=foto_1
+# p[8]=acomp_1  p[9]=acomp_2  p[10]=acomp_3
+# p[11]=foto_2  p[12]=foto_3  p[13]=latitude  p[14]=longitude
 @app.route("/plantios/aprovados")
 def plantios_aprovados():
     if "usuario_id" not in session:
@@ -1140,22 +1143,97 @@ def plantios_aprovados():
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Busca apenas os plantios aprovados pelo administrador.
-    # Inclui foto_1 para exibição de thumbnail no card.
+    # Busca plantios aprovados com todos os campos de acompanhamento e coordenadas
     cursor.execute("""
         SELECT pg.id, pg.data_plantio, pg.especie, pg.municipio, pg.bairro,
                pg.criado_em,
                COALESCE(f.razao_social, 'Fornecedor não informado') AS fornecedor_nome,
-               pg.foto_1
+               pg.foto_1,
+               pg.acompanhamento_1, pg.acompanhamento_2, pg.acompanhamento_3,
+               pg.foto_2, pg.foto_3,
+               pg.latitude, pg.longitude
         FROM plantas_go pg
         LEFT JOIN fornecedores f ON f.id = pg.fornecedor_id
         WHERE pg.responsavel_id = ? AND pg.status = 'aprovado'
         ORDER BY pg.criado_em DESC
     """, (session["usuario_id"],))
     plantios = cursor.fetchall()
+
+    # Acompanhamentos ilimitados (tabela separada) agrupados por plantio_id
+    acomps = {}
+    if plantios:
+        pids         = [p[0] for p in plantios]
+        placeholders = ','.join(['?'] * len(pids))
+        cursor.execute(
+            f"SELECT plantio_id, id, data_acomp, foto FROM acompanhamentos "
+            f"WHERE plantio_id IN ({placeholders}) ORDER BY plantio_id, id",
+            pids
+        )
+        for row in cursor.fetchall():
+            acomps.setdefault(row[0], []).append(row)
+
     conn.close()
 
-    return render_template("plantios_aprovados.html", plantios=plantios)
+    return render_template("plantios_aprovados.html", plantios=plantios, acomps=acomps)
+
+
+# ===================== ROTA MEU MAPA (mapa pessoal do usuário) =====================
+# Exibe mapa com todos os plantios aprovados do usuário logado que têm coordenadas.
+@app.route("/plantios/meu-mapa")
+def plantios_meu_mapa():
+    if "usuario_id" not in session:
+        return redirect("/login")
+
+    import json
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT pg.id, pg.latitude, pg.longitude, pg.especie,
+               pg.municipio, pg.bairro, pg.data_plantio,
+               pg.foto_1, pg.foto_plantio
+        FROM plantas_go pg
+        WHERE pg.responsavel_id = ?
+          AND pg.status = 'aprovado'
+          AND pg.latitude  IS NOT NULL
+          AND pg.longitude IS NOT NULL
+        ORDER BY pg.data_plantio DESC
+    """, (session["usuario_id"],))
+    rows = cursor.fetchall()
+    conn.close()
+
+    def _foto_url(val):
+        if not val:
+            return None
+        return val if val.startswith("http") else f"/static/uploads/{val}"
+
+    marcadores = []
+    for r in rows:
+        data_raw = str(r[6]) if r[6] else ""
+        try:
+            data_br = datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m/%y") if data_raw else ""
+        except ValueError:
+            data_br = data_raw
+
+        fotos = [u for u in [_foto_url(r[7]), _foto_url(r[8])] if u]
+        marcadores.append({
+            "id":        r[0],
+            "lat":       float(r[1]),
+            "lng":       float(r[2]),
+            "especie":   r[3] or "",
+            "municipio": r[4] or "",
+            "bairro":    r[5] or "",
+            "data":      data_br,
+            "fotos":     fotos,
+        })
+
+    return render_template(
+        "meu_mapa.html",
+        marcadores_json=json.dumps(marcadores, ensure_ascii=False),
+        total=len(marcadores),
+        nome=session.get("usuario_nome", ""),
+    )
 
 
 # ===================== ROTA ADMIN: SALVAR DADOS DO USUÁRIO =====================
