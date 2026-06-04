@@ -438,7 +438,8 @@ def init_db():
         # acompanhamentos: tabela nova — tenant_id para isolamento por projeto
         "acompanhamentos":         ["tenant_id INTEGER DEFAULT 1"],
         # tipo: diferencia plantios credenciado / escolar / voluntario
-        "plantas_go":              ["tipo TEXT"],
+        # tipo_planta: Nativa ou Frutífera (informado pelo voluntário na Etapa 5)
+        "plantas_go":              ["tipo TEXT", "tipo_planta TEXT"],
     }
 
     for tabela, colunas in migracoes.items():

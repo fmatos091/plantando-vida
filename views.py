@@ -2158,7 +2158,8 @@ def super_admin_mapa_voluntarios():
                u.nome        AS nome_usuario,
                t.nome        AS tenant_nome,
                pg.foto_plantio,
-               pg.foto_1
+               pg.foto_1,
+               pg.tipo_planta
         FROM plantas_go pg
         JOIN  usuarios u ON u.id  = pg.responsavel_id
         LEFT JOIN tenants t ON t.id = pg.tenant_id
@@ -2186,16 +2187,17 @@ def super_admin_mapa_voluntarios():
 
         fotos = [u for u in [_foto_url(r[9]), _foto_url(r[10])] if u]
         marcadores.append({
-            "id":        r[0],
-            "lat":       float(r[1]),
-            "lng":       float(r[2]),
-            "especie":   r[3] or "",
-            "municipio": r[4] or "",
-            "bairro":    r[5] or "",
-            "data":      data_br,
-            "nome":      r[7] or "",
-            "tenant":    r[8] or "—",
-            "fotos":     fotos,
+            "id":         r[0],
+            "lat":        float(r[1]),
+            "lng":        float(r[2]),
+            "especie":    r[3] or "",
+            "municipio":  r[4] or "",
+            "bairro":     r[5] or "",
+            "data":       data_br,
+            "nome":       r[7] or "",
+            "tenant":     r[8] or "—",
+            "fotos":      fotos,
+            "tipo_planta": r[11] or "",   # Nativa ou Frutífera
         })
 
     return render_template(
@@ -5044,10 +5046,21 @@ def plantio_concluir():
     # Deriva o tipo do plantio com base na origem da compra
     if tipo_planta_compra == "Voluntário":
         tipo_plantio = "voluntario"
+
+        # Para plantios voluntários, espécie e tipo da muda são informados pelo voluntário
+        especie_voluntario = request.form.get("especie_voluntario", "").strip()
+        tipo_muda_voluntario = request.form.get("tipo_voluntario", "Nativa").strip()
+
+        # Usa o valor informado se preenchido; mantém "Muda Voluntária" como fallback
+        if especie_voluntario:
+            especie = especie_voluntario
+        # tipo_muda_voluntario é salvo em tipo_planta (Nativa/Frutífera)
     elif entidade_educacional_id:
         tipo_plantio = "escolar"
+        tipo_muda_voluntario = tipo        # usa o tipo da compra escolar
     else:
         tipo_plantio = "credenciado"
+        tipo_muda_voluntario = tipo        # usa o tipo da compra credenciada
 
     # Salva foto ao lado da cova (Etapa 3) — foto_plantio
     # Verifica primeiro o input de câmera; se vazio, usa o input de galeria (temporário/emergência)
@@ -5076,21 +5089,22 @@ def plantio_concluir():
     # Usa data no fuso Brasil (UTC-3) — evita registrar amanhã quando o servidor roda em UTC.
     data_hoje = datetime.now(TZ_BRASIL).strftime("%Y-%m-%d")
 
-    # Insere o plantio definitivo — tipo classifica a origem (credenciado/escolar/voluntario)
+    # Insere o plantio definitivo — tipo classifica a origem; tipo_planta = Nativa/Frutífera
     cursor.execute("""
         INSERT INTO plantas_go (
             data_plantio, responsavel_id, especie, municipio, bairro,
             latitude, longitude,
             foto_plantio, foto_1, acompanhamento_1,
-            fornecedor_id, status, tenant_id, tipo
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            fornecedor_id, status, tenant_id, tipo, tipo_planta
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         data_hoje, session["usuario_id"], especie, municipio, bairro,
         latitude, longitude,
         foto_plantio, foto_1, data_hoje if foto_1 else None,
         fornecedor_id, "em_analise",
         getattr(g, "tenant_id", None) or 1,
-        tipo_plantio
+        tipo_plantio,
+        tipo_muda_voluntario
     ))
 
     # Recupera o id do plantio recém-criado para vincular à compra

@@ -290,9 +290,10 @@
         });
 
         marcadores.forEach(function(m) {
-            // Tooltip: inclui tenant para identificar a origem do plantio
+            // Tooltip: inclui espécie, tipo da muda e tenant para identificação rápida
             const tooltipHtml =
-                '<strong style="color:#0f766e;">' + (m.especie || '—') + '</strong><br>' +
+                '<strong style="color:#0f766e;">' + (m.especie || '—') + '</strong>' +
+                (m.tipo_planta ? ' <span style="color:#6b7280;font-size:11px;">(' + m.tipo_planta + ')</span>' : '') + '<br>' +
                 '👤 ' + (m.nome || '—') + '<br>' +
                 '🏢 ' + (m.tenant || '—') + '<br>' +
                 '📅 ' + (m.data || '—') + '<br>' +
@@ -318,11 +319,13 @@
 
             const gmapsUrl = 'https://www.google.com/maps?q=' + m.lat + ',' + m.lng;
 
-            // Popup inclui linha do tenant — dado exclusivo deste mapa de super admin
+            // Popup inclui espécie, tipo da muda e tenant — dados exclusivos deste mapa
+            const tipoIcone = m.tipo_planta === 'Frutífera' ? '🍎' : '🌳';
             const popupHtml =
                 '<div class="popup-plantio" style="min-width:210px;max-width:270px;">' +
                 fotosHtml +
                 '<h3>🌿 ' + (m.especie || '—') + '</h3>' +
+                (m.tipo_planta ? '<p>' + tipoIcone + ' <strong>' + m.tipo_planta + '</strong></p>' : '') +
                 '<p>👤 <strong>' + (m.nome || '—') + '</strong></p>' +
                 '<p>🏢 ' + (m.tenant || '—') + '</p>' +
                 '<p>📅 ' + (m.data || '—') + '</p>' +

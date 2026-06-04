@@ -459,6 +459,52 @@
             <p class="text-sm font-semibold text-gray-800" id="resumo-localizacao">—</p>
           </div>
 
+          {% if compra[2] == 'Voluntário' %}
+          <!-- ============================================================
+               CAMPOS EXCLUSIVOS DO PLANTIO VOLUNTÁRIO
+               Solicitados somente quando tipo_planta == 'Voluntário'.
+               A espécie e o tipo são informados pelo próprio voluntário.
+          ============================================================ -->
+          <div class="border border-teal-200 bg-teal-50 rounded-xl p-4 mb-5 space-y-4">
+            <p class="text-xs font-bold text-teal-700 uppercase tracking-wide">
+              🌿 Informações da Muda
+            </p>
+
+            <!-- Campo: Qual espécie você plantou? -->
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">
+                Qual espécie você plantou? <span class="text-red-500">*</span>
+              </label>
+              <input type="text" id="input-especie-voluntario" name="especie_voluntario"
+                placeholder="Ex: Ipê Amarelo, Laranjeira, Goiabeira..."
+                oninput="validarEspecieVoluntario()"
+                class="w-full p-3 border border-teal-300 rounded-xl text-sm
+                       focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <p class="text-xs text-gray-400 mt-1">Informe o nome popular da muda.</p>
+            </div>
+
+            <!-- Campo: Frutífera ou Nativa -->
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">
+                Tipo da Muda <span class="text-red-500">*</span>
+              </label>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="tipo_voluntario" value="Nativa"
+                    class="accent-teal-600" checked>
+                  <span class="text-sm text-gray-700">🌳 Nativa</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="tipo_voluntario" value="Frutífera"
+                    class="accent-teal-600">
+                  <span class="text-sm text-gray-700">🍎 Frutífera</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          <!-- fim campos voluntário -->
+
           <div class="flex gap-3">
             <button type="button" onclick="voltar(5)"
               class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold
@@ -467,8 +513,10 @@
             </button>
             <!-- Botão de submissão final — envia o formulário multipart -->
             <button type="submit" id="btn-finalizar"
+              {% if compra[2] == 'Voluntário' %}disabled{% endif %}
               class="flex-1 bg-green-700 hover:bg-green-800 text-white text-sm font-bold
-                     py-3 px-4 rounded-xl transition shadow-lg flex items-center justify-center gap-2">
+                     py-3 px-4 rounded-xl transition shadow-lg flex items-center justify-center gap-2
+                     disabled:opacity-40">
               🌱 Registrar Plantio
             </button>
           </div>
@@ -860,6 +908,16 @@
       statusEl.className   = 'text-xs text-emerald-600 text-center font-semibold';
     }
     // ---- FIM TEMPORÁRIO: GPS Manual ----
+
+    // ---- Plantio Voluntário: validação do campo espécie na Etapa 5 ----
+    // Habilita o botão "Registrar Plantio" somente após o voluntário informar a espécie.
+    function validarEspecieVoluntario() {
+      const campo = document.getElementById('input-especie-voluntario');
+      const btn   = document.getElementById('btn-finalizar');
+      if (campo && btn) {
+        btn.disabled = campo.value.trim().length === 0;
+      }
+    }
 
     // ---- Inicialização ----
     document.addEventListener('DOMContentLoaded', () => {
