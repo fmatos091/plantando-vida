@@ -989,7 +989,8 @@ def plantios_pendentes():
     """, (session["usuario_id"],))
     plantios = cursor.fetchall()
 
-    # Busca compras do usuário para exibir status de pagamento na mesma tela
+    # Busca compras do usuário SEM plantio vinculado — compras com plantio_id
+    # preenchido ("Plantio Registrado") saem daqui e o acompanhamento fica em /plantios/aprovados.
     # c[0]=id  c[1]=especie_nome  c[2]=tipo_planta  c[3]=valor
     # c[4]=status  c[5]=criado_em  c[6]=fornecedor_nome  c[7]=comprovante  c[8]=plantio_id
     cursor.execute("""
@@ -999,7 +1000,7 @@ def plantios_pendentes():
                c.comprovante, c.plantio_id
         FROM compras c
         LEFT JOIN fornecedores f ON f.id = c.fornecedor_id
-        WHERE c.usuario_id = ?
+        WHERE c.usuario_id = ? AND c.plantio_id IS NULL
         ORDER BY c.criado_em DESC
     """, (session["usuario_id"],))
     compras = cursor.fetchall()
