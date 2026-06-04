@@ -2669,12 +2669,15 @@ def admin_painel():
     # Usa COUNT direto no banco para evitar iteração da lista e garantir precisão da data.
     # data_plantio é coluna DATE em PostgreSQL e TEXT (ISO 8601) em SQLite — a comparação
     # lexicográfica '2026-03-01' funciona em ambos os formatos.
+    # Plantios voluntários (tipo='voluntario') são gerenciados pelo Super Admin —
+    # não entram no contador de árvores do painel admin do tenant.
     cursor.execute("""
         SELECT COUNT(*)
         FROM plantas_go
         WHERE tenant_id = ?
           AND status = 'aprovado'
           AND data_plantio >= '2026-03-01'
+          AND (tipo IS NULL OR tipo != 'voluntario')
     """, (tid,))
     total_arvores = cursor.fetchone()[0]
 
@@ -2733,6 +2736,7 @@ def admin_mapa():
           AND pg.data_plantio >= '2026-03-01'
           AND pg.latitude IS NOT NULL
           AND pg.longitude IS NOT NULL
+          AND (pg.tipo IS NULL OR pg.tipo != 'voluntario')
         ORDER BY pg.data_plantio DESC
     """, (tid,))
     plantios_mapa = cursor.fetchall()
