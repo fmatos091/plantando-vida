@@ -8,6 +8,9 @@
     <title>Meu Painel - Plantando Vida</title>
     <!-- Tailwind CSS via CDN para estilização da página -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons: biblioteca de ícones SVG profissionais com suporte a web components.
+         Substitui emojis por ícones vetoriais consistentes em todos os dispositivos. -->
+    <script type="module" src="https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js"></script>
 
     <!-- ===================== ESTILOS PERSONALIZADOS =====================
          Animação de entrada e efeitos de hover nos cards.
@@ -67,7 +70,8 @@
     <nav class="bg-green-700 text-white px-6 py-4 flex justify-between items-center shadow-md">
         <!-- Logo e nome do projeto com link para a home -->
         <div class="flex items-center gap-2">
-            <span class="text-2xl">🌱</span>
+            <!-- Ícone de folha preenchido: representa o tema ambiental do projeto -->
+            <ph-leaf weight="fill" size="24" color="white"></ph-leaf>
             <!-- Botão Início: clicável no logo/nome, redireciona para index.html -->
             <a href="/" class="text-xl font-bold hover:text-green-200 transition">Plantando Vida</a>
         </div>
@@ -85,7 +89,11 @@
 
         <!-- Cabeçalho de boas-vindas: ambos os textos centralizados em relação ao mesmo bloco -->
         <div class="mb-8 flex flex-col items-center text-center">
-            <h1 class="text-3xl font-bold text-green-800">Bem-vindo (a), {{ nome }}! 🌿</h1>
+            <h1 class="text-3xl font-bold text-green-800 flex items-center justify-center gap-2">
+                Bem-vindo (a), {{ nome }}!
+                <!-- Folha duotone ao lado do nome: toque visual ambiental no título -->
+                <ph-leaf weight="duotone" size="30" color="#166534"></ph-leaf>
+            </h1>
             <p class="text-gray-500 mt-1">O que vamos fazer hoje?</p>
         </div>
 
@@ -97,25 +105,28 @@
         <div class="flex flex-col gap-4">
 
             <!-- Card 1: Realizar Plantio
-                 Ao clicar, expande um submenu com duas opções de tipo de plantio.
+                 Ao clicar, expande um submenu com as opções de tipo de plantio.
                  A seta gira 90° quando o submenu está aberto (feedback visual). -->
             <div class="fade-in delay-1">
 
                 <!-- Cabeçalho do card: clicável para expandir/recolher o submenu -->
                 <div onclick="togglePlantio()"
                     class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-green-50 transition cursor-pointer border border-transparent hover:border-green-300">
-                    <div class="text-4xl">🌱</div>
+                    <!-- Ícone de muda em duotone verde: representa o ato de plantar -->
+                    <ph-plant weight="duotone" size="38" color="#15803d"></ph-plant>
                     <div>
                         <h2 class="text-lg font-semibold text-green-700">Realizar Plantio</h2>
                         <p class="text-gray-400 text-sm">Escolha como deseja plantar</p>
                     </div>
                     <!-- Seta que rotaciona ao expandir (controlada via JS) -->
                     <span id="seta-plantio"
-                        class="ml-auto text-green-400 text-xl transition-transform duration-300">→</span>
+                        class="ml-auto transition-transform duration-300 flex items-center">
+                        <ph-caret-right weight="bold" size="20" color="#4ade80"></ph-caret-right>
+                    </span>
                 </div>
 
                 <!-- Submenu expandível: oculto por padrão, exibido ao clicar no card.
-                     Contém dois botões de ação com descrições e cores distintas. -->
+                     Contém as opções de plantio com ícones e cores distintas por tipo. -->
                 <div id="submenu-plantio" class="hidden mt-2 flex flex-col gap-2 pl-2">
 
                     <!-- Opção 1: Adquirir planta em Local Credenciado
@@ -125,14 +136,17 @@
                     <a href="/plantio/credenciado">
                         <div class="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-4
                                     hover:bg-green-100 hover:border-green-400 transition cursor-pointer">
-                            <div class="text-3xl">🏪</div>
+                            <!-- Ícone de loja: representa o estabelecimento credenciado -->
+                            <ph-storefront weight="duotone" size="30" color="#15803d"></ph-storefront>
                             <div>
                                 <h3 class="text-base font-semibold text-green-700">Adquirir em Local Credenciado</h3>
                                 <p class="text-xs text-gray-500 mt-0.5">Parte do valor será doado à
                                     <strong>APAE</strong> do seu município
                                 </p>
                             </div>
-                            <span class="ml-auto text-green-400">→</span>
+                            <span class="ml-auto flex items-center">
+                                <ph-caret-right weight="bold" size="18" color="#4ade80"></ph-caret-right>
+                            </span>
                         </div>
                     </a>
                     {% endif %}
@@ -145,23 +159,29 @@
                         <a href="/plantio/escolar">
                             <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-4
                                         hover:bg-emerald-100 hover:border-emerald-400 transition cursor-pointer">
-                                <div class="text-3xl">🏫</div>
+                                <!-- Ícone de capelo: representa o vínculo com entidade educacional -->
+                                <ph-graduation-cap weight="duotone" size="30" color="#059669"></ph-graduation-cap>
                                 <div>
                                     <h3 class="text-base font-semibold text-emerald-700">Plantio Escolar</h3>
                                     <p class="text-xs text-gray-500 mt-0.5">Registre um plantio vinculado à sua escola ou entidade educacional</p>
                                 </div>
-                                <span class="ml-auto text-emerald-400">→</span>
+                                <span class="ml-auto flex items-center">
+                                    <ph-caret-right weight="bold" size="18" color="#34d399"></ph-caret-right>
+                                </span>
                             </div>
                         </a>
                         {% else %}
                         <!-- Membro cadastrado, mas sem entidade ativa no momento -->
                         <div class="bg-gray-100 border border-gray-200 rounded-xl p-4 flex items-center gap-4
                                     opacity-60 cursor-not-allowed">
-                            <div class="text-3xl">🏫</div>
+                            <!-- Ícone de capelo em cinza: desabilitado quando não há entidade ativa -->
+                            <ph-graduation-cap weight="duotone" size="30" color="#9ca3af"></ph-graduation-cap>
                             <div>
                                 <h3 class="text-base font-semibold text-gray-500">Plantio Escolar</h3>
-                                <p class="text-xs text-red-400 mt-0.5 font-medium">
-                                    ⚠️ Não há nenhuma Entidade Educacional ATIVA
+                                <p class="text-xs text-red-400 mt-0.5 font-medium flex items-center gap-1">
+                                    <!-- Ícone de aviso: alerta sobre ausência de entidade ativa -->
+                                    <ph-warning weight="fill" size="13" color="#f87171"></ph-warning>
+                                    Não há nenhuma Entidade Educacional ATIVA
                                 </p>
                             </div>
                         </div>
@@ -174,12 +194,15 @@
                     <a href="/plantio/voluntario">
                         <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 flex items-center gap-4
                                     hover:bg-teal-100 hover:border-teal-400 transition cursor-pointer">
-                            <div class="text-3xl">🌿</div>
+                            <!-- Ícone de folha duotone teal: diferencia o plantio voluntário dos demais -->
+                            <ph-leaf weight="duotone" size="30" color="#0f766e"></ph-leaf>
                             <div>
                                 <h3 class="text-base font-semibold text-teal-700">Plantio Voluntário</h3>
                                 <p class="text-xs text-gray-500 mt-0.5">Já está com a muda? Registre seu plantio agora!</p>
                             </div>
-                            <span class="ml-auto text-teal-400">→</span>
+                            <span class="ml-auto flex items-center">
+                                <ph-caret-right weight="bold" size="18" color="#2dd4bf"></ph-caret-right>
+                            </span>
                         </div>
                     </a>
 
@@ -195,14 +218,17 @@
             <a href="/plantios/aprovados" class="fade-in delay-2">
                 <div
                     class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-green-50 transition cursor-pointer border border-transparent hover:border-green-300">
-                    <div class="text-4xl">✅</div>
+                    <!-- Ícone de check em círculo duotone verde: confirma plantios aprovados pela equipe -->
+                    <ph-check-circle weight="duotone" size="38" color="#15803d"></ph-check-circle>
                     <div>
                         <h2 class="text-lg font-semibold text-green-700">Minhas Plantas — Aprovadas</h2>
                         <!-- Exibe a contagem de plantios aprovados como referência rápida -->
                         <p class="text-gray-400 text-sm">{{ total_aprovados }} plantio{{ 's' if total_aprovados > 1 else
                             '' }} confirmado{{ 's' if total_aprovados > 1 else '' }} pela equipe</p>
                     </div>
-                    <span class="ml-auto text-green-400 text-xl">→</span>
+                    <span class="ml-auto flex items-center">
+                        <ph-caret-right weight="bold" size="20" color="#4ade80"></ph-caret-right>
+                    </span>
                 </div>
             </a>
             {% endif %}
@@ -212,12 +238,15 @@
             <a href="/plantios/pendentes" class="fade-in delay-3">
                 <div
                     class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-yellow-50 transition cursor-pointer border border-transparent hover:border-yellow-300">
-                    <div class="text-4xl">⏳</div>
+                    <!-- Ícone de relógio duotone amarelo: indica status de espera/análise -->
+                    <ph-clock weight="duotone" size="38" color="#ca8a04"></ph-clock>
                     <div>
                         <h2 class="text-lg font-semibold text-yellow-600">Aguardando Aprovação</h2>
                         <p class="text-gray-400 text-sm">Plantios enviados e em análise</p>
                     </div>
-                    <span class="ml-auto text-yellow-400 text-xl">→</span>
+                    <span class="ml-auto flex items-center">
+                        <ph-caret-right weight="bold" size="20" color="#facc15"></ph-caret-right>
+                    </span>
                 </div>
             </a>
 
@@ -226,12 +255,15 @@
             <a href="/meu-perfil" class="fade-in delay-4">
                 <div
                     class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-blue-50 transition cursor-pointer border border-transparent hover:border-blue-300">
-                    <div class="text-4xl">👤</div>
+                    <!-- Ícone de usuário em círculo duotone azul: representa dados pessoais -->
+                    <ph-user-circle weight="duotone" size="38" color="#2563eb"></ph-user-circle>
                     <div>
                         <h2 class="text-lg font-semibold text-blue-600">Atualizar Dados Cadastrais</h2>
                         <p class="text-gray-400 text-sm">Edite seu nome, email, telefone e mais</p>
                     </div>
-                    <span class="ml-auto text-blue-400 text-xl">→</span>
+                    <span class="ml-auto flex items-center">
+                        <ph-caret-right weight="bold" size="20" color="#60a5fa"></ph-caret-right>
+                    </span>
                 </div>
             </a>
 
@@ -240,12 +272,15 @@
             <a href="/logout" class="fade-in delay-5">
                 <div
                     class="bg-white rounded-xl shadow p-5 flex items-center gap-5 hover:shadow-md hover:bg-red-50 transition cursor-pointer border border-transparent hover:border-red-300">
-                    <div class="text-4xl">🚪</div>
+                    <!-- Ícone de saída duotone vermelho: indica encerramento de sessão -->
+                    <ph-sign-out weight="duotone" size="38" color="#ef4444"></ph-sign-out>
                     <div>
                         <h2 class="text-lg font-semibold text-red-500">Sair do Login</h2>
                         <p class="text-gray-400 text-sm">Encerrar sua sessão com segurança</p>
                     </div>
-                    <span class="ml-auto text-red-400 text-xl">→</span>
+                    <span class="ml-auto flex items-center">
+                        <ph-caret-right weight="bold" size="20" color="#f87171"></ph-caret-right>
+                    </span>
                 </div>
             </a>
 
