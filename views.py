@@ -505,7 +505,9 @@ def cadastro():
             flash("Sessão expirada. Inicie o cadastro novamente.", "erro")
             return redirect("/cadastros")
 
-        # Grava o novo usuário com senha hasheada e tenant_id do projeto onde se cadastrou
+        # Grava o novo usuário com senha hasheada.
+        # tenant_id = NULL: usuário global — sem vínculo fixo a nenhum tenant.
+        # O vínculo ocorre apenas via membros / membros_admin cadastrados pelo admin do tenant.
         conn   = get_db()
         cursor = conn.cursor()
         try:
@@ -518,7 +520,7 @@ def cadastro():
                     generate_password_hash(senha),
                     pending["cpf"], pending["telefone"], pending["data_nascimento"],
                     pending.get("uf"), pending.get("cidade"),
-                    getattr(g, "tenant_id", None) or 1,  # tenant detectado em before_request
+                    None,  # global — não pertence a nenhum tenant por padrão
                 )
             )
             conn.commit()
@@ -1238,25 +1240,31 @@ def admin_usuario_salvar(usuario_id):
     conn   = get_db()
     cursor = conn.cursor()
 
-    # Garante isolamento: só altera usuários do tenant logado
+    # Garante isolamento: só altera usuários que são membros deste tenant
     tid = get_tid()
 
-    # Verifica se o novo email já pertence a outro usuário do mesmo tenant
+    # Rejeita a edição se o usuário não tiver vínculo de membro com este tenant
+    if not _usuario_pertence_ao_tenant(cursor, usuario_id, tid):
+        conn.close()
+        flash("Operação não permitida: usuário não é membro deste projeto.", "erro")
+        return redirect("/admin/painel?tipo=usuarios")
+
+    # Verifica se o novo email já pertence a outro usuário no sistema
     cursor.execute(
-        "SELECT id FROM usuarios WHERE email = ? AND id != ? AND tenant_id = ?",
-        (email, usuario_id, tid)
+        "SELECT id FROM usuarios WHERE email = ? AND id != ?",
+        (email, usuario_id)
     )
     if cursor.fetchone():
         conn.close()
         flash("Este email já está em uso por outro cadastro.", "erro")
         return redirect("/admin/painel?tipo=usuarios")
 
-    # Atualiza os dados do usuário — AND tenant_id garante isolamento multi-tenant
+    # Atualiza os dados do usuário — segurança garantida pelo check de membro acima
     cursor.execute("""
         UPDATE usuarios
         SET nome=?, email=?, cpf=?, telefone=?, data_nascimento=?
-        WHERE id=? AND tenant_id=?
-    """, (nome, email, cpf, telefone, data_nascimento, usuario_id, tid))
+        WHERE id=?
+    """, (nome, email, cpf, telefone, data_nascimento, usuario_id))
     conn.commit()
     conn.close()
 
@@ -1272,14 +1280,20 @@ def admin_usuario_limpar_senha(usuario_id):
     if not session.get("admin"):
         return redirect("/admin/login")
 
+    tid    = get_tid()
     conn   = get_db()
     cursor = conn.cursor()
 
+    # Rejeita a ação se o usuário não tiver vínculo de membro com este tenant
+    if not _usuario_pertence_ao_tenant(cursor, usuario_id, tid):
+        conn.close()
+        flash("Operação não permitida: usuário não é membro deste projeto.", "erro")
+        return redirect("/admin/painel?tipo=usuarios")
+
     # Senha vazia impossibilita o login via check_password_hash para qualquer input.
-    # AND tenant_id garante isolamento multi-tenant (não afeta usuários de outros tenants).
     cursor.execute(
-        "UPDATE usuarios SET senha=? WHERE id=? AND tenant_id=?",
-        ("", usuario_id, get_tid())
+        "UPDATE usuarios SET senha=? WHERE id=?",
+        ("", usuario_id)
     )
     conn.commit()
     conn.close()
@@ -1296,10 +1310,17 @@ def admin_usuario_excluir(usuario_id):
     if not session.get("admin"):
         return redirect("/admin/login")
 
+    tid    = get_tid()
     conn   = get_db()
     cursor = conn.cursor()
-    # AND tenant_id: impede excluir usuários de outros tenants
-    cursor.execute("DELETE FROM usuarios WHERE id=? AND tenant_id=?", (usuario_id, get_tid()))
+
+    # Rejeita a exclusão se o usuário não tiver vínculo de membro com este tenant
+    if not _usuario_pertence_ao_tenant(cursor, usuario_id, tid):
+        conn.close()
+        flash("Operação não permitida: usuário não é membro deste projeto.", "erro")
+        return redirect("/admin/painel?tipo=usuarios")
+
+    cursor.execute("DELETE FROM usuarios WHERE id=?", (usuario_id,))
     conn.commit()
     conn.close()
 
@@ -2072,6 +2093,29 @@ def get_tid():
     return session.get("tenant_id")
 
 
+def _usuario_pertence_ao_tenant(cursor, usuario_id, tid):
+    """Verifica se o usuário tem CPF vinculado a membros ou membros_admin do tenant.
+    Usado como guarda de segurança antes de ações admin (editar, limpar senha, excluir).
+    Retorna True se o vínculo existe, False caso contrário."""
+    cursor.execute("""
+        SELECT 1 FROM usuarios u
+        WHERE u.id = ? AND (
+            EXISTS (
+                SELECT 1 FROM membros m
+                WHERE REPLACE(REPLACE(REPLACE(m.cpf,'.',''),'-',''),' ','')
+                    = REPLACE(REPLACE(REPLACE(u.cpf,'.',''),'-',''),' ','')
+                  AND m.tenant_id = ?
+            ) OR EXISTS (
+                SELECT 1 FROM membros_admin ma
+                WHERE REPLACE(REPLACE(REPLACE(ma.cpf,'.',''),'-',''),' ','')
+                    = REPLACE(REPLACE(REPLACE(u.cpf,'.',''),'-',''),' ','')
+                  AND ma.tenant_id = ?
+            )
+        )
+    """, (usuario_id, tid, tid))
+    return cursor.fetchone() is not None
+
+
 # ===================== BEFORE REQUEST: DETECTAR TENANT PÚBLICO =====================
 # Identifica o tenant nas rotas públicas (usuário final) via subdomínio.
 # Em desenvolvimento local, usa a variável TENANT_SLUG do .env (padrão: 'padrao').
@@ -2461,19 +2505,36 @@ def admin_painel():
         """, (tid,))
     fornecedores = cursor.fetchall()
 
-    # ---- Consulta Usuários do tenant — todos os campos para permitir edição pelo admin ----
+    # ---- Consulta Usuários do tenant — apenas os vinculados via membros ou membros_admin ----
+    # Regra: um usuário só aparece no painel admin se seu CPF estiver cadastrado em
+    # "Membros das Entidades Educacionais" OR "Membros da Administração" deste tenant.
     # u[0]=id  u[1]=nome  u[2]=email  u[3]=cpf  u[4]=telefone  u[5]=data_nascimento
-    if busca:
-        cursor.execute("""
-            SELECT id, nome, email, cpf, telefone, data_nascimento FROM usuarios
-            WHERE tenant_id = ?
-              AND (nome LIKE ? OR email LIKE ? OR cpf LIKE ?)
-        """, (tid, f"%{busca}%", f"%{busca}%", f"%{busca}%"))
-    else:
-        cursor.execute(
-            "SELECT id, nome, email, cpf, telefone, data_nascimento FROM usuarios WHERE tenant_id = ? ORDER BY nome",
-            (tid,)
+    _cpf_norm = "REPLACE(REPLACE(REPLACE({}.cpf,'.',''),'-',''),' ','')"
+    _vinculo_sql = f"""
+        EXISTS (
+            SELECT 1 FROM membros m
+            WHERE {_cpf_norm.format('m')} = {_cpf_norm.format('u')}
+              AND m.tenant_id = ?
+        ) OR EXISTS (
+            SELECT 1 FROM membros_admin ma
+            WHERE {_cpf_norm.format('ma')} = {_cpf_norm.format('u')}
+              AND ma.tenant_id = ?
         )
+    """
+    if busca:
+        cursor.execute(f"""
+            SELECT u.id, u.nome, u.email, u.cpf, u.telefone, u.data_nascimento
+            FROM usuarios u
+            WHERE ({_vinculo_sql})
+              AND (u.nome LIKE ? OR u.email LIKE ? OR u.cpf LIKE ?)
+        """, (tid, tid, f"%{busca}%", f"%{busca}%", f"%{busca}%"))
+    else:
+        cursor.execute(f"""
+            SELECT u.id, u.nome, u.email, u.cpf, u.telefone, u.data_nascimento
+            FROM usuarios u
+            WHERE ({_vinculo_sql})
+            ORDER BY u.nome
+        """, (tid, tid))
     usuarios = cursor.fetchall()
 
     # ---- Consulta Plantios do tenant — dados do usuário, fornecedor, fotos e localização ----
