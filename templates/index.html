@@ -100,8 +100,9 @@
         A segunda melhor hora é <strong class="text-white">AGORA</strong>.
       </p>
 
-      <!-- Botões de ação: cadastro e login -->
-      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <!-- Botões de ação: cadastro e login — items-center evita que os links estiquem
+           para 100% de largura no mobile (flex-col), o que desalinhava o botão à esquerda -->
+      <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
 
         <!-- Botão de cadastro: leva para /cadastros -->
         <a href="/cadastros">
@@ -323,8 +324,8 @@
     <h2 class="text-3xl font-bold mb-3">Faça parte dessa mudança</h2>
     <p class="text-green-200 mb-8">Crie sua conta gratuitamente e comece a registrar seus plantios hoje.</p>
 
-    <!-- Botões de ação lado a lado -->
-    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+    <!-- Botões de ação lado a lado — items-center centraliza no mobile (flex-col) -->
+    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
 
       <!-- Botão de cadastro de usuário comum -->
       <a href="/cadastros">
