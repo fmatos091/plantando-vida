@@ -2285,6 +2285,16 @@ def super_admin_mapa_voluntarios():
 
     marcadores = []
     for r in rows:
+        # Valida e converte coordenadas — pula o registro se inválidas para não travar o mapa.
+        # Protege contra strings malformadas, vazias ou valores fora do range geográfico.
+        try:
+            lat = float(r[1])
+            lng = float(r[2])
+        except (ValueError, TypeError):
+            continue
+        if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+            continue
+
         # Converte data para padrão BR DD/MM/AA
         data_raw = str(r[6]) if r[6] else ""
         try:
@@ -2295,8 +2305,8 @@ def super_admin_mapa_voluntarios():
         fotos = [u for u in [_foto_url(r[9]), _foto_url(r[10])] if u]
         marcadores.append({
             "id":         r[0],
-            "lat":        float(r[1]),
-            "lng":        float(r[2]),
+            "lat":        lat,
+            "lng":        lng,
             "especie":    r[3] or "",
             "municipio":  r[4] or "",
             "bairro":     r[5] or "",
@@ -2825,6 +2835,16 @@ def admin_mapa():
 
     marcadores = []
     for p in plantios_mapa:
+        # Valida e converte coordenadas — pula o registro se inválidas para não travar o mapa.
+        # Protege contra strings malformadas, vazias ou valores fora do range geográfico.
+        try:
+            lat = float(p[5])
+            lng = float(p[6])
+        except (ValueError, TypeError):
+            continue
+        if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+            continue
+
         # p[7]=foto_plantio  p[8]=foto_1  p[9]=foto_2  p[10]=foto_3  p[11]=nome_usuario
         fotos = [u for u in [_foto_url(p[7]), _foto_url(p[8]), _foto_url(p[9]), _foto_url(p[10])] if u]
         fotos += [_foto_url(f) for f in acomp_fotos.get(p[0], []) if f]
@@ -2842,8 +2862,8 @@ def admin_mapa():
             "especie":   p[2] or "",
             "municipio": p[3] or "",
             "bairro":    p[4] or "",
-            "lat":       float(p[5]),
-            "lng":       float(p[6]),
+            "lat":       lat,
+            "lng":       lng,
             "fotos":     fotos,
             "nome":      p[11] or "",
         })
