@@ -17,6 +17,9 @@ env/
 .vscode/
 .idea/
 
+# Configuração local do Claude Code (permissões da sessão) — não é código do projeto
+.claude/
+
 # Fotos de plantios enviadas pelos usuários (não devem ir ao repositório)
 # O arquivo .gitkeep dentro da pasta garante que o diretório seja versionado
 static/uploads/*

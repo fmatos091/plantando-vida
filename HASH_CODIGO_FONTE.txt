@@ -1,0 +1,49 @@
+PROJETO PLANTANDO VIDA — MANIFESTO DE HASH DO CÓDIGO-FONTE
+======================================================================
+Gerado em: 2026-06-22 11:56:24 UTC
+Total de arquivos: 36
+Algoritmo: SHA-256
+======================================================================
+
+HASH FINAL (combinado de todos os arquivos abaixo):
+2452ae7cbcfc5b7ae8904adc44af25ece64fe49621e799be4295c86e14cb5f7f
+
+======================================================================
+MANIFESTO INDIVIDUAL (sha256  caminho/do/arquivo)
+======================================================================
+690ea6bc1bee8fe9ad0ddd1e98d150a28f0ebcd2e41d7bfa5e523da0aa392e56  app.py
+3b1c99c1f9b84cd7dd554a9468af7d5b70114d9dc16e84f422af6e059e1b1d6c  db.py
+02a5772a906e39e3aaad27b922f83b5585febe37f9fd7d6e1101bf112ae989e6  gerar_diagrama.py
+4c199f0063997e5760b464512f9b294f2e0314cea35be3809197b4adcae0bbeb  gerar_hash_patente.py
+45a0402bdaa30487813f997eea70b254d6933dd45f2e6d86dbf5f103808b3e53  gerar_hashes.py
+7385127f4e4a5101f75fb1dd185c7bea430caed5d9753e9038c7a3d8c99d1088  templates/admin_login.html
+00d2b2d7b9a3dcb94ba754f5538c951cf30db507019b5b6ae0d1c2f39c1a62fd  templates/admin_mapa.html
+25664dbec158d99173040c964f4f218089b6b99145ccb06b58cf33aadb6f7ab3  templates/admin_painel.html
+0f128cbbf20c1ce109d5cd0d910d6d5b667c19e7a86fff7fc048af330bb214cf  templates/cadastros.html
+4c9e2d09b2924cdace3dd698cc96ee3e5eebf657873651930204713129a86c05  templates/carrinho.html
+d94c908d2073ba6024483134b2f7c7b1238a23fb042f8b069bc896e6e4da931a  templates/dashboard.html
+cbaca65083c77c96cf2ab1e9a71bcf66debb444d0f2ed03786ee14865b02f0a3  templates/esqueci_senha.html
+1be2c2759e3c3d247e3e46015521b56bdda12bcd83de5b6e0aa13ed100c2e600  templates/fornecedor.html
+6b1fea0a4779a47979d52d5708df74b7cbbbca1554f83acb5e432dc0a7390648  templates/fornecedor_editar.html
+8f80fd29cbf08a0a9b5c73263b9f0c636af693acca2d49df6ded289dc39644f9  templates/fornecedor_esqueci_senha.html
+82ae4405a70a0bf4980a9048856098ea394ffa48f94e481a342c45e9ce9f97ef  templates/fornecedor_login.html
+ab808f623573803751a78505e364563c49c6a273e1db2d18788815e3a6d00788  templates/fornecedor_painel.html
+6f08ab4099eb67b07c2defc07eae6879a036d28d0cae7e7199455108101ecd62  templates/fornecedores_lista.html
+104825c44f655659f5a01a2d885489888229540619f18313916680b556fade21  templates/index.html
+33b2503ade5686dd0a63d068763885f372471d7f018cd7d962a29335adc13062  templates/login.html
+4cafeb56850d36a37d4d5b1d49075b87d1930e74ef5d8085b7e3fde6fe6b9c9f  templates/meu_mapa.html
+09f18d9064aeb3124d7c2660c2cdde975661c0a8aee7ca405bef0c0208891f7c  templates/meu_perfil.html
+9ed4d58a349915d5f9b050c8f1ce912db963e5d3a65c024b2486b93f197fbd76  templates/plantio_credenciado.html
+c46bdfa934f37aea924321668def09f1fd5e62ce1f9969f4c63b98c3d1228ce5  templates/plantio_escolar.html
+b85fe2357196025230ba01dd199451aec0e0c1506dee8676df3c3805b5a19fe6  templates/plantio_escolar_doacoes.html
+02bcad9d2a1b5602747984c6c77c12249598d92c9f0913d26c7da3a3d9b56c39  templates/plantio_iniciar.html
+fed6bea8abc2f7655df0d8db2d5f263b489d955b7f9d141e979bd9796061d88e  templates/plantio_voluntario.html
+8b8e10e84dcd393d6a74abadd5f2a513ccaef0aa55a32f44bf387a1a58764792  templates/plantios_aprovados.html
+6b170187fc2958c2bcd15ee60c814cfa0637f0672564db53bb47720bc32b5fb9  templates/plantios_pendentes.html
+c182853baef47e71147fda9e157acfd97f2ecfba9a0bf697cd565991a1fbcdfe  templates/redefinir_senha.html
+1a9f2491eb3a2b20d5a31d5ac6f03ca2dd49e88008503603fe51aa3edafce6a9  templates/super_admin_login.html
+9d7b791deb4fe55831679229da46ff4d41c6d0646715804270a4b1075666b5d4  templates/super_admin_mapa_voluntarios.html
+0467fc54cd0f3915c95baa2614e75ff1c896fd0e00bec28690c21396d08ea498  templates/super_admin_painel.html
+274e88de091c2f15555da38f36c5c567f25f82efab54e605fd563e31cbec6a1b  templates/termos.html
+91827025b2f1f3907b614f82e575ca58a09a710b65f8b7c13298beb9d01b34dc  templates/voucher.html
+70a971e4ae92d958fc91116b3b0b0af34e705f849c7d8ca78abf2073b2c46091  views.py
