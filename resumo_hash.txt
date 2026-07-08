@@ -1,15 +1,14 @@
 ================================================================================
   RESUMO DIGITAL HASH — PROJETO PLANTANDO VIDA
 ================================================================================
-  Data/Hora   : 2026-04-21 11:32:28
+  Data/Hora   : 2026-07-08 09:51:17
   Algoritmo   : SHA-512
-  Arquivos    : 29 arquivos verificados
-  Ultimo commit: ed25fd4c3afd3268f8edfd112c3cf3bd658a0b82 | Migrar envio de email de Gmail SMTP para Resend API
+  Arquivos    : 43 arquivos verificados
+  Ultimo commit: f9fcd6a597cd6fc9ccdd81077ff0534f7335ecee | chore: atualizar painel admin, documentos de hash/patente e ignorar .claude/
 --------------------------------------------------------------------------------
   HASH MASTER (SHA-512 de todos os hashes combinados):
 
-  0b02e2b3ea8cc8fb7250b7f95f8680b8325416ea87f5840f36b6d8417fbc3df1
-  a85e15353aeaa29dcba885ad0cec7400f1fa0797629e1687a0c1f5ac9cea6e3b
+  f5d41b68d6dac6f13bbf7314a2951366bd4068914fd62a7c8babd31895f22fea468e4f19aefd9140f6d532059e94a80804eae9b41535b0527d27cb742511eed0
 
 ================================================================================
   Este hash representa o estado integro do projeto neste momento.
