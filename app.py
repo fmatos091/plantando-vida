@@ -370,11 +370,15 @@ def init_db():
         ],
         # uf/cidade: localização do usuário.
         # entidade_educacional_id: vínculo opcional com entidade educacional parceira.
+        # lembrete_rega_enviado_em: data/hora (ISO) do último lembrete de rega/foto
+        # enviado ao usuário — usada pela rotina de 20 em 20 dias (/admin/cron/lembrete-rega)
+        # para saber quem já está "devendo" um novo lembrete. NULL = nunca recebeu.
         "usuarios": [
             "cpf TEXT", "telefone TEXT", "data_nascimento TEXT",
             "uf TEXT", "cidade TEXT",
             "entidade_educacional_id INTEGER",
             "tenant_id INTEGER DEFAULT 1",
+            "lembrete_rega_enviado_em TEXT",
         ],
         # tenant_id: isolamento de plantios por projeto/cliente.
         "plantios": [

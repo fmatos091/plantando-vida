@@ -370,6 +370,230 @@ def enviar_qrcode_email(destinatario, razao_social, cnpj):
         return False
 
 
+# ===================== TEMPLATE: LEMBRETE DE REGA E REGISTRO FOTOGRÁFICO =====================
+# Monta o HTML do email de lembrete periódico (rega + fotos de acompanhamento),
+# reaproveitando a identidade visual usada em _enviar_token_cadastro (header verde,
+# card branco arredondado). O texto de cada seção é fixo (copy aprovado do projeto).
+def _template_lembrete_rega(nome):
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sua arvore precisa de voce — Plantando Vida</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:16px;overflow:hidden;
+                      box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:560px;width:100%;">
+
+          <!-- Header verde -->
+          <tr>
+            <td style="background:#166534;padding:32px 40px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:22px;font-weight:700;color:#ffffff;
+                        letter-spacing:0.5px;">🌱 Plantando Vida</p>
+              <p style="margin:0;font-size:13px;color:#bbf7d0;letter-spacing:1px;
+                        text-transform:uppercase;">Sua arvore precisa de voce</p>
+            </td>
+          </tr>
+
+          <!-- Saudação e agradecimento -->
+          <tr>
+            <td style="padding:36px 40px 8px;">
+              <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">
+                Ola, {nome}!
+              </p>
+              <p style="margin:0 0 20px;font-size:15px;color:#4b5563;line-height:1.6;">
+                Primeiro, queremos te agradecer por fazer parte do Projeto Plantando Vida.
+                Cada muda que voce plantou representa um passo concreto por um futuro
+                melhor — para o meio ambiente e para a nossa comunidade.
+              </p>
+              <p style="margin:0 0 8px;font-size:15px;color:#4b5563;line-height:1.6;">
+                E e justamente por isso que queremos te lembrar de dois cuidados
+                essenciais para que sua arvore cresca forte e saudavel:
+              </p>
+            </td>
+          </tr>
+
+          <!-- Seção: rega -->
+          <tr>
+            <td style="padding:12px 40px;">
+              <p style="margin:0 0 10px;font-size:17px;font-weight:700;color:#166534;">
+                🌧️ Regue com frequencia
+              </p>
+              <p style="margin:0 0 14px;font-size:14px;color:#4b5563;line-height:1.6;">
+                Nos primeiros meses apos o plantio, a muda ainda esta se adaptando ao
+                solo e depende diretamente da sua atencao para sobreviver. A falta de
+                agua nessa fase e a principal causa do nao desenvolvimento das plantas.
+              </p>
+              <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#111827;">
+                Nossas recomendacoes:
+              </p>
+              <ul style="margin:0 0 14px;padding-left:20px;font-size:14px;color:#4b5563;line-height:1.7;">
+                <li>Regue ao menos 3 vezes por semana, preferencialmente de manha cedo ou no final da tarde.</li>
+                <li>Em dias muito quentes ou secos, aumente a frequencia — o solo nao deve ficar ressecado.</li>
+                <li>Regue na base da planta, evitando molhar as folhas diretamente.</li>
+                <li>Se possivel, cubra o solo ao redor da muda com palha ou folhas secas para reter a umidade.</li>
+              </ul>
+              <p style="margin:0;font-size:14px;color:#4b5563;line-height:1.6;font-style:italic;">
+                Lembre-se: uma arvore bem cuidada hoje pode viver por decadas — e cada gota d'agua faz diferenca!
+              </p>
+            </td>
+          </tr>
+
+          <tr><td style="padding:8px 40px;"><hr style="border:none;border-top:1px solid #e5e7eb;margin:0;"></td></tr>
+
+          <!-- Seção: registro fotográfico -->
+          <tr>
+            <td style="padding:12px 40px;">
+              <p style="margin:0 0 10px;font-size:17px;font-weight:700;color:#166534;">
+                📸 Registre o crescimento com fotos
+              </p>
+              <p style="margin:0 0 14px;font-size:14px;color:#4b5563;line-height:1.6;">
+                O registro fotografico e uma parte fundamental do Projeto Plantando Vida.
+                Alem de comprovar o desenvolvimento da sua muda, as fotos constroem uma
+                memoria viva do impacto que todos nos estamos gerando juntos.
+              </p>
+              <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#111827;">
+                Por que isso e tao importante?
+              </p>
+              <ul style="margin:0 0 14px;padding-left:20px;font-size:14px;color:#4b5563;line-height:1.7;">
+                <li>Suas fotos alimentam o mapa de plantios do projeto, mostrando a comunidade e as entidades beneficiadas o alcance real das acoes.</li>
+                <li>O acompanhamento fotografico ajuda a identificar eventuais problemas — como pragas ou falta de agua — antes que se tornem serios.</li>
+                <li>E a sua historia com essa arvore. Daqui a alguns anos, voce vai querer ver como tudo comecou!</li>
+              </ul>
+              <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#111827;">
+                Como registrar pelo app:
+              </p>
+              <ol style="margin:0 0 14px;padding-left:20px;font-size:14px;color:#4b5563;line-height:1.7;">
+                <li>Abra o Projeto Plantando Vida.</li>
+                <li>Acesse "Acompanhamentos do Plantio".</li>
+                <li>Tire uma foto da sua muda e confirme o registro.</li>
+              </ol>
+              <p style="margin:0;font-size:14px;color:#4b5563;line-height:1.6;font-style:italic;">
+                Faca isso ao menos uma vez por mes — e rapido e faz toda a diferenca para o projeto!
+              </p>
+            </td>
+          </tr>
+
+          <tr><td style="padding:8px 40px;"><hr style="border:none;border-top:1px solid #e5e7eb;margin:0;"></td></tr>
+
+          <!-- Fechamento -->
+          <tr>
+            <td style="padding:20px 40px 36px;">
+              <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#166534;">
+                🌳 Juntos, plantamos mais do que arvores
+              </p>
+              <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
+                Cada rega, cada foto registrada, cada cuidado que voce dedica a sua muda
+                fortalece nao apenas uma planta — fortalece o compromisso de toda uma
+                comunidade com o meio ambiente e com as entidades que dependem deste projeto.
+              </p>
+              <p style="margin:0 0 4px;font-size:14px;color:#111827;">Obrigado por cuidar. Obrigado por fazer parte.</p>
+              <p style="margin:0 0 20px;font-size:14px;color:#111827;">Com carinho,<br>Equipe Projeto Plantando Vida</p>
+              <p style="margin:0;font-size:13px;color:#166534;font-weight:600;">
+                🌱 Cada muda conta. Cada crianca importa. Cada futuro comeca aqui.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
+# ===================== ROTA CRON: LEMBRETE DE REGA E REGISTRO FOTOGRÁFICO =====================
+# Endpoint protegido por token, feito para ser chamado por um cron externo gratuito
+# (ex: cron-job.org), fora do app — não há scheduler embutido no processo Flask/gunicorn.
+# A cada chamada, envia o lembrete apenas a quem está "devendo" há 20+ dias (ou nunca
+# recebeu) — chamadas repetidas no mesmo dia NÃO duplicam envios, pois cada envio
+# atualiza lembrete_rega_enviado_em imediatamente após o sucesso.
+# Processa em lotes pequenos (LEMBRETE_REGA_BATCH) para não estourar o timeout do
+# gunicorn (120s, ver Procfile) nem o limite diário de envios do Brevo (300/dia no
+# plano gratuito). Recomendado: configurar o cron externo para chamar este endpoint
+# a cada poucas horas, assim o lote drena o backlog aos poucos.
+# Autenticação: header "X-Cron-Token" ou query string "?token=", comparado (em tempo
+# constante) com a variável de ambiente CRON_SECRET.
+LEMBRETE_REGA_INTERVALO_DIAS = 20
+LEMBRETE_REGA_BATCH = 50
+
+@app.route("/admin/cron/lembrete-rega", methods=["GET", "POST"])
+def cron_lembrete_rega():
+    token_esperado  = os.environ.get("CRON_SECRET", "")
+    token_recebido  = request.headers.get("X-Cron-Token", "") or request.args.get("token", "")
+
+    if not token_esperado or not secrets.compare_digest(token_recebido, token_esperado):
+        return jsonify({"erro": "não autorizado"}), 401
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Só recebem o lembrete usuários com pelo menos um plantio aprovado
+    # (são eles que têm, de fato, uma árvore para regar e fotografar).
+    cursor.execute("""
+        SELECT DISTINCT u.id, u.nome, u.email, u.lembrete_rega_enviado_em
+        FROM usuarios u
+        JOIN plantas_go pg ON pg.responsavel_id = u.id
+        WHERE pg.status = 'aprovado' AND u.email IS NOT NULL AND u.email != ''
+    """)
+    candidatos = cursor.fetchall()
+
+    # Filtra quem está devendo lembrete: nunca recebeu, ou o último envio
+    # já passou do intervalo de 20 dias.
+    agora     = datetime.now(TZ_BRASIL)
+    intervalo = timedelta(days=LEMBRETE_REGA_INTERVALO_DIAS)
+    devidos   = []  # cada item: (id, nome, email, nunca_enviado)
+
+    for uid, nome, email, ultimo_envio in candidatos:
+        if not ultimo_envio:
+            devidos.append((uid, nome, email, True))
+            continue
+        try:
+            dt_ultimo = datetime.fromisoformat(str(ultimo_envio))
+            if dt_ultimo.tzinfo is None:
+                dt_ultimo = dt_ultimo.replace(tzinfo=TZ_BRASIL)
+        except Exception:
+            devidos.append((uid, nome, email, True))
+            continue
+        if agora - dt_ultimo >= intervalo:
+            devidos.append((uid, nome, email, False))
+
+    # Prioriza quem nunca recebeu lembrete, depois quem espera há mais tempo
+    devidos.sort(key=lambda d: not d[3])
+    lote = devidos[:LEMBRETE_REGA_BATCH]
+
+    enviados = []
+    falhas   = []
+    for uid, nome, email, _ in lote:
+        html = _template_lembrete_rega(nome)
+        ok   = enviar_email(email, "🌱 Sua árvore precisa de você — Regue e registre o crescimento!", html)
+        if ok:
+            cursor.execute(
+                "UPDATE usuarios SET lembrete_rega_enviado_em = ? WHERE id = ?",
+                (agora.isoformat(), uid)
+            )
+            conn.commit()  # comita a cada envio para não reenviar em caso de falha adiante no lote
+            enviados.append(email)
+        else:
+            falhas.append(email)
+
+    conn.close()
+
+    return jsonify({
+        "elegiveis_no_total":     len(candidatos),
+        "devidos_no_total":       len(devidos),
+        "processados_neste_lote": len(lote),
+        "enviados":               len(enviados),
+        "falhas":                 len(falhas),
+    }), 200
+
+
 # ===================== API: BUSCAR CNPJ POR CIDADE =====================
 
 
