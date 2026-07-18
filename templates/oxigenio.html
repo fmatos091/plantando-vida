@@ -7,8 +7,8 @@
   <title>Oxigênio em Tempo Real — Plantando Vida</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='33 42 134 152'%3E%3Cg transform='translate(100,106)'%3E%3Crect x='-9' y='34' width='18' height='48' rx='4' fill='%234A4E37'/%3E%3Cellipse cx='0' cy='9' rx='62' ry='44' fill='%23364D27'/%3E%3Cellipse cx='0' cy='-14' rx='47' ry='35' fill='%2325A652'/%3E%3Cellipse cx='0' cy='-38' rx='30' ry='24' fill='%2323C55E'/%3E%3Cellipse cx='-7' cy='-49' rx='11' ry='10' fill='%235FDF84' opacity='0.30'/%3E%3C/g%3E%3C/svg%3E">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons: mesma biblioteca de ícones SVG usada em todo o projeto — substitui emojis por vetores profissionais. -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 
   <style>
     * { box-sizing: border-box; }
@@ -18,7 +18,7 @@
       background: #0e1410;
       min-height: 100vh;
       padding: 24px 16px 48px;
-      font-family: 'Poppins', sans-serif;
+      font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     }
 
     /* Link de retorno para a Home, acima do widget */
@@ -44,7 +44,6 @@
 
     /* ── Container principal ── */
     .ppv-widget {
-      font-family: 'Poppins', sans-serif;
       background: #0e1410;
       border-radius: 24px;
       padding: 36px 28px 28px;
@@ -198,7 +197,7 @@
       transition: border-color .2s;
     }
     .ppv-stat:hover { border-color: #23C55E44; }
-    .ppv-stat-icon  { font-size: 20px; margin-bottom: 4px; }
+    .ppv-stat-icon  { color: #23C55E; margin-bottom: 6px; }
     .ppv-stat-value {
       font-size: 24px;
       font-weight: 700;
@@ -228,10 +227,12 @@
     /* ── CTA ── */
     .ppv-cta { text-align: center; }
     .ppv-cta-btn {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       background: #23C55E;
       color: #151B14;
-      font-family: 'Poppins', sans-serif;
       font-size: 14px;
       font-weight: 700;
       padding: 14px 36px;
@@ -257,12 +258,18 @@
 <body>
 
   <!-- Retorno para a Home -->
-  <a href="/" class="voltar-home">&larr; Voltar para Home</a>
+  <a href="/" class="voltar-home">
+    <i data-lucide="arrow-left" width="16" height="16"></i>
+    Voltar para Home
+  </a>
 
   <!-- ── HTML DO WIDGET ── -->
   <section class="ppv-widget" id="ppv-oxigenio">
 
-    <div class="ppv-tag">🌿 IMPACTO EM TEMPO REAL</div>
+    <div class="ppv-tag" style="display:inline-flex; align-items:center; gap:6px;">
+      <i data-lucide="leaf" width="13" height="13"></i>
+      IMPACTO EM TEMPO REAL
+    </div>
 
     <h2 class="ppv-title">
       Nossas <span id="ppv-arvores">{{ total_arvores }}</span> árvores estão<br>
@@ -300,22 +307,22 @@
     <!-- Cards de estatística -->
     <div class="ppv-stats">
       <div class="ppv-stat">
-        <div class="ppv-stat-icon">🌳</div>
+        <div class="ppv-stat-icon"><i data-lucide="tree-pine" width="20" height="20"></i></div>
         <div class="ppv-stat-value" id="ppv-stat-arvores">{{ total_arvores }}</div>
         <div class="ppv-stat-desc">árvores plantadas<br>e registradas</div>
       </div>
       <div class="ppv-stat">
-        <div class="ppv-stat-icon">📅</div>
+        <div class="ppv-stat-icon"><i data-lucide="calendar" width="20" height="20"></i></div>
         <div class="ppv-stat-value" id="ppv-stat-hoje">0</div>
         <div class="ppv-stat-desc">kg de O₂ produzidos<br>hoje</div>
       </div>
       <div class="ppv-stat">
-        <div class="ppv-stat-icon">🫁</div>
+        <div class="ppv-stat-icon"><i data-lucide="users" width="20" height="20"></i></div>
         <div class="ppv-stat-value" id="ppv-stat-pessoas">0</div>
         <div class="ppv-stat-desc">pessoas abastecidas<br>com O₂ por dia</div>
       </div>
       <div class="ppv-stat">
-        <div class="ppv-stat-icon">🌍</div>
+        <div class="ppv-stat-icon"><i data-lucide="globe" width="20" height="20"></i></div>
         <div class="ppv-stat-value" id="ppv-stat-co2">0</div>
         <div class="ppv-stat-desc">kg de CO₂ absorvidos<br>este ano</div>
       </div>
@@ -323,14 +330,23 @@
 
     <!-- Curiosidades rotativas -->
     <div class="ppv-curiosity" id="ppv-curiosity" onclick="ppvNextCuriosity()">
-      <div class="ppv-curiosity-tag">💡 VOCÊ SABIA?</div>
+      <div class="ppv-curiosity-tag" style="display:flex; align-items:center; gap:6px;">
+        <i data-lucide="lightbulb" width="12" height="12"></i>
+        VOCÊ SABIA?
+      </div>
       <div class="ppv-curiosity-text" id="ppv-curiosity-text"></div>
-      <div class="ppv-curiosity-hint">Toque para ver outra curiosidade →</div>
+      <div class="ppv-curiosity-hint" style="display:flex; align-items:center; gap:4px;">
+        Toque para ver outra curiosidade
+        <i data-lucide="arrow-right" width="11" height="11"></i>
+      </div>
     </div>
 
     <!-- Botão CTA -->
     <div class="ppv-cta">
-      <a class="ppv-cta-btn" href="/cadastros">🌱 Plante sua árvore agora</a>
+      <a class="ppv-cta-btn" href="/cadastros">
+        <i data-lucide="sprout" width="18" height="18"></i>
+        Plante sua árvore agora
+      </a>
       <div class="ppv-cta-sub">Cada muda conta. Cada futuro começa aqui.</div>
     </div>
 
@@ -413,6 +429,9 @@
 
   })();
   </script>
+
+  <!-- Converte os <i data-lucide> em SVG -->
+  <script>lucide.createIcons();</script>
 
 </body>
 </html>

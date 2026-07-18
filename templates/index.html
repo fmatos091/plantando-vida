@@ -67,6 +67,12 @@
           rgba(5, 46, 22, 0.55),
           rgba(0, 0, 0, 0.70));
     }
+
+    /* Anel de progresso do contador de CO₂: avança suavemente a cada segundo
+       em vez de saltar, reforçando a sensação de atualização ao vivo. */
+    #co2-ring {
+      transition: stroke-dashoffset 1s linear;
+    }
   </style>
 </head>
 
@@ -189,10 +195,25 @@
         </div>
       </div>
 
-      <!-- Contador 3: CO₂ absorvido na última hora — clicável, abre o Widget Oxigênio -->
+      <!-- Contador 3: CO₂ absorvido na última hora — clicável, abre o Widget Oxigênio.
+           O anel circular preenche conforme a hora atual avança, e o ponto pulsante
+           no topo sinaliza visualmente que o número está sendo atualizado ao vivo. -->
       <a href="/oxigenio" class="block group">
-        <div class="text-5xl font-extrabold mb-1">
-          <span id="count-co2">0</span><span class="text-xl font-semibold align-top">g</span>
+        <div class="relative w-32 h-32 mx-auto mb-1">
+          <!-- Anel: trilha de fundo + arco de progresso (fração da hora atual decorrida) -->
+          <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="5"></circle>
+            <circle id="co2-ring" cx="50" cy="50" r="44" fill="none" stroke="#5FDF84" stroke-width="5"
+                    stroke-linecap="round" stroke-dasharray="276.46" stroke-dashoffset="276.46"></circle>
+          </svg>
+          <!-- Ponto pulsante: indicador de "ao vivo" -->
+          <span class="absolute -top-0.5 left-1/2 -translate-x-1/2 flex h-2.5 w-2.5" aria-hidden="true">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#5FDF84] opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#5FDF84]"></span>
+          </span>
+          <div class="absolute inset-0 flex items-center justify-center text-5xl font-extrabold">
+            <span id="count-co2">0</span><span class="text-xl font-semibold self-start mt-2">g</span>
+          </div>
         </div>
         <!-- Ícone de vento: representa o CO₂ absorvido pelas árvores -->
         <div class="text-green-200 text-sm font-medium tracking-wide uppercase flex items-center justify-center gap-1.5 group-hover:text-white transition">
@@ -252,12 +273,19 @@
       const CO2_POR_HORA_G = (CO2_POR_ANO_KG * 1000) / 8760;   // ~2.28 g/hora/árvore
       const totalArvoresCO2 = {{ total_arvores }};
       const elCo2 = document.getElementById('count-co2');
+      const ring  = document.getElementById('co2-ring');
+
+      // Circunferência do anel (raio 44 no viewBox 100x100) — define o comprimento
+      // total do traço; o offset é reduzido conforme a hora atual avança.
+      const RING_CIRCUNFERENCIA = 2 * Math.PI * 44;
+      ring.style.strokeDasharray = RING_CIRCUNFERENCIA;
 
       function tickCo2() {
         const now  = new Date();
         const frac = (now.getMinutes() * 60 + now.getSeconds()) / 3600;
         const co2Hora = Math.round(CO2_POR_HORA_G * totalArvoresCO2 * frac);
         elCo2.textContent = co2Hora.toLocaleString('pt-BR');
+        ring.style.strokeDashoffset = RING_CIRCUNFERENCIA * (1 - frac);
       }
 
       tickCo2();
