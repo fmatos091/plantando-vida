@@ -604,23 +604,82 @@ def home():
     # Estatísticas reais do banco para os contadores da home:
     # árvores plantadas = total de plantios aprovados (todos os tenants),
     # cidades = quantidade de cidades distintas cadastradas pelos usuários.
+    total_arvores = _total_arvores_aprovadas()
+
     conn   = get_db()
     cursor = conn.cursor()
-
-    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE status = 'aprovado'")
-    total_arvores = cursor.fetchone()[0]
-
     cursor.execute("""
         SELECT COUNT(DISTINCT cidade) FROM usuarios
         WHERE cidade IS NOT NULL AND TRIM(cidade) != ''
     """)
     total_cidades = cursor.fetchone()[0]
-
     conn.close()
 
     return render_template('index.html',
                             total_arvores=total_arvores,
                             total_cidades=total_cidades)
+
+
+# ===================== WIDGET OXIGÊNIO =====================
+# Constantes científicas usadas nos cálculos de O2/CO2 por árvore.
+# Fonte: média de absorção/produção de uma árvore adulta ao longo de um ano.
+O2_POR_ANO_KG   = 260   # kg de O2 produzidos por árvore por ano
+CO2_POR_ANO_KG  = 20    # kg de CO2 absorvidos por árvore por ano
+O2_RESPIRACAO_H = 60    # gramas de O2 que uma pessoa consome por hora
+
+
+def _total_arvores_aprovadas():
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE status = 'aprovado'")
+    total = cursor.fetchone()[0]
+    conn.close()
+    return total
+
+
+@app.route("/api/oxigenio")
+def api_oxigenio():
+    """Retorna o total de árvores aprovadas e os cálculos de O2/CO2 em tempo real."""
+    total_arvores = _total_arvores_aprovadas()
+
+    o2_por_hora_g = (O2_POR_ANO_KG * 1000) / 8760  # ~29.68 g/hora/árvore
+
+    now = datetime.now()
+
+    # Fração da hora atual (0.0 a 1.0)
+    fracao_hora = (now.minute * 60 + now.second) / 3600
+
+    # O2 acumulado nesta hora (sobe segundo a segundo)
+    o2_hora_g = round(o2_por_hora_g * total_arvores * fracao_hora)
+
+    # O2 produzido hoje em kg (desde meia-noite)
+    horas_hoje = now.hour + fracao_hora
+    o2_hoje_kg = round((horas_hoje / 24) * (O2_POR_ANO_KG * total_arvores / 365), 2)
+
+    # CO2 absorvido neste ano até agora
+    dia_do_ano = now.timetuple().tm_yday
+    co2_ano_kg = round((dia_do_ano / 365) * CO2_POR_ANO_KG * total_arvores, 1)
+
+    # Pessoas abastecidas com O2 por hora / por dia
+    pessoas_hora = round((o2_por_hora_g * total_arvores) / O2_RESPIRACAO_H)
+    pessoas_dia  = round((o2_por_hora_g * total_arvores * 24) / (O2_RESPIRACAO_H * 24))
+
+    return jsonify({
+        "total_arvores"  : total_arvores,
+        "o2_hora_g"      : o2_hora_g,
+        "o2_hoje_kg"     : o2_hoje_kg,
+        "co2_ano_kg"     : co2_ano_kg,
+        "pessoas_hora"   : pessoas_hora,
+        "pessoas_dia"    : pessoas_dia,
+        "fracao_hora_pct": round(fracao_hora * 100, 1),
+        "timestamp"      : now.strftime("%H:%M:%S"),
+    })
+
+
+@app.route("/oxigenio")
+def oxigenio():
+    """Página do Widget Oxigênio: detalhamento de O2/CO2 em tempo real."""
+    return render_template("oxigenio.html", total_arvores=_total_arvores_aprovadas())
 
 
 # ===================== ROTA DE CADASTRO =====================

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oxigênio em Tempo Real — Plantando Vida</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='33 42 134 152'%3E%3Cg transform='translate(100,106)'%3E%3Crect x='-9' y='34' width='18' height='48' rx='4' fill='%234A4E37'/%3E%3Cellipse cx='0' cy='9' rx='62' ry='44' fill='%23364D27'/%3E%3Cellipse cx='0' cy='-14' rx='47' ry='35' fill='%2325A652'/%3E%3Cellipse cx='0' cy='-38' rx='30' ry='24' fill='%2323C55E'/%3E%3Cellipse cx='-7' cy='-49' rx='11' ry='10' fill='%235FDF84' opacity='0.30'/%3E%3C/g%3E%3C/svg%3E">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #0e1410;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    /* Link de retorno para a Home, acima do widget */
+    .voltar-home {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 700px;
+      margin: 0 auto 18px;
+      color: #B1E0C4;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+
+    .voltar-home:hover {
+      color: #23C55E;
+    }
+
+    /* ── Reset local ── */
+    .ppv-widget * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Container principal ── */
+    .ppv-widget {
+      font-family: 'Poppins', sans-serif;
+      background: #0e1410;
+      border-radius: 24px;
+      padding: 36px 28px 28px;
+      max-width: 700px;
+      margin: 0 auto;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #23C55E22;
+    }
+
+    /* Brilho decorativo de fundo */
+    .ppv-widget::before {
+      content: '';
+      position: absolute;
+      top: -80px; right: -80px;
+      width: 280px; height: 280px;
+      background: radial-gradient(circle, #23C55E14 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── Tag topo ── */
+    .ppv-tag {
+      display: inline-block;
+      background: #23C55E18;
+      border: 1px solid #23C55E44;
+      color: #23C55E;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 2.5px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      margin-bottom: 14px;
+    }
+
+    .ppv-title {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.3;
+      margin-bottom: 24px;
+      color: #fff;
+    }
+    .ppv-title span { color: #23C55E; }
+
+    /* ── Card do relógio ── */
+    .ppv-clock-card {
+      background: #151B14;
+      border: 1px solid #23C55E2A;
+      border-radius: 16px;
+      padding: 22px 20px 18px;
+      margin-bottom: 14px;
+    }
+
+    .ppv-clock-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: #9C9D97;
+      margin-bottom: 6px;
+    }
+
+    .ppv-o2-row { display: flex; align-items: baseline; gap: 6px; }
+
+    .ppv-o2-value {
+      font-size: 58px;
+      font-weight: 800;
+      color: #23C55E;
+      line-height: 1;
+      letter-spacing: -2px;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.3s;
+    }
+
+    .ppv-o2-unit {
+      font-size: 16px;
+      font-weight: 400;
+      color: #B1E0C4;
+    }
+
+    .ppv-clock-sub {
+      font-size: 12px;
+      color: #9C9D97;
+      margin-top: 8px;
+    }
+    .ppv-clock-sub b { color: #B1E0C4; }
+
+    /* ── Barra de progresso ── */
+    .ppv-progress-wrap { margin-top: 16px; }
+    .ppv-progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #9C9D97;
+      margin-bottom: 5px;
+    }
+    .ppv-progress-bar {
+      height: 6px;
+      background: #23C55E1A;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .ppv-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #25A652, #23C55E);
+      border-radius: 10px;
+      transition: width 1s linear;
+      width: 0%;
+    }
+
+    /* ── Live row ── */
+    .ppv-live-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #23C55E1A;
+    }
+    .ppv-live-dot {
+      width: 8px; height: 8px;
+      background: #23C55E;
+      border-radius: 50%;
+      animation: ppv-pulse 1.4s infinite;
+      flex-shrink: 0;
+    }
+    @keyframes ppv-pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.4; transform:scale(.7); }
+    }
+    .ppv-live-label { font-size: 11px; color: #9C9D97; }
+    .ppv-live-time  {
+      font-size: 11px;
+      color: #23C55E;
+      font-weight: 600;
+      margin-left: auto;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Stats grid ── */
+    .ppv-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .ppv-stat {
+      background: #151B14;
+      border: 1px solid #23C55E1A;
+      border-radius: 14px;
+      padding: 14px 16px;
+      transition: border-color .2s;
+    }
+    .ppv-stat:hover { border-color: #23C55E44; }
+    .ppv-stat-icon  { font-size: 20px; margin-bottom: 4px; }
+    .ppv-stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #23C55E;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .ppv-stat-desc  { font-size: 11px; color: #9C9D97; margin-top: 4px; line-height: 1.4; }
+
+    /* ── Curiosidade ── */
+    .ppv-curiosity {
+      background: #23C55E08;
+      border: 1px solid #23C55E2A;
+      border-left: 4px solid #23C55E;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      cursor: pointer;
+      transition: background .2s;
+      user-select: none;
+    }
+    .ppv-curiosity:hover { background: #23C55E14; }
+    .ppv-curiosity-tag  { font-size: 10px; font-weight: 600; letter-spacing: 2px; color: #23C55E; margin-bottom: 5px; }
+    .ppv-curiosity-text { font-size: 13px; color: #B1E0C4; line-height: 1.5; }
+    .ppv-curiosity-hint { font-size: 10px; color: #9C9D97; margin-top: 6px; }
+
+    /* ── CTA ── */
+    .ppv-cta { text-align: center; }
+    .ppv-cta-btn {
+      display: inline-block;
+      background: #23C55E;
+      color: #151B14;
+      font-family: 'Poppins', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 14px 36px;
+      border-radius: 50px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform .2s, background .2s;
+    }
+    .ppv-cta-btn:hover { background: #1fad52; transform: translateY(-2px); }
+    .ppv-cta-sub { font-size: 11px; color: #9C9D97; margin-top: 8px; }
+
+    /* ── Responsivo mobile ── */
+    @media (max-width: 480px) {
+      .ppv-widget    { padding: 24px 16px 20px; border-radius: 16px; }
+      .ppv-o2-value  { font-size: 44px; }
+      .ppv-stats     { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .ppv-stat-value{ font-size: 20px; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Retorno para a Home -->
+  <a href="/" class="voltar-home">&larr; Voltar para Home</a>
+
+  <!-- ── HTML DO WIDGET ── -->
+  <section class="ppv-widget" id="ppv-oxigenio">
+
+    <div class="ppv-tag">🌿 IMPACTO EM TEMPO REAL</div>
+
+    <h2 class="ppv-title">
+      Nossas <span id="ppv-arvores">{{ total_arvores }}</span> árvores estão<br>
+      trabalhando agora mesmo
+    </h2>
+
+    <!-- Relógio principal -->
+    <div class="ppv-clock-card">
+      <div class="ppv-clock-label">OXIGÊNIO PRODUZIDO NA ÚLTIMA HORA</div>
+      <div class="ppv-o2-row">
+        <span class="ppv-o2-value" id="ppv-o2-value">0</span>
+        <span class="ppv-o2-unit">gramas de O₂</span>
+      </div>
+      <div class="ppv-clock-sub">
+        Equivale a <b id="ppv-pessoas">0 pessoas</b> respirando por 1 hora completa
+      </div>
+
+      <div class="ppv-progress-wrap">
+        <div class="ppv-progress-labels">
+          <span>Início da hora atual</span>
+          <span id="ppv-pct">0%</span>
+        </div>
+        <div class="ppv-progress-bar">
+          <div class="ppv-progress-fill" id="ppv-bar"></div>
+        </div>
+      </div>
+
+      <div class="ppv-live-row">
+        <div class="ppv-live-dot"></div>
+        <span class="ppv-live-label">Atualizado ao vivo</span>
+        <span class="ppv-live-time" id="ppv-clock">--:--:--</span>
+      </div>
+    </div>
+
+    <!-- Cards de estatística -->
+    <div class="ppv-stats">
+      <div class="ppv-stat">
+        <div class="ppv-stat-icon">🌳</div>
+        <div class="ppv-stat-value" id="ppv-stat-arvores">{{ total_arvores }}</div>
+        <div class="ppv-stat-desc">árvores plantadas<br>e registradas</div>
+      </div>
+      <div class="ppv-stat">
+        <div class="ppv-stat-icon">📅</div>
+        <div class="ppv-stat-value" id="ppv-stat-hoje">0</div>
+        <div class="ppv-stat-desc">kg de O₂ produzidos<br>hoje</div>
+      </div>
+      <div class="ppv-stat">
+        <div class="ppv-stat-icon">🫁</div>
+        <div class="ppv-stat-value" id="ppv-stat-pessoas">0</div>
+        <div class="ppv-stat-desc">pessoas abastecidas<br>com O₂ por dia</div>
+      </div>
+      <div class="ppv-stat">
+        <div class="ppv-stat-icon">🌍</div>
+        <div class="ppv-stat-value" id="ppv-stat-co2">0</div>
+        <div class="ppv-stat-desc">kg de CO₂ absorvidos<br>este ano</div>
+      </div>
+    </div>
+
+    <!-- Curiosidades rotativas -->
+    <div class="ppv-curiosity" id="ppv-curiosity" onclick="ppvNextCuriosity()">
+      <div class="ppv-curiosity-tag">💡 VOCÊ SABIA?</div>
+      <div class="ppv-curiosity-text" id="ppv-curiosity-text"></div>
+      <div class="ppv-curiosity-hint">Toque para ver outra curiosidade →</div>
+    </div>
+
+    <!-- Botão CTA -->
+    <div class="ppv-cta">
+      <a class="ppv-cta-btn" href="/cadastros">🌱 Plante sua árvore agora</a>
+      <div class="ppv-cta-sub">Cada muda conta. Cada futuro começa aqui.</div>
+    </div>
+
+  </section>
+
+  <!-- ── JAVASCRIPT DO WIDGET ── -->
+  <script>
+  (function () {
+    // ── Curiosidades ──
+    const curiosidades = [
+      "Uma árvore adulta produz em média 260 kg de oxigênio por ano — suficiente para 2 pessoas respirarem durante 12 meses.",
+      "Nossas árvores absorvem CO₂ suficiente para compensar o equivalente a vários carros por ano fora das ruas.",
+      "A fotossíntese acontece durante o dia, mas o saldo de oxigênio das árvores é sempre positivo ao longo de 24h.",
+      "Duas árvores adultas produzem oxigênio suficiente para uma família de 4 pessoas por um ano inteiro.",
+      "Além de oxigênio, cada árvore refresca o ar ao redor em até 8°C — como um ar-condicionado natural.",
+      "As raízes das árvores podem filtrar até 1.000 litros de água por dia, purificando nascentes e lençóis freáticos.",
+      "Uma floresta de 1 hectare pode reter até 4 mil toneladas de água da chuva, prevenindo enchentes.",
+      "Plantar uma árvore hoje é um presente que dura séculos — espécies nativas do Paraná vivem mais de 500 anos.",
+    ];
+
+    let ppvCurIdx = 0;
+    function ppvNextCuriosity() {
+      ppvCurIdx = (ppvCurIdx + 1) % curiosidades.length;
+      document.getElementById('ppv-curiosity-text').textContent = curiosidades[ppvCurIdx];
+    }
+    window.ppvNextCuriosity = ppvNextCuriosity;
+    document.getElementById('ppv-curiosity-text').textContent = curiosidades[0];
+
+    // ── Estado local (fallback enquanto API não responde) ──
+    const O2_POR_HORA_G  = (260 * 1000) / 8760; // ~29.68 g/h/árvore
+    const O2_RESP_H      = 60;                   // g/h que 1 pessoa consome
+    let   totalArvores   = {{ total_arvores }};   // atualizado pela API
+
+    // ── Tick do relógio (roda a cada segundo, sem chamar API) ──
+    function ppvTick() {
+      const now      = new Date();
+      const frac     = (now.getMinutes() * 60 + now.getSeconds()) / 3600;
+      const o2Hora   = Math.round(O2_POR_HORA_G * totalArvores * frac);
+      const pessoas  = Math.round((O2_POR_HORA_G * totalArvores) / O2_RESP_H);
+      const pct      = Math.round(frac * 100);
+
+      document.getElementById('ppv-o2-value').textContent =
+        o2Hora.toLocaleString('pt-BR');
+      document.getElementById('ppv-pessoas').textContent =
+        `~${pessoas} pessoa${pessoas !== 1 ? 's' : ''}`;
+      document.getElementById('ppv-bar').style.width = pct + '%';
+      document.getElementById('ppv-pct').textContent  = pct + '%';
+      document.getElementById('ppv-clock').textContent =
+        now.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+      // Pisca no topo de cada minuto
+      if (now.getSeconds() === 0) {
+        const el = document.getElementById('ppv-o2-value');
+        el.style.color = '#5FDF84';
+        setTimeout(() => el.style.color = '#23C55E', 600);
+      }
+    }
+
+    // ── Busca da API (roda a cada 10s) ──
+    function ppvFetchApi() {
+      fetch('/api/oxigenio')
+        .then(r => r.json())
+        .then(d => {
+          totalArvores = d.total_arvores;
+
+          document.getElementById('ppv-arvores').textContent      = d.total_arvores;
+          document.getElementById('ppv-stat-arvores').textContent = d.total_arvores;
+          document.getElementById('ppv-stat-hoje').textContent    = d.o2_hoje_kg;
+          document.getElementById('ppv-stat-pessoas').textContent = '~' + d.pessoas_dia;
+          document.getElementById('ppv-stat-co2').textContent     = d.co2_ano_kg;
+        })
+        .catch(() => { /* silencioso — o tick local continua */ });
+    }
+
+    // ── Inicializa ──
+    ppvTick();
+    ppvFetchApi();
+    setInterval(ppvTick,     1000);   // clock: 1 segundo
+    setInterval(ppvFetchApi, 10000);  // API: 10 segundos
+
+  })();
+  </script>
+
+</body>
+</html>
