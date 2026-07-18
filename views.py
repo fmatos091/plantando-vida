@@ -601,7 +601,26 @@ def cron_lembrete_rega():
 # Página inicial do sistema com apresentação e botões de acesso.
 @app.route('/')
 def home():
-    return render_template('index.html')
+    # Estatísticas reais do banco para os contadores da home:
+    # árvores plantadas = total de plantios aprovados (todos os tenants),
+    # cidades = quantidade de cidades distintas cadastradas pelos usuários.
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE status = 'aprovado'")
+    total_arvores = cursor.fetchone()[0]
+
+    cursor.execute("""
+        SELECT COUNT(DISTINCT cidade) FROM usuarios
+        WHERE cidade IS NOT NULL AND TRIM(cidade) != ''
+    """)
+    total_cidades = cursor.fetchone()[0]
+
+    conn.close()
+
+    return render_template('index.html',
+                            total_arvores=total_arvores,
+                            total_cidades=total_cidades)
 
 
 # ===================== ROTA DE CADASTRO =====================
