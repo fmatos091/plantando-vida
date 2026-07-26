@@ -6,7 +6,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Plantando Vida</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='33 42 134 152'%3E%3Cg transform='translate(100,106)'%3E%3Crect x='-9' y='34' width='18' height='48' rx='4' fill='%234A4E37'/%3E%3Cellipse cx='0' cy='9' rx='62' ry='44' fill='%23364D27'/%3E%3Cellipse cx='0' cy='-14' rx='47' ry='35' fill='%2325A652'/%3E%3Cellipse cx='0' cy='-38' rx='30' ry='24' fill='%2323C55E'/%3E%3Cellipse cx='-7' cy='-49' rx='11' ry='10' fill='%235FDF84' opacity='0.30'/%3E%3C/g%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='33 42 134 152'%3E%3Cg transform='translate(100,106)'%3E%3Crect x='-9' y='34' width='18' height='48' rx='4' fill='%234A4E37'/%3E%3Cellipse cx='0' cy='9' rx='62' ry='44' fill='%23364D27'/%3E%3Cellipse cx='0' cy='-14' rx='47' ry='35' fill='%2325A652'/%3E%3Cellipse cx='0' cy='-38' rx='30' ry='24' fill='%2323C55E'/%3E%3Cellipse cx='-7' cy='-49' rx='11' ry='10' fill='%235FDF84' opacity='0.30'/%3E%3C/g%3E%3C/svg%3E">
   <!-- Tailwind CSS via CDN para estilização da página -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons: biblioteca de ícones SVG via UMD — substitui emojis por vetores profissionais.
@@ -73,10 +74,272 @@
     #co2-ring {
       transition: stroke-dashoffset 1s linear;
     }
+
+    /* ===================== RELÓGIO FLUTUANTE DE OXIGÊNIO =====================
+       Pílula que mostra o O₂ produzido na hora atual e fica vagando devagar pela
+       parte inferior da tela, chamando a atenção do usuário. Ao ser clicada, rola
+       a página até o contador "Total CO₂".
+       O deslocamento é aplicado via transform pelo JS; por isso a animação de
+       "respiro" fica no elemento interno (.o2-pilula), evitando conflito. */
+    #o2-relogio {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 40;
+      padding: 0;
+      border: 0;
+      background: none;
+      /* <button> não herda a fonte do body por padrão — sem isso o texto sai em Arial */
+      font-family: inherit;
+      cursor: pointer;
+      opacity: 0;
+      /* Aparece só depois de ser posicionado pelo JS, evitando um flash no canto */
+      transition: opacity 0.6s ease;
+      will-change: transform;
+    }
+
+    #o2-relogio.pronto {
+      opacity: 1;
+    }
+
+    .o2-pilula {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 15px;
+      border-radius: 999px;
+      background: rgba(14, 20, 16, 0.9);
+      border: 1px solid rgba(35, 197, 94, 0.45);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3), 0 0 20px rgba(35, 197, 94, 0.18);
+      color: #fff;
+      animation: o2Respiro 3.2s ease-in-out infinite;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+
+    /* Respiro: leve pulsar de escala que reforça a sensação de algo "vivo" */
+    @keyframes o2Respiro {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.06);
+      }
+    }
+
+    /* Ao mirar o clique, o respiro para e a borda acende */
+    #o2-relogio:hover .o2-pilula,
+    #o2-relogio:focus-visible .o2-pilula {
+      animation-play-state: paused;
+      border-color: #23C55E;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35), 0 0 26px rgba(35, 197, 94, 0.45);
+    }
+
+    /* Ponto "ao vivo" — mesmo pulso do Widget Oxigênio */
+    .o2-ponto {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #23C55E;
+      flex-shrink: 0;
+      animation: o2Pulso 1.4s infinite;
+    }
+
+    @keyframes o2Pulso {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.35;
+        transform: scale(0.65);
+      }
+    }
+
+    /* Texto em duas linhas: rótulo pequeno acima do número */
+    .o2-texto {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .o2-rotulo {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #9C9D97;
+    }
+
+    .o2-numero {
+      font-size: 15px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: #23C55E;
+    }
+
+    .o2-unidade {
+      font-size: 10px;
+      font-weight: 600;
+      color: #B1E0C4;
+    }
+
+    /* Destaque aplicado ao "Total CO₂" quando a rolagem chega nele */
+    .o2-destaque {
+      animation: o2Destaque 1.4s ease-in-out 2;
+    }
+
+    @keyframes o2Destaque {
+
+      0%,
+      100% {
+        transform: scale(1);
+        filter: none;
+      }
+
+      35% {
+        transform: scale(1.08);
+        filter: drop-shadow(0 0 14px rgba(95, 223, 132, 0.9));
+      }
+    }
+
+    /* Mobile: pílula mais compacta para ocupar menos da tela */
+    @media (max-width: 480px) {
+      .o2-pilula {
+        padding: 7px 12px;
+        gap: 6px;
+      }
+
+      .o2-numero {
+        font-size: 13px;
+      }
+    }
+
+    /* Acessibilidade: quem pede menos movimento recebe a pílula parada */
+    @media (prefers-reduced-motion: reduce) {
+      .o2-pilula {
+        animation: none;
+      }
+
+      .o2-destaque {
+        animation: none;
+      }
+    }
+
+    /* ===================== MODAIS DA HOME =====================
+       Base compartilhada pelos dois modais abertos pela navbar do hero:
+       "Descobrir Espécie" e "Sobre Nós". z-index 60 fica acima do relógio
+       flutuante de O₂ (z-index 40), que assim é coberto pelo fundo escuro. */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(5, 25, 12, 0.78);
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-overlay.aberto {
+      display: flex;
+    }
+
+    .modal-caixa {
+      background: #fff;
+      border-radius: 22px;
+      width: 100%;
+      max-width: 400px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+      animation: modalEntra 0.28s ease;
+    }
+
+    /* "Sobre Nós" tem mais texto e precisa de mais largura que o resultado da espécie */
+    .modal-caixa.modal-largo {
+      max-width: 560px;
+    }
+
+    @keyframes modalEntra {
+      from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.97);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* Roda enquanto a foto é analisada pelo serviço de identificação */
+    .spinner-especie {
+      width: 44px;
+      height: 44px;
+      border: 4px solid #DCFCE7;
+      border-top-color: #23C55E;
+      border-radius: 50%;
+      animation: girarSpinner 0.9s linear infinite;
+    }
+
+    @keyframes girarSpinner {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Trava a rolagem do fundo enquanto um modal está aberto */
+    body.modal-ativo {
+      overflow: hidden;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .modal-caixa {
+        animation: none;
+      }
+
+      /* O spinner é o único sinal de que algo está acontecendo: em vez de
+         removê-lo, apenas desacelera o giro. */
+      .spinner-especie {
+        animation-duration: 2.4s;
+      }
+    }
   </style>
 </head>
 
-<body class="bg-gray-50 font-sans">
+<!-- Os totais vindos do Flask chegam ao JavaScript por atributos data-*, e NUNCA
+     interpolados dentro de um bloco <script>. Motivo: formatadores de HTML/JS
+     (Prettier, o formatador do VS Code) leem uma expressão Jinja no meio do script
+     como se fosse objeto JavaScript, reindentam e partem as chaves de fechamento em
+     duas linhas — o que quebra o template com TemplateSyntaxError. Dentro do valor de
+     um atributo a expressão passa intacta.
+     Leitura no JS: Number(document.body.dataset.totalArvores) -->
+
+<body class="bg-gray-50 font-sans" data-total-arvores="{{ total_arvores }}" data-total-cidades="{{ total_cidades }}">
+
+  <!-- ===================== RELÓGIO FLUTUANTE DE OXIGÊNIO =====================
+       Contador vivo de O₂ que vaga pela tela. É um <button> (e não uma <div>) para
+       ser alcançável por teclado — o clique rola a página até o "Total CO₂".
+       A posição e o movimento são controlados pelo script no final do body. -->
+  <button id="o2-relogio" type="button" aria-label="Ver o contador Total de CO₂">
+    <span class="o2-pilula">
+      <span class="o2-ponto" aria-hidden="true"></span>
+      <i data-lucide="leaf" width="15" height="15" style="color:#23C55E"></i>
+      <span class="o2-texto">
+        <span class="o2-rotulo">O₂ agora</span>
+        <span class="o2-numero"><span id="o2-valor">0</span> <span class="o2-unidade">g</span></span>
+      </span>
+    </span>
+  </button>
 
   <!-- ===================== HERO (BANNER PRINCIPAL) =====================
          Imagem de fundo: criança plantando uma muda (Unsplash, gratuito).
@@ -97,14 +360,44 @@
     <div class="absolute top-4 left-4 z-20 flex items-center gap-2">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 42 134 152" width="48" height="54">
         <g transform="translate(100, 106)">
-          <rect x="-9" y="34" width="18" height="48" rx="4" fill="#4A4E37"/>
-          <ellipse cx="0" cy="9"   rx="62" ry="44" fill="#364D27"/>
-          <ellipse cx="0" cy="-14" rx="47" ry="35" fill="#25A652"/>
-          <ellipse cx="0" cy="-38" rx="30" ry="24" fill="#23C55E"/>
-          <ellipse cx="-7" cy="-49" rx="11" ry="10" fill="#5FDF84" opacity="0.30"/>
+          <rect x="-9" y="34" width="18" height="48" rx="4" fill="#4A4E37" />
+          <ellipse cx="0" cy="9" rx="62" ry="44" fill="#364D27" />
+          <ellipse cx="0" cy="-14" rx="47" ry="35" fill="#25A652" />
+          <ellipse cx="0" cy="-38" rx="30" ry="24" fill="#23C55E" />
+          <ellipse cx="-7" cy="-49" rx="11" ry="10" fill="#5FDF84" opacity="0.30" />
         </g>
       </svg>
       <span class="text-white font-bold text-lg drop-shadow">Plantando Vida</span>
+    </div>
+
+    <!-- Navbar secundária no canto superior direito, ao lado da logo: ferramentas
+         abertas, sem precisar de conta. Estilo translúcido (vidro) para não competir
+         com os CTAs principais. No mobile mostra só o ícone para caber ao lado da
+         logo; a partir de sm o rótulo aparece também. -->
+    <div class="absolute top-4 right-4 z-20 flex items-center gap-2">
+
+      <!-- Descobrir Espécie: abre a câmera do celular e identifica a planta -->
+      <button type="button" id="btn-descobrir" aria-label="Descobrir Espécie: tirar foto para identificar a planta"
+        class="bg-white/15 hover:bg-white/25 border border-white/40 text-white font-semibold px-3 py-2 sm:px-4 rounded-full shadow-md transition flex items-center gap-1.5 text-sm">
+        <!-- Ícone de câmera fotográfica: indica que a ação usa a câmera -->
+        <i data-lucide="camera" width="18" height="18"></i>
+        <span class="hidden sm:inline">Descobrir Espécie</span>
+      </button>
+
+      <!-- Sobre Nós: explica brevemente o objetivo do projeto -->
+      <button type="button" id="btn-sobre" aria-label="Sobre Nós"
+        class="bg-white/15 hover:bg-white/25 border border-white/40 text-white font-semibold px-3 py-2 sm:px-4 rounded-full shadow-md transition flex items-center gap-1.5 text-sm">
+        <!-- Ícone de informação: conteúdo explicativo -->
+        <i data-lucide="info" width="18" height="18"></i>
+        <span class="hidden sm:inline">Sobre Nós</span>
+      </button>
+
+      <!-- Entrada de foto do "Descobrir Espécie". capture="environment" faz o
+           celular abrir direto a câmera traseira em vez do seletor de arquivos;
+           no desktop o navegador cai no seletor normal. Fica oculto: quem o
+           aciona é o botão acima, via JS. -->
+      <input type="file" id="input-foto-especie" accept="image/*" capture="environment" class="hidden"
+        aria-hidden="true" tabindex="-1">
     </div>
 
     <!-- Camada 3: conteúdo — fica acima das duas camadas com z-10 -->
@@ -178,7 +471,8 @@
           <span class="text-5xl font-extrabold" id="count-arvores">0</span>
         </div>
         <!-- Ícone de árvore: reforça o contexto do contador de plantios -->
-        <div class="text-green-200 text-sm font-medium tracking-wide uppercase flex items-center justify-center gap-1.5">
+        <div
+          class="text-green-200 text-sm font-medium tracking-wide uppercase flex items-center justify-center gap-1.5">
           <i data-lucide="tree-pine" width="15" height="15"></i>
           Árvores Plantadas
         </div>
@@ -191,7 +485,8 @@
           <span class="text-5xl font-extrabold" id="count-cidades">0</span>
         </div>
         <!-- Ícone de mapa-pin: representa localização/cidades -->
-        <div class="text-green-200 text-sm font-medium tracking-wide uppercase flex items-center justify-center gap-1.5">
+        <div
+          class="text-green-200 text-sm font-medium tracking-wide uppercase flex items-center justify-center gap-1.5">
           <i data-lucide="map-pin" width="15" height="15"></i>
           Cidades
         </div>
@@ -200,13 +495,13 @@
       <!-- Contador 3: CO₂ absorvido na última hora — clicável, abre o Widget Oxigênio.
            O anel circular preenche conforme a hora atual avança, e o ponto pulsante
            no topo sinaliza visualmente que o número está sendo atualizado ao vivo. -->
-      <a href="/oxigenio" class="block group">
+      <a href="/oxigenio" id="total-co2" class="block group">
         <div class="relative w-32 h-32 mx-auto mb-1">
           <!-- Anel: trilha de fundo + arco de progresso (fração da hora atual decorrida) -->
           <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="5"></circle>
             <circle id="co2-ring" cx="50" cy="50" r="44" fill="none" stroke="#5FDF84" stroke-width="5"
-                    stroke-linecap="round" stroke-dasharray="276.46" stroke-dashoffset="276.46"></circle>
+              stroke-linecap="round" stroke-dasharray="276.46" stroke-dashoffset="276.46"></circle>
           </svg>
           <!-- Ponto pulsante: indicador de "ao vivo" -->
           <span class="absolute -top-0.5 left-1/2 -translate-x-1/2 flex h-2.5 w-2.5" aria-hidden="true">
@@ -218,7 +513,8 @@
           </div>
         </div>
         <!-- Ícone de vento: representa o CO₂ absorvido pelas árvores -->
-        <div class="text-green-200 text-sm font-medium tracking-wide uppercase flex items-center justify-center gap-1.5 group-hover:text-white transition">
+        <div
+          class="text-green-200 text-sm font-medium tracking-wide uppercase flex items-center justify-center gap-1.5 group-hover:text-white transition">
           <i data-lucide="wind" width="15" height="15"></i>
           Total CO₂
           <i data-lucide="arrow-right" width="12" height="12" class="opacity-0 group-hover:opacity-100 transition"></i>
@@ -232,10 +528,16 @@
        de forma suave usando requestAnimationFrame. Cada contador tem
        sua própria duração e valor alvo definidos no array abaixo. -->
   <script>
+    // Totais enviados pelo Flask via data-* no <body> (ver comentário acima da tag)
+    const totaisPagina = {
+      arvores: Number(document.body.dataset.totalArvores),
+      cidades: Number(document.body.dataset.totalCidades),
+    };
+
     // Configuração de cada contador: elemento, valor final e duração em ms
     const contadores = [
-      { id: 'count-arvores', alvo: {{ total_arvores }}, duracao: 2000 },
-      { id: 'count-cidades', alvo: {{ total_cidades }}, duracao: 1600 },
+      { id: 'count-arvores', alvo: totaisPagina.arvores, duracao: 2000 },
+      { id: 'count-cidades', alvo: totaisPagina.cidades, duracao: 1600 },
     ];
 
     // Função que anima um único contador do zero até o valor alvo
@@ -273,9 +575,9 @@
     (function () {
       const CO2_POR_ANO_KG = 20;                              // kg de CO₂ absorvido por árvore/ano
       const CO2_POR_HORA_G = (CO2_POR_ANO_KG * 1000) / 8760;   // ~2.28 g/hora/árvore
-      const totalArvoresCO2 = {{ total_arvores }};
+      const totalArvoresCO2 = totaisPagina.arvores;
       const elCo2 = document.getElementById('count-co2');
-      const ring  = document.getElementById('co2-ring');
+      const ring = document.getElementById('co2-ring');
 
       // Circunferência do anel (raio 44 no viewBox 100x100) — define o comprimento
       // total do traço; o offset é reduzido conforme a hora atual avança.
@@ -283,7 +585,7 @@
       ring.style.strokeDasharray = RING_CIRCUNFERENCIA;
 
       function tickCo2() {
-        const now  = new Date();
+        const now = new Date();
         const frac = (now.getMinutes() * 60 + now.getSeconds()) / 3600;
         const co2Hora = Math.round(CO2_POR_HORA_G * totalArvoresCO2 * frac);
         elCo2.textContent = co2Hora.toLocaleString('pt-BR');
@@ -389,11 +691,11 @@
     <div class="flex justify-center mb-4">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 42 134 152" width="64" height="72">
         <g transform="translate(100, 106)">
-          <rect x="-9" y="34" width="18" height="48" rx="4" fill="#4A4E37"/>
-          <ellipse cx="0" cy="9"   rx="62" ry="44" fill="#364D27"/>
-          <ellipse cx="0" cy="-14" rx="47" ry="35" fill="#25A652"/>
-          <ellipse cx="0" cy="-38" rx="30" ry="24" fill="#23C55E"/>
-          <ellipse cx="-7" cy="-49" rx="11" ry="10" fill="#5FDF84" opacity="0.30"/>
+          <rect x="-9" y="34" width="18" height="48" rx="4" fill="#4A4E37" />
+          <ellipse cx="0" cy="9" rx="62" ry="44" fill="#364D27" />
+          <ellipse cx="0" cy="-14" rx="47" ry="35" fill="#25A652" />
+          <ellipse cx="0" cy="-38" rx="30" ry="24" fill="#23C55E" />
+          <ellipse cx="-7" cy="-49" rx="11" ry="10" fill="#5FDF84" opacity="0.30" />
         </g>
       </svg>
     </div>
@@ -430,9 +732,9 @@
     <!-- Contato via email: link clicável que abre o aplicativo de email do usuário -->
     <p>
       Contato via email:
-      <a href="mailto:projetoplantandovida@gmail.com"
+      <a href="mailto:projetoplantandovida2026@gmail.com"
         class="text-green-400 hover:text-green-300 hover:underline transition">
-        projetoplantandovida@gmail.com
+        projetoplantandovida2026@gmail.com
       </a>
     </p>
 
@@ -450,6 +752,440 @@
 
   </footer>
   <!-- fim do rodapé -->
+
+
+  <!-- ===================== MODAL: DESCOBRIR ESPÉCIE =====================
+       Três estados mutuamente exclusivos dentro da mesma caixa:
+         1. esp-carregando → prévia da foto do usuário + spinner
+         2. esp-resultado  → própria foto do usuário + nome da espécie
+         3. esp-erro       → sem internet, foto não reconhecida ou serviço fora
+       Conforme a regra de negócio, o único comando após o resultado é "OK",
+       que devolve o usuário à Home. -->
+  <div class="modal-overlay" id="modal-especie" role="dialog" aria-modal="true" aria-labelledby="esp-titulo">
+    <div class="modal-caixa p-6 text-center">
+
+      <!-- Estado 1: analisando a foto -->
+      <div id="esp-carregando">
+        <div class="flex justify-center mb-4">
+          <div class="spinner-especie" role="status" aria-label="Identificando a espécie"></div>
+        </div>
+        <h3 id="esp-titulo" class="text-xl font-bold text-green-700 mb-1">Identificando a espécie…</h3>
+        <p class="text-gray-500 text-sm mb-4">Isso leva apenas alguns instantes.</p>
+        <!-- Prévia local: o usuário reconhece a própria foto enquanto espera -->
+        <img id="esp-previa" alt="Foto que você acabou de tirar"
+          class="w-28 h-28 object-cover rounded-xl mx-auto shadow">
+      </div>
+
+      <!-- Estado 2: espécie identificada -->
+      <div id="esp-resultado" class="hidden">
+        <p class="text-xs font-bold tracking-widest uppercase text-green-600 mb-3">Espécie identificada</p>
+        <!-- A Gemini não devolve imagem de referência da espécie — este elemento
+             sempre exibe a própria foto que o usuário tirou (ver preencherResultado no JS) -->
+        <img id="esp-miniatura" alt=""
+          class="w-28 h-28 object-cover rounded-full mx-auto mb-4 ring-4 ring-green-100 shadow">
+        <h3 id="esp-nome" class="text-2xl font-bold text-green-700 leading-tight"></h3>
+        <p id="esp-cientifico" class="text-gray-500 italic text-sm mt-1"></p>
+
+        <!-- Família botânica e grau de confiança da identificação -->
+        <div class="flex flex-wrap justify-center gap-2 mt-4">
+          <span id="esp-familia"
+            class="hidden bg-green-50 text-green-700 text-xs font-semibold px-3 py-1 rounded-full"></span>
+          <span id="esp-confianca"
+            class="hidden bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full"></span>
+        </div>
+      </div>
+
+      <!-- Estado 3: não foi possível identificar -->
+      <div id="esp-erro" class="hidden">
+        <div class="flex justify-center mb-4">
+          <div class="p-3 bg-amber-50 rounded-2xl">
+            <i data-lucide="search-x" class="text-amber-500" width="34" height="34" stroke-width="1.5"></i>
+          </div>
+        </div>
+        <h3 class="text-xl font-bold text-gray-700 mb-2">Não foi possível identificar</h3>
+        <p id="esp-erro-msg" class="text-gray-500 text-sm"></p>
+      </div>
+
+      <!-- Comando único: "OK" redireciona para a Home.
+           Escondido durante a análise para não interromper a requisição. -->
+      <button type="button" id="esp-ok"
+        class="hidden mt-6 w-full bg-green-500 hover:bg-green-400 text-white font-bold px-8 py-3 rounded-full shadow-lg transition text-lg">
+        OK
+      </button>
+
+    </div>
+  </div>
+
+
+  <!-- ===================== MODAL: SOBRE NÓS =====================
+       Explicação breve do objetivo do projeto, para quem chega na home sem
+       conhecer a iniciativa. -->
+  <div class="modal-overlay" id="modal-sobre" role="dialog" aria-modal="true" aria-labelledby="sobre-titulo">
+    <div class="modal-caixa modal-largo p-7">
+
+      <!-- Cabeçalho com a logo do projeto -->
+      <div class="flex items-center gap-3 mb-5">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 42 134 152" width="42" height="48" aria-hidden="true">
+          <g transform="translate(100, 106)">
+            <rect x="-9" y="34" width="18" height="48" rx="4" fill="#4A4E37" />
+            <ellipse cx="0" cy="9" rx="62" ry="44" fill="#364D27" />
+            <ellipse cx="0" cy="-14" rx="47" ry="35" fill="#25A652" />
+            <ellipse cx="0" cy="-38" rx="30" ry="24" fill="#23C55E" />
+            <ellipse cx="-7" cy="-49" rx="11" ry="10" fill="#5FDF84" opacity="0.30" />
+          </g>
+        </svg>
+        <div class="text-left">
+          <h3 id="sobre-titulo" class="text-2xl font-bold text-green-700 leading-tight">Sobre Nós</h3>
+          <p class="text-gray-400 text-[11px] uppercase tracking-widest font-semibold">Projeto Plantando Vida</p>
+        </div>
+      </div>
+
+      <!-- Objetivo do projeto -->
+      <p class="text-gray-600 text-sm leading-relaxed mb-3">
+        O <strong class="text-green-700">Plantando Vida</strong> é uma plataforma que transforma a vontade de
+        plantar em ação registrada e mensurável. Nosso objetivo é ampliar a cobertura verde das cidades e
+        mostrar, árvore por árvore, o impacto ambiental que cada pessoa gera.
+      </p>
+      <p class="text-gray-600 text-sm leading-relaxed mb-5">
+        Em vez de plantios soltos e sem acompanhamento, cada muda recebe um histórico próprio: onde foi
+        plantada, quem plantou e como está crescendo ao longo do tempo.
+      </p>
+
+      <!-- Como funciona, em três passos -->
+      <div class="space-y-3 mb-5">
+
+        <div class="flex gap-3 items-start">
+          <div class="p-2 bg-green-50 rounded-xl shrink-0">
+            <i data-lucide="sprout" class="text-green-700" width="20" height="20"></i>
+          </div>
+          <div class="text-left">
+            <h4 class="text-sm font-semibold text-green-700">Plantar</h4>
+            <p class="text-gray-500 text-xs leading-relaxed">
+              O usuário adquire mudas de viveiros e fornecedores credenciados da sua região.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex gap-3 items-start">
+          <div class="p-2 bg-yellow-50 rounded-xl shrink-0">
+            <i data-lucide="map-pin" class="text-yellow-600" width="20" height="20"></i>
+          </div>
+          <div class="text-left">
+            <h4 class="text-sm font-semibold text-green-700">Registrar</h4>
+            <p class="text-gray-500 text-xs leading-relaxed">
+              O plantio é registrado com foto, espécie e localização, entrando no mapa do projeto.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex gap-3 items-start">
+          <div class="p-2 bg-blue-50 rounded-xl shrink-0">
+            <i data-lucide="wind" class="text-blue-600" width="20" height="20"></i>
+          </div>
+          <div class="text-left">
+            <h4 class="text-sm font-semibold text-green-700">Acompanhar e medir</h4>
+            <p class="text-gray-500 text-xs leading-relaxed">
+              Fotos periódicas comprovam o desenvolvimento da muda, e cada árvore aprovada passa a
+              contar no cálculo de oxigênio produzido e CO₂ absorvido.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Quem participa -->
+      <p class="text-gray-600 text-sm leading-relaxed mb-6">
+        Participam do projeto <strong>voluntários</strong>, <strong>escolas e entidades educacionais</strong>,
+        <strong>fornecedores de mudas</strong> e <strong>entidades beneficiadas</strong> — uma rede que une
+        educação ambiental, geração de renda local e recuperação do meio ambiente.
+      </p>
+
+      <button type="button" id="sobre-fechar"
+        class="w-full bg-green-500 hover:bg-green-400 text-white font-bold px-8 py-3 rounded-full shadow-lg transition text-lg">
+        Fechar
+      </button>
+
+    </div>
+  </div>
+
+
+  <!-- ===================== SCRIPT: DESCOBRIR ESPÉCIE / SOBRE NÓS =====================
+       Fluxo do "Descobrir Espécie":
+         botão → câmera do celular → reduz a foto no navegador → POST /api/identificar-especie
+               → modal com a foto do usuário e o nome da espécie → "OK" volta para a Home.
+       A identificação depende de um serviço externo (Gemini), por isso exige
+       internet: sem conexão, o modal avisa antes mesmo de abrir a câmera. -->
+  <script>
+    (function () {
+      const btnDescobrir = document.getElementById('btn-descobrir');
+      const btnSobre = document.getElementById('btn-sobre');
+      const inputFoto = document.getElementById('input-foto-especie');
+
+      const modalEspecie = document.getElementById('modal-especie');
+      const modalSobre = document.getElementById('modal-sobre');
+
+      const blocoCarregando = document.getElementById('esp-carregando');
+      const blocoResultado = document.getElementById('esp-resultado');
+      const blocoErro = document.getElementById('esp-erro');
+      const btnOk = document.getElementById('esp-ok');
+
+      const TEMPO_LIMITE = 45000;   // ms — margem confortável para rede móvel lenta
+      const LADO_MAX = 1280;        // px — maior lado da foto enviada ao servidor
+      const QUALIDADE = 0.85;       // compressão JPEG: leve, sem perder nitidez útil
+
+      let urlPrevia = '';           // object URL da foto do usuário (prévia local)
+      let controle = null;          // AbortController da identificação em andamento
+
+      // ── Abertura e fechamento ──
+      function abrir(modal) {
+        modal.classList.add('aberto');
+        document.body.classList.add('modal-ativo');
+      }
+
+      function fechar(modal) {
+        modal.classList.remove('aberto');
+        document.body.classList.remove('modal-ativo');
+      }
+
+      // Libera a memória da prévia local quando ela não é mais exibida
+      function limparPrevia() {
+        if (urlPrevia) {
+          URL.revokeObjectURL(urlPrevia);
+          urlPrevia = '';
+        }
+      }
+
+      // ── Sobre Nós ──
+      btnSobre.addEventListener('click', () => abrir(modalSobre));
+      document.getElementById('sobre-fechar').addEventListener('click', () => fechar(modalSobre));
+      // Clique no fundo escuro (e não na caixa) também fecha
+      modalSobre.addEventListener('click', (e) => {
+        if (e.target === modalSobre) fechar(modalSobre);
+      });
+
+      // ── Descobrir Espécie: troca de estados do modal ──
+      function mostrar(bloco) {
+        [blocoCarregando, blocoResultado, blocoErro]
+          .forEach((b) => b.classList.toggle('hidden', b !== bloco));
+        // Durante a análise não há comando: o "OK" só aparece com o desfecho
+        btnOk.classList.toggle('hidden', bloco === blocoCarregando);
+      }
+
+      function mostrarErro(mensagem) {
+        document.getElementById('esp-erro-msg').textContent = mensagem;
+        mostrar(blocoErro);
+      }
+
+      // Reduz a foto antes do upload: fotos de celular passam de 5 MB e deixariam
+      // o envio lento em rede móvel. Se o canvas falhar, envia o arquivo original.
+      function reduzirFoto(arquivo) {
+        return new Promise((resolve) => {
+          const img = new Image();
+
+          img.onload = () => {
+            try {
+              const escala = Math.min(1, LADO_MAX / Math.max(img.width, img.height));
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.round(img.width * escala);
+              canvas.height = Math.round(img.height * escala);
+              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+              // toBlob é assíncrono; blob nulo (navegador antigo) cai no original
+              canvas.toBlob((blob) => resolve(blob || arquivo), 'image/jpeg', QUALIDADE);
+            } catch (e) {
+              resolve(arquivo);
+            }
+          };
+
+          img.onerror = () => resolve(arquivo);
+          img.src = urlPrevia;   // reaproveita o object URL já criado para a prévia
+        });
+      }
+
+      // O clique dispara o input com capture="environment": no celular abre a
+      // câmera traseira direto, cumprindo o "tire uma foto" da regra de negócio.
+      btnDescobrir.addEventListener('click', () => {
+        if (!navigator.onLine) {
+          abrir(modalEspecie);
+          mostrarErro('Esta ferramenta consulta uma base mundial de espécies e precisa de internet. Conecte-se e tente novamente.');
+          return;
+        }
+        inputFoto.value = '';   // permite reenviar a mesma foto duas vezes seguidas
+        inputFoto.click();
+      });
+
+      inputFoto.addEventListener('change', async () => {
+        const arquivo = inputFoto.files && inputFoto.files[0];
+        if (!arquivo) return;   // usuário cancelou a câmera
+
+        limparPrevia();
+        urlPrevia = URL.createObjectURL(arquivo);
+        document.getElementById('esp-previa').src = urlPrevia;
+
+        abrir(modalEspecie);
+        mostrar(blocoCarregando);
+
+        let relogio = null;
+        try {
+          const foto = await reduzirFoto(arquivo);
+          const dados = new FormData();
+          dados.append('foto', foto, 'planta.jpg');
+
+          // Corta a espera se o serviço externo não responder
+          controle = new AbortController();
+          relogio = setTimeout(() => controle.abort(), TEMPO_LIMITE);
+
+          const resposta = await fetch('/api/identificar-especie', {
+            method: 'POST',
+            body: dados,
+            signal: controle.signal,
+          });
+          clearTimeout(relogio);
+
+          const json = await resposta.json();
+          if (json.ok) {
+            preencherResultado(json);
+          } else {
+            mostrarErro(json.erro || 'Não conseguimos identificar a espécie desta vez.');
+          }
+        } catch (e) {
+          if (relogio) clearTimeout(relogio);
+          mostrarErro(navigator.onLine
+            ? 'A análise demorou mais que o esperado. Tente novamente com uma foto mais nítida.'
+            : 'Sua conexão caiu durante a análise. Reconecte-se e tente novamente.');
+        }
+      });
+
+      // Preenche o estado de resultado com os dados vindos da rota
+      function preencherResultado(d) {
+        // A Gemini não devolve foto de referência da espécie — exibimos a própria
+        // foto que o usuário tirou.
+        const mini = document.getElementById('esp-miniatura');
+        mini.src = urlPrevia;
+        mini.alt = 'Foto que você acabou de tirar';
+
+        // Nome popular quando existe; senão o científico assume o papel de título
+        document.getElementById('esp-nome').textContent =
+          d.nome_popular || d.nome_cientifico || 'Espécie identificada';
+        document.getElementById('esp-cientifico').textContent =
+          d.nome_popular ? d.nome_cientifico : '';
+
+        const familia = document.getElementById('esp-familia');
+        familia.textContent = d.familia ? 'Família ' + d.familia : '';
+        familia.classList.toggle('hidden', !d.familia);
+
+        const confianca = document.getElementById('esp-confianca');
+        confianca.textContent = d.confianca_pct + '% de confiança';
+        confianca.classList.toggle('hidden', !d.confianca_pct);
+
+        mostrar(blocoResultado);
+      }
+
+      // Comando único do fluxo: "OK" leva o usuário de volta à Home
+      btnOk.addEventListener('click', () => {
+        limparPrevia();
+        window.location.href = '/';
+      });
+
+      // Saída de segurança pelo teclado: cancela uma análise travada sem
+      // obrigar o usuário a recarregar a página.
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (modalSobre.classList.contains('aberto')) fechar(modalSobre);
+        if (modalEspecie.classList.contains('aberto')) {
+          if (controle) controle.abort();
+          limparPrevia();
+          fechar(modalEspecie);
+        }
+      });
+    })();
+  </script>
+
+  <!-- ===================== SCRIPT DO RELÓGIO FLUTUANTE DE O₂ =====================
+       Duas responsabilidades: manter o número de oxigênio atualizado a cada segundo
+       (mesma base de cálculo do Widget Oxigênio) e fazer a pílula vagar devagar pela
+       parte inferior da tela. O clique rola a página até o contador "Total CO₂". -->
+  <script>
+    (function () {
+      const bolha = document.getElementById('o2-relogio');
+      const elValor = document.getElementById('o2-valor');
+      const alvo = document.getElementById('total-co2');
+
+      // ── Contador de O₂ (mesma base do Widget Oxigênio) ──
+      const O2_POR_ANO_KG = 260;                             // kg de O₂ por árvore/ano
+      const O2_POR_HORA_G = (O2_POR_ANO_KG * 1000) / 8760;   // ~29.68 g/hora/árvore
+      const totalArvoresO2 = Number(document.body.dataset.totalArvores);
+
+      function tickO2() {
+        const now = new Date();
+        const frac = (now.getMinutes() * 60 + now.getSeconds()) / 3600;
+        elValor.textContent = Math.round(O2_POR_HORA_G * totalArvoresO2 * frac).toLocaleString('pt-BR');
+      }
+
+      tickO2();
+      setInterval(tickO2, 1000);
+
+      // ── Movimento leve e constante ──
+      const MARGEM = 18;             // respiro mínimo em relação às bordas
+      const FAIXA_ALTURA = 0.30;     // vaga apenas nos 30% inferiores da tela
+      const VELOCIDADE = 0.00016;    // radianos por ms → ~65s para ir e voltar
+
+      const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let pausado = false;
+      let t = 0;
+      let ultimoQuadro = performance.now();
+
+      // Posição a partir de duas senoides de períodos diferentes: o caminho fica
+      // suave e não parece uma linha repetitiva de ida e volta.
+      function posicionar() {
+        const larg = bolha.offsetWidth;
+        const alt = bolha.offsetHeight;
+        const faixaX = Math.max(0, window.innerWidth - larg - MARGEM * 2);
+        const faixaY = Math.max(0, window.innerHeight * FAIXA_ALTURA - alt);
+
+        const x = MARGEM + (0.5 + 0.5 * Math.sin(t)) * faixaX;
+        const y = window.innerHeight - alt - MARGEM
+          - (0.5 + 0.5 * Math.sin(t * 1.7 + 1.2)) * faixaY;
+
+        bolha.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+      }
+
+      function passo(agora) {
+        // Limita o dt para a bolha não "teleportar" ao voltar de outra aba
+        const dt = Math.min(agora - ultimoQuadro, 50);
+        ultimoQuadro = agora;
+        if (!pausado) t += dt * VELOCIDADE;
+        posicionar();
+        requestAnimationFrame(passo);
+      }
+
+      // Pausa o vagar enquanto o usuário mira o clique (ou navega por teclado)
+      bolha.addEventListener('mouseenter', () => { pausado = true; });
+      bolha.addEventListener('mouseleave', () => { pausado = false; });
+      bolha.addEventListener('focus', () => { pausado = true; });
+      bolha.addEventListener('blur', () => { pausado = false; });
+
+      posicionar();
+      bolha.classList.add('pronto');   // só aparece depois de posicionada
+      if (!semMovimento) requestAnimationFrame(passo);
+      window.addEventListener('resize', posicionar);
+      // Reposiciona quando o ícone Lucide já virou SVG (a largura muda um pouco)
+      window.addEventListener('load', posicionar);
+
+      // ── Clique: rola até o "Total CO₂" e o destaca ao chegar ──
+      bolha.addEventListener('click', () => {
+        alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        alvo.classList.remove('o2-destaque');
+        void alvo.offsetWidth;           // força reflow: reinicia a animação em cliques seguidos
+        alvo.classList.add('o2-destaque');
+      });
+
+      // Só reage à própria animação do destaque: eventos de animação sobem dos filhos
+      // (o ponto "ao vivo" do contador, por exemplo) e removeriam a classe cedo demais.
+      alvo.addEventListener('animationend', (e) => {
+        if (e.target === alvo) alvo.classList.remove('o2-destaque');
+      });
+    })();
+  </script>
 
   <!-- Inicializa todos os ícones Lucide após o DOM estar completamente carregado -->
   <script>lucide.createIcons();</script>

@@ -3,6 +3,14 @@ import secrets
 import random
 import os
 import re
+# google-genai: SDK oficial do Gemini, usado para identificar espécies por foto
+# (ver /api/identificar-especie). A Gemini é uma IA multimodal generalista, não um
+# serviço botânico dedicado, mas foi a alternativa escolhida por ter cadastro
+# imediato (sem lista de espera) e um nível gratuito generoso.
+import json
+from google import genai
+from google.genai import types as genai_types
+from google.genai import errors as genai_errors
 
 # ===================== VERSÃO DOS TERMOS DE USO =====================
 # Altere este valor sempre que os Termos ou a Política de Privacidade forem atualizados.
@@ -680,6 +688,143 @@ def api_oxigenio():
 def oxigenio():
     """Página do Widget Oxigênio: detalhamento de O2/CO2 em tempo real."""
     return render_template("oxigenio.html", total_arvores=_total_arvores_aprovadas())
+
+
+# ===================== DESCOBRIR ESPÉCIE (IDENTIFICAÇÃO POR FOTO) =====================
+# Ferramenta de engajamento acessível na home: o usuário fotografa uma planta com a
+# câmera do celular e recebe de volta o nome da espécie.
+#
+# Serviço escolhido — Gemini API (Google AI Studio):
+#   - Originalmente a rota usava a Pl@ntNet (base botânica dedicada), mas o
+#     cadastro em my.plantnet.org ficou instável e sem previsão de acesso.
+#   - A Gemini é uma IA multimodal generalista (não um índice botânico), mas tem
+#     cadastro imediato em https://aistudio.google.com/apikey (sem lista de espera)
+#     e nível gratuito generoso — por isso exige internet, como a opção anterior.
+#   - Trade-off aceito: sem uma base de imagens de referência, a resposta não traz
+#     miniatura/crédito de autor — o front usa a própria foto do usuário como imagem.
+#
+# A chave fica só no servidor (variável GEMINI_API_KEY_ESPECIES): a foto vai do navegador
+# para cá e somente o nosso backend conversa com a Gemini. Assim a chave nunca é
+# exposta no HTML/JS.
+#
+# A rota sempre responde JSON no formato {ok: true, ...} ou {ok: false, erro: "..."},
+# para o modal da home exibir a mensagem pronta ao usuário sem traduzir códigos.
+GEMINI_MODEL           = "gemini-2.5-flash"
+IDENTIFICAR_MAX_BYTES  = 8 * 1024 * 1024    # 8 MB — o front já reduz a imagem antes de enviar
+
+# Cliente único, reaproveitado entre requisições — criado uma vez na subida do app,
+# igual ao cloudinary.config() acima. None quando a chave não está configurada, o
+# que a rota trata como "ferramenta ainda não ativada" em vez de estourar erro.
+_GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY_ESPECIES", "").strip()
+_cliente_gemini = genai.Client(api_key=_GEMINI_API_KEY) if _GEMINI_API_KEY else None
+
+# Instrui a IA a se comportar como um identificador botânico e a responder em um
+# JSON fixo — o mesmo formato que a rota espera para montar a resposta ao front.
+_PROMPT_IDENTIFICACAO = (
+    "Você é um botânico especialista em identificação de plantas e árvores por foto. "
+    "Analise a imagem enviada e identifique a espécie. "
+    "Responda SOMENTE com um JSON válido, sem markdown e sem texto fora do JSON, "
+    "exatamente neste formato: "
+    '{"reconhecida": true ou false, "nome_popular": "", "nome_cientifico": "", '
+    '"familia": "", "confianca_pct": 0, "motivo_nao_reconhecida": ""}. '
+    "Defina \"reconhecida\": false quando a imagem não mostrar claramente uma planta "
+    "ou quando você não tiver confiança razoável na identificação — nesse caso, "
+    "explique o motivo em português, de forma breve e amigável, no campo "
+    "\"motivo_nao_reconhecida\" (ex.: foto borrada, ângulo insuficiente, não parece "
+    "ser uma planta). Nomes populares e explicações sempre em português do Brasil. "
+    "Se não souber um nome popular em português, deixe \"nome_popular\" como string vazia. "
+    "\"confianca_pct\" é sua confiança de 0 a 100 na identificação."
+)
+
+
+def _extrair_json(texto):
+    """Converte a resposta em texto da IA em dict, tolerando cercas ```json residuais."""
+    texto = (texto or "").strip()
+    texto = re.sub(r"^```(?:json)?|```$", "", texto, flags=re.MULTILINE).strip()
+    try:
+        return json.loads(texto)
+    except ValueError:
+        casamento = re.search(r"\{.*\}", texto, re.DOTALL)
+        if not casamento:
+            return None
+        try:
+            return json.loads(casamento.group(0))
+        except ValueError:
+            return None
+
+
+@app.route("/api/identificar-especie", methods=["POST"])
+def api_identificar_especie():
+    """Recebe a foto tirada pelo usuário e devolve o nome da espécie identificada pela IA."""
+    if not _cliente_gemini:
+        return jsonify({
+            "ok": False,
+            "erro": "A identificação de espécies ainda não foi ativada neste servidor.",
+        })
+
+    foto = request.files.get("foto")
+    if not foto or not foto.filename:
+        return jsonify({"ok": False, "erro": "Nenhuma foto foi recebida. Tente novamente."})
+
+    # Lê em memória para conferir o tamanho antes de repassar ao serviço externo
+    conteudo = foto.read()
+    if not conteudo:
+        return jsonify({"ok": False, "erro": "A foto chegou vazia. Tire outra e tente novamente."})
+    if len(conteudo) > IDENTIFICAR_MAX_BYTES:
+        return jsonify({"ok": False, "erro": "A foto é muito grande. Tire outra um pouco mais distante."})
+
+    try:
+        resposta = _cliente_gemini.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[
+                _PROMPT_IDENTIFICACAO,
+                genai_types.Part.from_bytes(data=conteudo, mime_type=foto.mimetype or "image/jpeg"),
+            ],
+            config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+    except genai_errors.ClientError as erro:
+        # 429 = cota diária do nível gratuito esgotada; demais erros de cliente
+        # (ex: chave inválida) não devem expor detalhes internos ao usuário final.
+        if getattr(erro, "code", None) == 429:
+            return jsonify({
+                "ok": False,
+                "erro": "O limite diário de identificações foi atingido. Tente novamente amanhã.",
+            })
+        return jsonify({"ok": False, "erro": "Não foi possível analisar esta foto. Tente novamente."})
+    except genai_errors.APIError:
+        return jsonify({
+            "ok": False,
+            "erro": "O serviço de identificação está indisponível neste momento. Tente mais tarde.",
+        })
+    except Exception:
+        return jsonify({
+            "ok": False,
+            "erro": "Não conseguimos falar com o serviço de identificação. Verifique sua internet.",
+        })
+
+    dados = _extrair_json(getattr(resposta, "text", ""))
+    if dados is None:
+        return jsonify({"ok": False, "erro": "Resposta inesperada do serviço de identificação."})
+
+    if not dados.get("reconhecida"):
+        return jsonify({
+            "ok": False,
+            "erro": dados.get("motivo_nao_reconhecida") or
+                    "Não reconhecemos nenhuma planta nessa foto. Tente uma imagem mais nítida e bem iluminada.",
+        })
+
+    try:
+        confianca = round(float(dados.get("confianca_pct") or 0))
+    except (TypeError, ValueError):
+        confianca = 0
+
+    return jsonify({
+        "ok"             : True,
+        "nome_popular"   : (dados.get("nome_popular") or "").strip(),
+        "nome_cientifico": (dados.get("nome_cientifico") or "").strip(),
+        "familia"        : (dados.get("familia") or "").strip(),
+        "confianca_pct"  : max(0, min(100, confianca)),
+    })
 
 
 # ===================== ROTA DE CADASTRO =====================

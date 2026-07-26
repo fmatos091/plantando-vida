@@ -8,3 +8,4 @@ python-dotenv==1.0.1
 openpyxl==3.1.2
 cloudinary==1.41.0
 resend==2.10.0
+google-genai==2.14.0
