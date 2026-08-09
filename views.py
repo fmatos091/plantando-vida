@@ -709,7 +709,8 @@ def oxigenio():
 #
 # A rota sempre responde JSON no formato {ok: true, ...} ou {ok: false, erro: "..."},
 # para o modal da home exibir a mensagem pronta ao usuário sem traduzir códigos.
-GEMINI_MODEL           = "gemini-2.5-flash"
+GEMINI_MODEL           = "gemini-flash-latest"  # alias que a Google mantém no modelo flash vigente,
+                                                 # evita quebrar de novo quando uma versão fixa (ex: 2.5-flash) for desativada
 IDENTIFICAR_MAX_BYTES  = 8 * 1024 * 1024    # 8 MB — o front já reduz a imagem antes de enviar
 
 # Cliente único, reaproveitado entre requisições — criado uma vez na subida do app,
@@ -784,19 +785,23 @@ def api_identificar_especie():
         )
     except genai_errors.ClientError as erro:
         # 429 = cota diária do nível gratuito esgotada; demais erros de cliente
-        # (ex: chave inválida) não devem expor detalhes internos ao usuário final.
+        # (ex: chave inválida, modelo indisponível) não devem expor detalhes
+        # internos ao usuário final — mas ficam logados para diagnóstico no Railway.
+        print(f"[ESPECIE] ClientError code={getattr(erro, 'code', None)}: {erro}", file=sys.stderr)
         if getattr(erro, "code", None) == 429:
             return jsonify({
                 "ok": False,
                 "erro": "O limite diário de identificações foi atingido. Tente novamente amanhã.",
             })
         return jsonify({"ok": False, "erro": "Não foi possível analisar esta foto. Tente novamente."})
-    except genai_errors.APIError:
+    except genai_errors.APIError as erro:
+        print(f"[ESPECIE] APIError code={getattr(erro, 'code', None)}: {erro}", file=sys.stderr)
         return jsonify({
             "ok": False,
             "erro": "O serviço de identificação está indisponível neste momento. Tente mais tarde.",
         })
-    except Exception:
+    except Exception as erro:
+        print(f"[ESPECIE] ERRO inesperado {type(erro).__name__}: {erro}", file=sys.stderr)
         return jsonify({
             "ok": False,
             "erro": "Não conseguimos falar com o serviço de identificação. Verifique sua internet.",
@@ -804,6 +809,7 @@ def api_identificar_especie():
 
     dados = _extrair_json(getattr(resposta, "text", ""))
     if dados is None:
+        print(f"[ESPECIE] resposta sem JSON válido: {getattr(resposta, 'text', '')!r}", file=sys.stderr)
         return jsonify({"ok": False, "erro": "Resposta inesperada do serviço de identificação."})
 
     if not dados.get("reconhecida"):
