@@ -14,16 +14,6 @@
 
 <body class="bg-green-50 min-h-screen">
 
-  <!-- ===================== BANNER TEMPORÁRIO DE EMERGÊNCIA =====================
-       Funcionalidades de emergência ativas: galeria de fotos + GPS manual.
-       REMOVER após normalização do fluxo de lançamento de plantios.
-  -->
-  <div class="bg-amber-400 text-amber-900 text-xs font-bold text-center py-2 px-4 flex items-center justify-center gap-2">
-    <span>⚠️</span>
-    <span>MODO EMERGÊNCIA — Foto da galeria e GPS manual ativos temporariamente</span>
-    <span>⚠️</span>
-  </div>
-
   <!-- ===================== NAVBAR =====================
        Barra superior com título e link para voltar à lista de plantios.
   -->
@@ -200,47 +190,6 @@
               ⚠️ A captura de GPS é obrigatória para registrar o local do plantio.
             </p>
 
-            <!-- ============================================================
-                 TEMPORÁRIO (EMERGÊNCIA): Inserir latitude e longitude manualmente.
-                 Usar quando o GPS do dispositivo não funcionar ou estiver indisponível.
-                 REMOVER após normalização do fluxo.
-            ============================================================ -->
-            <div class="border border-amber-300 rounded-xl overflow-hidden">
-              <button type="button" onclick="toggleManualGPS()"
-                class="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold
-                       py-2 px-3 transition flex items-center justify-center gap-2">
-                ✏️ Inserir latitude e longitude manual
-              </button>
-
-              <!-- Painel de entrada manual — exibido/ocultado pelo botão acima -->
-              <div id="painel-manual-gps" class="hidden bg-amber-50 px-3 pb-3 pt-2 space-y-2 border-t border-amber-200">
-                <p class="text-xs text-amber-700 font-semibold">
-                  ⚠️ Emergência — use apenas quando o GPS não funcionar.
-                </p>
-                <!-- Campo de latitude -->
-                <div>
-                  <label class="text-xs font-semibold text-gray-600 block mb-1">Latitude</label>
-                  <input type="number" id="input-lat-manual" step="any"
-                    placeholder="Ex: -23.550520"
-                    class="w-full p-2 border border-amber-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-                </div>
-                <!-- Campo de longitude -->
-                <div>
-                  <label class="text-xs font-semibold text-gray-600 block mb-1">Longitude</label>
-                  <input type="number" id="input-lng-manual" step="any"
-                    placeholder="Ex: -46.633309"
-                    class="w-full p-2 border border-amber-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-                </div>
-                <!-- Confirmar coordenadas manuais -->
-                <button type="button" onclick="confirmarManualGPS()"
-                  class="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold
-                         py-2 rounded-lg transition">
-                  ✔ Confirmar coordenadas
-                </button>
-              </div>
-            </div>
-            <!-- FIM TEMPORÁRIO: GPS manual -->
-
             <div>
               <label class="text-xs font-semibold text-gray-600 block mb-1">Município</label>
               <!-- Somente leitura: preenchido automaticamente pelo GPS -->
@@ -250,10 +199,10 @@
             </div>
             <div>
               <label class="text-xs font-semibold text-gray-600 block mb-1">Bairro</label>
-              <!-- Somente leitura: preenchido automaticamente pelo GPS -->
+              <!-- Preenchido automaticamente pelo GPS, mas editável caso o bairro venha incorreto -->
               <input type="text" id="input-bairro" placeholder="Preenchido pelo GPS"
-                readonly
-                class="w-full p-3 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
+                oninput="sincronizarLocalizacao()"
+                class="w-full p-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
             </div>
           </div>
 
@@ -808,13 +757,11 @@
             // sincronizarLocalizacao vai exigir que o usuário preencha cidade/bairro manualmente
             statusEl.textContent = `📍 GPS capturado (${lat.toFixed(4)}, ${lon.toFixed(4)}) — cidade não encontrada automaticamente`;
             statusEl.className   = 'text-xs text-yellow-600 text-center font-semibold';
-            // Remove readonly temporariamente para permitir preenchimento manual
+            // Remove readonly do município temporariamente para permitir preenchimento manual
+            // (bairro já é editável por padrão)
             document.getElementById('input-municipio').removeAttribute('readonly');
             document.getElementById('input-municipio').classList.remove('bg-gray-50','text-gray-500','cursor-not-allowed');
             document.getElementById('input-municipio').addEventListener('input', sincronizarLocalizacao);
-            document.getElementById('input-bairro').removeAttribute('readonly');
-            document.getElementById('input-bairro').classList.remove('bg-gray-50','text-gray-500','cursor-not-allowed');
-            document.getElementById('input-bairro').addEventListener('input', sincronizarLocalizacao);
             sincronizarLocalizacao();
           }
 
@@ -851,63 +798,6 @@
       };
       reader.readAsDataURL(file);
     }
-
-    // ---- TEMPORÁRIO (EMERGÊNCIA): GPS Manual ----
-    // Exibe/oculta o painel de entrada manual de coordenadas
-    function toggleManualGPS() {
-      document.getElementById('painel-manual-gps').classList.toggle('hidden');
-    }
-
-    // Confirma as coordenadas digitadas, tenta geocoding reverso e libera edição de município/bairro
-    async function confirmarManualGPS() {
-      const lat = parseFloat(document.getElementById('input-lat-manual').value);
-      const lng = parseFloat(document.getElementById('input-lng-manual').value);
-
-      if (isNaN(lat) || isNaN(lng)) {
-        alert('Informe valores válidos para latitude e longitude.');
-        return;
-      }
-
-      // Preenche campos ocultos do formulário com as coordenadas manuais
-      document.getElementById('campo-latitude').value  = lat.toFixed(6);
-      document.getElementById('campo-longitude').value = lng.toFixed(6);
-
-      const statusEl = document.getElementById('status-gps');
-      statusEl.textContent = '📡 Buscando cidade pelas coordenadas...';
-      statusEl.className   = 'text-xs text-gray-500 text-center';
-
-      try {
-        // Geocoding reverso via Nominatim para preencher cidade/bairro automaticamente
-        const url  = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
-        const resp = await fetch(url, { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'PlantandoVida/1.0' } });
-        const data = await resp.json();
-        const addr   = data.address || {};
-        const cidade = addr.city || addr.town || addr.municipality || addr.county || addr.state_district || '';
-        const bairro = addr.suburb || addr.neighbourhood || addr.quarter || addr.village || '';
-        document.getElementById('input-municipio').value = cidade;
-        document.getElementById('input-bairro').value    = bairro;
-      } catch (_) { /* geocoding falhou — usuário preencherá manualmente */ }
-
-      // Libera edição manual dos campos município/bairro (normalmente só leitura)
-      ['input-municipio', 'input-bairro'].forEach(id => {
-        const el = document.getElementById(id);
-        el.removeAttribute('readonly');
-        el.classList.remove('bg-gray-50', 'text-gray-500', 'cursor-not-allowed');
-        el.addEventListener('input', sincronizarLocalizacao);
-      });
-
-      document.getElementById('painel-manual-gps').classList.add('hidden');
-      sincronizarLocalizacao();
-      atualizarStatusGPS(true);
-
-      // Coordenadas manuais confirmadas: habilita Próximo mesmo que município/bairro estejam vazios
-      // (em modo de emergência, lat/lng são suficientes para o registro)
-      document.getElementById('btn-proximo-2').disabled = false;
-
-      statusEl.textContent = `✅ Coordenadas manuais: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      statusEl.className   = 'text-xs text-emerald-600 text-center font-semibold';
-    }
-    // ---- FIM TEMPORÁRIO: GPS Manual ----
 
     // ---- Plantio Voluntário: validação do campo espécie na Etapa 5 ----
     // Habilita o botão "Registrar Plantio" somente após o voluntário informar a espécie.
