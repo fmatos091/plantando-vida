@@ -8,6 +8,19 @@
   <title>Plantando Vida</title>
   <link rel="icon" type="image/svg+xml"
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='33 42 134 152'%3E%3Cg transform='translate(100,106)'%3E%3Crect x='-9' y='34' width='18' height='48' rx='4' fill='%234A4E37'/%3E%3Cellipse cx='0' cy='9' rx='62' ry='44' fill='%23364D27'/%3E%3Cellipse cx='0' cy='-14' rx='47' ry='35' fill='%2325A652'/%3E%3Cellipse cx='0' cy='-38' rx='30' ry='24' fill='%2323C55E'/%3E%3Cellipse cx='-7' cy='-49' rx='11' ry='10' fill='%235FDF84' opacity='0.30'/%3E%3C/g%3E%3C/svg%3E">
+
+  <!-- ===================== PWA =====================
+         manifest + ícones + theme-color: permitem "Adicionar à tela inicial" no
+         Android/iOS e são o pré-requisito para empacotar o site como TWA na Play Store.
+    -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#15803D">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <!-- iOS não lê o manifest.json para o modo standalone — precisa dessas meta tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Plantando Vida">
+
   <!-- Tailwind CSS via CDN para estilização da página -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons: biblioteca de ícones SVG via UMD — substitui emojis por vetores profissionais.
@@ -790,11 +803,19 @@
         </p>
 
         <!-- Contato via email: link clicável que abre o aplicativo de email do usuário -->
-        <p>
+        <p class="mb-2">
           Contato via email:
           <a href="mailto:projetoplantandovida2026@gmail.com"
             class="text-green-300 hover:text-white hover:underline transition">
             projetoplantandovida2026@gmail.com
+          </a>
+        </p>
+
+        <!-- Política de Privacidade: página pública (não exige login), usada também
+             como URL de política de privacidade no cadastro da Play Store -->
+        <p>
+          <a href="/termos" class="text-green-300 hover:text-white hover:underline transition">
+            Termos de Uso e Política de Privacidade
           </a>
         </p>
 
@@ -1252,6 +1273,19 @@
 
   <!-- Inicializa todos os ícones Lucide após o DOM estar completamente carregado -->
   <script>lucide.createIcons();</script>
+
+  <!-- Registra o Service Worker (PWA): permite "Adicionar à tela inicial" e é
+       pré-requisito para o pacote Android (TWA) da Play Store. Sem suporte em
+       navegadores antigos, por isso o "in" checa antes de chamar. -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+          // Falha silenciosa: PWA é um extra, não pode quebrar a navegação normal do site.
+        });
+      });
+    }
+  </script>
 
 </body>
 

@@ -24,7 +24,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.utils import formataddr, parseaddr
-from flask import render_template, request, redirect, session, flash, jsonify, g
+from flask import render_template, request, redirect, session, flash, jsonify, g, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import cloudinary
@@ -628,6 +628,15 @@ def home():
                             total_cidades=total_cidades)
 
 
+# ===================== SERVICE WORKER (PWA) =====================
+# Servido na raiz (e não em /static/sw.js) porque o escopo padrão de um Service
+# Worker é a pasta de onde ele é servido — em /static/ ele só controlaria
+# /static/*, e precisamos que cubra o site inteiro (scope "/" do manifest.json).
+@app.route('/sw.js')
+def service_worker():
+    return send_from_directory(app.static_folder, 'sw.js', mimetype='application/javascript')
+
+
 # ===================== WIDGET OXIGÊNIO =====================
 # Constantes científicas usadas nos cálculos de O2/CO2 por árvore.
 # Fonte: média de absorção/produção de uma árvore adulta ao longo de um ano.
@@ -1037,17 +1046,20 @@ def login():
 
 # ===================== ROTA DO DASHBOARD =====================
 # ===================== ROTA TERMOS DE USO / LGPD =====================
-# GET:  exibe os Termos de Uso e Política de Privacidade para o usuário aceitar.
+# GET:  pública — serve também como URL de Política de Privacidade exigida pela
+#       Play Store e por links no rodapé do site, então não pode exigir login.
+#       Para o usuário logado, a página mostra o checkbox + botão de aceite;
+#       para visitante anônimo (Google review, links externos), mostra só o texto.
 # POST: registra o aceite na tabela aceites_termos com versão, IP e timestamp,
-#       marca a sessão como aceita e redireciona para o dashboard.
-# Requerido a cada login — fluxo: /login → /termos → /dashboard.
+#       marca a sessão como aceita e redireciona para o dashboard. Continua
+#       exigindo login — só faz sentido aceitar estando autenticado.
+# Fluxo do usuário logado: /login → /termos → /dashboard.
 @app.route("/termos", methods=["GET", "POST"])
 def termos():
-    # Garante que o usuário está logado antes de exibir os termos
-    if "usuario_id" not in session:
-        return redirect("/login")
-
     if request.method == "POST":
+        if "usuario_id" not in session:
+            return redirect("/login")
+
         # Registra o aceite com IP real (considera proxy reverso do Railway/Render)
         ip = request.headers.get("X-Forwarded-For", request.remote_addr)
         conn   = get_db()
@@ -1063,8 +1075,8 @@ def termos():
         session["termos_aceitos"] = True
         return redirect("/dashboard")
 
-    # GET: exibe a página de termos
-    return render_template("termos.html", versao=VERSAO_TERMOS)
+    # GET: página pública — logado=False esconde o bloco de aceite no template
+    return render_template("termos.html", versao=VERSAO_TERMOS, logado=("usuario_id" in session))
 
 
 # Exibe o painel do usuário após login.

@@ -128,7 +128,9 @@
             </div>
             <!-- fim do corpo dos termos -->
 
-            <!-- Rodapé com botão de aceite -->
+            {% if logado %}
+            <!-- Rodapé com botão de aceite — só aparece para quem está logado,
+                 fazendo parte do fluxo /login → /termos → /dashboard -->
             <div class="px-8 py-6 bg-gray-50 flex flex-col items-center gap-4">
 
                 <!-- Checkbox de confirmação de leitura -->
@@ -161,6 +163,16 @@
 
             </div>
             <!-- fim do rodapé -->
+            {% else %}
+            <!-- Visitante anônimo (ex.: revisão da Play Store, link público no rodapé
+                 do site): só o texto, sem call-to-action de aceite -->
+            <div class="px-8 py-6 bg-gray-50 text-center">
+                <a href="/"
+                   class="text-sm text-green-700 hover:text-green-800 font-semibold underline">
+                    ← Voltar para a página inicial
+                </a>
+            </div>
+            {% endif %}
 
         </div>
         <!-- fim do card principal -->
