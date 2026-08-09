@@ -69,6 +69,27 @@
           rgba(0, 0, 0, 0.70));
     }
 
+    /* Imagem de fundo do CTA final: mesma técnica do hero (blur + overlay), mas com
+       foto real de mudas germinando no lugar do verde sólido. */
+    .cta-bg {
+      position: absolute;
+      inset: 0;
+      background-image: url('/static/imagens/cta-mudas.jpeg');
+      background-size: cover;
+      background-position: center 35%;
+      filter: blur(2px);
+      transform: scale(1.06);
+    }
+
+    /* Overlay verde escuro — mantém a identidade da seção e garante contraste do texto branco */
+    .cta-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom,
+          rgba(4, 45, 22, 0.82),
+          rgba(4, 60, 28, 0.90));
+    }
+
     /* Anel de progresso do contador de CO₂: avança suavemente a cada segundo
        em vez de saltar, reforçando a sensação de atualização ao vivo. */
     #co2-ring {
@@ -607,8 +628,8 @@
       <h2 class="text-3xl font-bold text-green-700 mb-2">Nossa Missão</h2>
       <p class="text-gray-500 mb-12">Cada árvore plantada é um passo para um planeta mais saudável.</p>
 
-      <!-- Grade de 3 pilares -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-8">
+      <!-- Grade de 4 pilares -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
 
         <!-- Pilar 1: Plantar — ícone de árvore representando o ato de plantar -->
         <div class="flex flex-col items-center">
@@ -637,6 +658,16 @@
           <p class="text-gray-500 text-sm">Você ajudando a diminuir o Aquecimento Global.</p>
         </div>
 
+        <!-- Pilar 4: Valores — ícone de bússola representando princípios que guiam o projeto
+             (valor aqui é intangível: convicção, propósito — não valor monetário) -->
+        <div class="flex flex-col items-center">
+          <div class="mb-4 p-4 bg-purple-50 rounded-2xl">
+            <i data-lucide="compass" class="text-purple-600" width="52" height="52" stroke-width="1.5"></i>
+          </div>
+          <h3 class="text-xl font-semibold text-green-700 mb-2">Valores</h3>
+          <p class="text-gray-500 text-sm">Plantando Vida: Raízes Fortes para um Futuro Sustentável.</p>
+        </div>
+
       </div>
     </div>
   </section>
@@ -644,9 +675,10 @@
 
 
   <!-- ===================== GALERIA DE FOTOS =====================
-         Grade com 3 imagens reais de pessoas plantando árvores.
+         Grade com 3 imagens de pessoas plantando árvores.
          Cada imagem tem efeito de zoom ao passar o mouse.
-         Imagens carregadas via Unsplash (gratuito, sem necessidade de login).
+         Fotos 2 e 3 são plantios reais do projeto (static/imagens); a 1 continua
+         vindo do Unsplash até termos uma foto própria equivalente.
     -->
   <section class="bg-green-50 py-16 px-6">
     <div class="max-w-4xl mx-auto">
@@ -658,22 +690,22 @@
       <!-- Grade de imagens 3 colunas -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-        <!-- Foto 1: pessoa plantando muda -->
+        <!-- Foto 1: mudas germinando -->
         <div class="img-zoom rounded-xl shadow-md h-56">
           <img src="https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=600&q=80"
-            alt="Pessoa plantando muda de árvore" class="w-full h-full object-cover rounded-xl" />
+            alt="Mudas germinando em bandeja" class="w-full h-full object-cover rounded-xl" />
         </div>
 
-        <!-- Foto 2: grupo plantando árvores -->
+        <!-- Foto 2: voluntária plantando muda (foto real do projeto) -->
         <div class="img-zoom rounded-xl shadow-md h-56">
-          <img src="https://images.unsplash.com/photo-1532629345422-7515f3d16bb6?w=600&q=80"
-            alt="Grupo de voluntários plantando árvores" class="w-full h-full object-cover rounded-xl" />
+          <img src="{{ url_for('static', filename='imagens/galeria-plantio-voluntaria.jpeg') }}"
+            alt="Voluntária plantando muda de árvore" class="w-full h-full object-cover rounded-xl" />
         </div>
 
-        <!-- Foto 3: mãos segurando planta -->
+        <!-- Foto 3: muda recém-plantada na cova (foto real do projeto) -->
         <div class="img-zoom rounded-xl shadow-md h-56">
-          <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&q=80"
-            alt="Mãos segurando planta com cuidado" class="w-full h-full object-cover rounded-xl" />
+          <img src="{{ url_for('static', filename='imagens/galeria-plantio-muda.jpeg') }}"
+            alt="Muda recém-plantada na cova" class="w-full h-full object-cover rounded-xl" />
         </div>
 
       </div>
@@ -683,75 +715,106 @@
 
 
   <!-- ===================== CHAMADA FINAL (CTA) =====================
-         Faixa verde escura convidando o usuário a se cadastrar.
+         Faixa convidando o usuário a se cadastrar, com foto real de um plantio
+         desfocada ao fundo (mesma técnica do hero: camada de imagem + overlay verde).
     -->
-  <section class="bg-green-700 py-14 px-6 text-center text-white">
+  <section class="relative py-14 px-6 text-center text-white overflow-hidden">
 
-    <!-- Logo centralizada acima do título -->
-    <div class="flex justify-center mb-4">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 42 134 152" width="64" height="72">
-        <g transform="translate(100, 106)">
-          <rect x="-9" y="34" width="18" height="48" rx="4" fill="#4A4E37" />
-          <ellipse cx="0" cy="9" rx="62" ry="44" fill="#364D27" />
-          <ellipse cx="0" cy="-14" rx="47" ry="35" fill="#25A652" />
-          <ellipse cx="0" cy="-38" rx="30" ry="24" fill="#23C55E" />
-          <ellipse cx="-7" cy="-49" rx="11" ry="10" fill="#5FDF84" opacity="0.30" />
-        </g>
-      </svg>
-    </div>
+    <!-- Camada 1: foto real de mudas germinando, desfocada -->
+    <div class="cta-bg"></div>
 
-    <!-- Texto de incentivo -->
-    <h2 class="text-3xl font-bold mb-3">Faça parte dessa mudança</h2>
-    <p class="text-green-200 mb-8">Crie sua conta gratuitamente e comece a registrar seus plantios hoje.</p>
+    <!-- Camada 2: overlay verde escuro para contraste do texto -->
+    <div class="cta-overlay"></div>
 
-    <!-- Botões de ação lado a lado — items-center centraliza no mobile (flex-col) -->
-    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+    <!-- Conteúdo por cima das camadas de fundo -->
+    <div class="relative z-10">
 
-      <!-- Botão de cadastro de usuário comum -->
-      <a href="/cadastros">
-        <button
-          class="bg-white text-green-700 font-bold px-10 py-3 rounded-full hover:bg-green-100 transition text-lg shadow-lg flex items-center gap-2 justify-center">
-          <!-- Ícone de muda: reforça o convite de participação -->
-          <i data-lucide="sprout" class="text-green-700" width="20" height="20"></i>
-          Criar minha conta
-        </button>
-      </a>
+      <!-- Logo centralizada acima do título -->
+      <div class="flex justify-center mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 42 134 152" width="64" height="72">
+          <g transform="translate(100, 106)">
+            <rect x="-9" y="34" width="18" height="48" rx="4" fill="#4A4E37" />
+            <ellipse cx="0" cy="9" rx="62" ry="44" fill="#364D27" />
+            <ellipse cx="0" cy="-14" rx="47" ry="35" fill="#25A652" />
+            <ellipse cx="0" cy="-38" rx="30" ry="24" fill="#23C55E" />
+            <ellipse cx="-7" cy="-49" rx="11" ry="10" fill="#5FDF84" opacity="0.30" />
+          </g>
+        </svg>
+      </div>
+
+      <!-- Texto de incentivo -->
+      <h2 class="text-3xl font-bold mb-3 drop-shadow">Faça parte dessa mudança</h2>
+      <p class="text-green-100 mb-8 drop-shadow">Crie sua conta gratuitamente e comece a registrar seus plantios hoje.</p>
+
+      <!-- Botões de ação lado a lado — items-center centraliza no mobile (flex-col) -->
+      <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+
+        <!-- Botão de cadastro de usuário comum -->
+        <a href="/cadastros">
+          <button
+            class="bg-white text-green-700 font-bold px-10 py-3 rounded-full hover:bg-green-100 transition text-lg shadow-lg flex items-center gap-2 justify-center">
+            <!-- Ícone de muda: reforça o convite de participação -->
+            <i data-lucide="sprout" class="text-green-700" width="20" height="20"></i>
+            Criar minha conta
+          </button>
+        </a>
+
+      </div>
+
+      <!-- ===================== RODAPÉ =====================
+             Fundido no mesmo bloco do CTA (mesmo fundo com foto) em vez de uma
+             faixa escura separada — informações básicas e contato no final da página.
+        -->
+      <div class="mt-12 pt-8 border-t border-white/15 text-center text-sm text-green-100">
+        <p class="mb-2">© 2026 Plantando Vida — Todos os direitos reservados.</p>
+
+        <!-- Instagram do projeto: abre o perfil em uma nova aba -->
+        <p class="mb-1">
+          <a href="https://www.instagram.com/projeto_plantando_vida_/" target="_blank" rel="noopener"
+            class="inline-flex items-center gap-2 text-green-300 hover:text-white hover:underline transition">
+            <img src="{{ url_for('static', filename='imagens/icone-instagram.png') }}" alt=""
+              class="w-4 h-4 rounded-full">
+            @projeto_plantando_vida_
+          </a>
+        </p>
+
+        <!-- WhatsApp do projeto: abre a conversa já com a mensagem pré-escrita -->
+        <p class="mb-2">
+          <a href="https://wa.me/5543999582438?text=Ol%C3%A1%2C%20quero%20conhecer%20mais%20sobre%20o%20Projeto%20Plantando%20Vida"
+            target="_blank" rel="noopener"
+            class="inline-flex items-center gap-2 text-green-300 hover:text-white hover:underline transition">
+            <img src="{{ url_for('static', filename='imagens/icone-whatsapp.png') }}" alt=""
+              class="w-4 h-4 rounded-full">
+            43 9 9958-2438
+          </a>
+        </p>
+
+        <!-- Contato via email: link clicável que abre o aplicativo de email do usuário -->
+        <p>
+          Contato via email:
+          <a href="mailto:projetoplantandovida2026@gmail.com"
+            class="text-green-300 hover:text-white hover:underline transition">
+            projetoplantandovida2026@gmail.com
+          </a>
+        </p>
+
+        <!-- Botão de acesso restrito ao painel administrativo -->
+        <div class="mt-6">
+          <a href="/admin/login">
+            <button
+              class="bg-white/10 hover:bg-white/20 text-green-100 hover:text-white text-xs font-semibold px-5 py-2 rounded-full border border-white/25 transition flex items-center gap-1.5 mx-auto backdrop-blur-sm">
+              <!-- Ícone de cadeado: indica área de acesso restrito -->
+              <i data-lucide="lock" width="12" height="12"></i>
+              Acesso Restrito
+            </button>
+          </a>
+        </div>
+      </div>
 
     </div>
 
   </section>
-  <!-- fim do CTA -->
-
-
-  <!-- ===================== RODAPÉ =====================
-         Informações básicas do projeto e contato no final da página.
-    -->
-  <footer class="bg-gray-800 text-gray-400 text-center text-sm py-8">
-    <p class="mb-2">© 2026 Plantando Vida — Todos os direitos reservados.</p>
-
-    <!-- Contato via email: link clicável que abre o aplicativo de email do usuário -->
-    <p>
-      Contato via email:
-      <a href="mailto:projetoplantandovida2026@gmail.com"
-        class="text-green-400 hover:text-green-300 hover:underline transition">
-        projetoplantandovida2026@gmail.com
-      </a>
-    </p>
-
-    <!-- Botão de acesso restrito ao painel administrativo -->
-    <div class="mt-6">
-      <a href="/admin/login">
-        <button
-          class="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs font-semibold px-5 py-2 rounded-full border border-gray-600 transition flex items-center gap-1.5 mx-auto">
-          <!-- Ícone de cadeado: indica área de acesso restrito -->
-          <i data-lucide="lock" width="12" height="12"></i>
-          Acesso Restrito
-        </button>
-      </a>
-    </div>
-
-  </footer>
-  <!-- fim do rodapé -->
+  <!-- fim do CTA + rodapé -->
 
 
   <!-- ===================== MODAL: DESCOBRIR ESPÉCIE =====================
