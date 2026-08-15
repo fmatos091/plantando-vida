@@ -602,6 +602,240 @@ def cron_lembrete_rega():
     }), 200
 
 
+# ===================== ROTA CRON: INFORMATIVO DIÁRIO DO SUPER ADMIN =====================
+# Mesmo modelo de cron_lembrete_rega: protegido por CRON_SECRET, chamado de fora
+# por um cron externo gratuito (ex: cron-job.org) uma vez por dia — não há
+# scheduler embutido no processo Flask/gunicorn.
+# Só envia de fato se informativo_config.ativo = 1 e houver e-mails cadastrados
+# (ver /super-admin/painel, seção "Parâmetros"). Chamadas repetidas no mesmo dia
+# não duplicam o snapshot (upsert por data), mas RE-ENVIAM o e-mail — o cron
+# externo deve ser configurado para rodar uma vez por dia.
+INFORMATIVO_JANELA_DIAS = 5
+
+def _template_informativo_diario(totais, delta, tem_baseline, novos_usuarios, dias):
+    """Monta o HTML do informativo diário enviado ao Super Admin."""
+    def linha_delta(rotulo, valor):
+        sinal = "+" if valor >= 0 else ""
+        cor   = "#166534" if valor >= 0 else "#b91c1c"
+        return f"""
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#374151;font-size:14px;">{rotulo}</td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700;color:{cor};font-size:14px;">{sinal}{valor}</td>
+        </tr>"""
+
+    linhas_delta = "".join([
+        linha_delta("👤 Usuários Totais", delta["usuarios"]),
+        linha_delta("🌳 Plantios Aprovados", delta["plantios"]),
+        linha_delta("🏪 Fornecedores Ativos", delta["fornecedores"]),
+        linha_delta("🌿 Plantios Voluntários", delta["voluntarios"]),
+    ])
+
+    if novos_usuarios:
+        linhas_usuarios = "".join([
+            f"""<tr>
+                  <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;color:#111827;font-size:13px;">{nome}</td>
+                  <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;color:#6b7280;font-size:13px;text-align:right;">{cidade or '—'}</td>
+                </tr>"""
+            for nome, cidade in novos_usuarios
+        ])
+        bloco_novos_usuarios = f"""
+        <p style="margin:28px 0 10px;font-size:14px;font-weight:700;color:#111827;">
+            🆕 Novos usuários no período
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <thead>
+            <tr>
+              <th style="text-align:left;font-size:11px;color:#9ca3af;text-transform:uppercase;padding-bottom:6px;">Nome</th>
+              <th style="text-align:right;font-size:11px;color:#9ca3af;text-transform:uppercase;padding-bottom:6px;">Cidade</th>
+            </tr>
+          </thead>
+          <tbody>{linhas_usuarios}</tbody>
+        </table>"""
+    else:
+        bloco_novos_usuarios = """
+        <p style="margin:28px 0 0;font-size:13px;color:#9ca3af;">
+            Nenhum usuário novo no período.
+        </p>"""
+
+    periodo_texto = (
+        f"nos últimos {dias} dias" if tem_baseline
+        else "desde o início do acompanhamento (ainda não há histórico de 5 dias)"
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Informativo Diário — Plantando Vida</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:16px;overflow:hidden;
+                      box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:560px;width:100%;">
+
+          <tr>
+            <td style="background:#166534;padding:32px 40px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:22px;font-weight:700;color:#ffffff;">Plantando Vida</p>
+              <p style="margin:0;font-size:13px;color:#bbf7d0;letter-spacing:1px;text-transform:uppercase;">
+                Informativo Diário — Super Admin
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:36px 40px 8px;">
+              <p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#111827;">
+                Aumento {periodo_texto}
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+                {linhas_delta}
+              </table>
+
+              {bloco_novos_usuarios}
+
+              <p style="margin:32px 0 10px;font-size:14px;font-weight:700;color:#111827;">
+                📊 Totais até o momento
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0"
+                     style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;">
+                <tr>
+                  <td style="padding:16px 20px;font-size:13px;color:#166534;">👤 Usuários Totais</td>
+                  <td style="padding:16px 20px;font-size:13px;color:#14532d;font-weight:700;text-align:right;">{totais['usuarios']}</td>
+                </tr>
+                <tr>
+                  <td style="padding:0 20px 16px;font-size:13px;color:#166534;">🌳 Plantios Aprovados</td>
+                  <td style="padding:0 20px 16px;font-size:13px;color:#14532d;font-weight:700;text-align:right;">{totais['plantios']}</td>
+                </tr>
+                <tr>
+                  <td style="padding:0 20px 16px;font-size:13px;color:#166534;">🏪 Fornecedores Ativos</td>
+                  <td style="padding:0 20px 16px;font-size:13px;color:#14532d;font-weight:700;text-align:right;">{totais['fornecedores']}</td>
+                </tr>
+                <tr>
+                  <td style="padding:0 20px 16px;font-size:13px;color:#166534;">🌿 Plantios Voluntários</td>
+                  <td style="padding:0 20px 16px;font-size:13px;color:#14532d;font-weight:700;text-align:right;">{totais['voluntarios']}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:20px 40px 28px;text-align:center;">
+              <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.6;">
+                Este é um e-mail automático do painel Super Admin — para deixar de
+                recebê-lo, remova seu endereço em /super-admin/painel &rarr; Parâmetros.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
+@app.route("/admin/cron/informativo-diario", methods=["GET", "POST"])
+def cron_informativo_diario():
+    token_esperado = os.environ.get("CRON_SECRET", "")
+    token_recebido = request.headers.get("X-Cron-Token", "") or request.args.get("token", "")
+
+    if not token_esperado or not secrets.compare_digest(token_recebido, token_esperado):
+        return jsonify({"erro": "não autorizado"}), 401
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT ativo FROM informativo_config WHERE id = 1")
+    linha_config = cursor.fetchone()
+    if not linha_config or not linha_config[0]:
+        conn.close()
+        return jsonify({"ativo": False, "enviado": False, "motivo": "informativo desativado"}), 200
+
+    cursor.execute("SELECT email FROM informativo_emails")
+    destinatarios = [row[0] for row in cursor.fetchall()]
+    if not destinatarios:
+        conn.close()
+        return jsonify({"ativo": True, "enviado": False, "motivo": "nenhum e-mail cadastrado"}), 200
+
+    agora    = datetime.now(TZ_BRASIL)
+    hoje_str = agora.strftime("%Y-%m-%d")
+
+    # Totais atuais (os mesmos 4 cards do painel)
+    totais = _totais_dashboard(cursor)
+
+    # Snapshot de referência: o mais recente registrado em ou antes do corte de
+    # N dias atrás. Se não existir (primeiros dias usando a feature), não há
+    # baseline — o e-mail deixa isso explícito em vez de fingir uma comparação.
+    corte_str = (agora - timedelta(days=INFORMATIVO_JANELA_DIAS)).strftime("%Y-%m-%d")
+    cursor.execute("""
+        SELECT total_usuarios, total_plantios_aprovados, total_fornecedores_ativos, total_voluntarios
+        FROM informativo_snapshots
+        WHERE data <= ?
+        ORDER BY data DESC LIMIT 1
+    """, (corte_str,))
+    linha_baseline = cursor.fetchone()
+    tem_baseline   = linha_baseline is not None
+    baseline = {
+        "usuarios":     linha_baseline[0] if linha_baseline else 0,
+        "plantios":     linha_baseline[1] if linha_baseline else 0,
+        "fornecedores": linha_baseline[2] if linha_baseline else 0,
+        "voluntarios":  linha_baseline[3] if linha_baseline else 0,
+    }
+    delta = {chave: totais[chave] - baseline[chave] for chave in totais}
+
+    # Usuários criados na janela — só os que têm criado_em preenchido entram
+    # (cadastros anteriores à criação desta coluna ficam de fora, corretamente).
+    corte_dt = (agora - timedelta(days=INFORMATIVO_JANELA_DIAS)).isoformat()
+    cursor.execute("""
+        SELECT nome, cidade FROM usuarios
+        WHERE criado_em IS NOT NULL AND criado_em >= ?
+        ORDER BY criado_em DESC
+    """, (corte_dt,))
+    novos_usuarios = cursor.fetchall()
+
+    html = _template_informativo_diario(totais, delta, tem_baseline, novos_usuarios, INFORMATIVO_JANELA_DIAS)
+
+    enviados, falhas = [], []
+    for email in destinatarios:
+        if enviar_email(email, "📋 Informativo Diário — Plantando Vida", html):
+            enviados.append(email)
+        else:
+            falhas.append(email)
+
+    # Upsert do snapshot de hoje (não duplica se o cron rodar 2x no mesmo dia)
+    cursor.execute("SELECT id FROM informativo_snapshots WHERE data = ?", (hoje_str,))
+    if cursor.fetchone():
+        cursor.execute("""
+            UPDATE informativo_snapshots
+            SET total_usuarios = ?, total_plantios_aprovados = ?,
+                total_fornecedores_ativos = ?, total_voluntarios = ?
+            WHERE data = ?
+        """, (totais["usuarios"], totais["plantios"], totais["fornecedores"], totais["voluntarios"], hoje_str))
+    else:
+        cursor.execute("""
+            INSERT INTO informativo_snapshots
+                (data, total_usuarios, total_plantios_aprovados, total_fornecedores_ativos, total_voluntarios)
+            VALUES (?, ?, ?, ?, ?)
+        """, (hoje_str, totais["usuarios"], totais["plantios"], totais["fornecedores"], totais["voluntarios"]))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "ativo":          True,
+        "enviado":        len(enviados) > 0,
+        "destinatarios":  len(destinatarios),
+        "enviados":       len(enviados),
+        "falhas":         len(falhas),
+        "tem_baseline":   tem_baseline,
+        "novos_usuarios": len(novos_usuarios),
+    }), 200
+
+
 # ===================== API: BUSCAR CNPJ POR CIDADE =====================
 
 
@@ -975,14 +1209,15 @@ def cadastro():
         try:
             cursor.execute(
                 """INSERT INTO usuarios
-                   (nome, email, senha, cpf, telefone, data_nascimento, uf, cidade, tenant_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (nome, email, senha, cpf, telefone, data_nascimento, uf, cidade, tenant_id, criado_em)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     pending["nome"], pending["email"],
                     generate_password_hash(senha),
                     pending["cpf"], pending["telefone"], pending["data_nascimento"],
                     pending.get("uf"), pending.get("cidade"),
                     None,  # global — não pertence a nenhum tenant por padrão
+                    datetime.now(TZ_BRASIL).isoformat(),
                 )
             )
             conn.commit()
@@ -2659,6 +2894,29 @@ def super_admin_login():
     return render_template("super_admin_login.html")
 
 
+def _totais_dashboard(cursor):
+    """Os mesmos 4 totais exibidos nos cards do painel Super Admin — reaproveitado
+    também pelo cron do informativo diário (ver cron_informativo_diario)."""
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    total_usuarios = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE status = 'aprovado'")
+    total_plantios = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM fornecedores WHERE ativo = 1")
+    total_fornecedores = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE tipo = 'voluntario'")
+    total_voluntarios = cursor.fetchone()[0]
+
+    return {
+        "usuarios":     total_usuarios,
+        "plantios":     total_plantios,
+        "fornecedores": total_fornecedores,
+        "voluntarios":  total_voluntarios,
+    }
+
+
 @app.route("/super-admin/painel")
 def super_admin_painel():
     """Painel principal: lista todos os tenants com estatísticas globais."""
@@ -2681,27 +2939,90 @@ def super_admin_painel():
     tenants = cursor.fetchall()
 
     # Estatísticas globais do sistema (todos os tenants somados)
-    cursor.execute("SELECT COUNT(*) FROM usuarios")
-    total_usuarios = cursor.fetchone()[0]
+    totais = _totais_dashboard(cursor)
 
-    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE status = 'aprovado'")
-    total_plantios = cursor.fetchone()[0]
+    # Parâmetros do informativo diário: interruptor ativo/desativado + e-mails cadastrados
+    cursor.execute("SELECT ativo FROM informativo_config WHERE id = 1")
+    linha_config = cursor.fetchone()
+    informativo_ativo = bool(linha_config[0]) if linha_config else False
 
-    cursor.execute("SELECT COUNT(*) FROM fornecedores WHERE ativo = 1")
-    total_fornecedores = cursor.fetchone()[0]
-
-    # Total de plantios voluntários no sistema (todos os tenants)
-    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE tipo = 'voluntario'")
-    total_voluntarios = cursor.fetchone()[0]
+    cursor.execute("SELECT id, email, criado_em FROM informativo_emails ORDER BY criado_em")
+    informativo_emails = cursor.fetchall()
 
     conn.close()
 
     return render_template("super_admin_painel.html",
                            tenants=tenants,
-                           total_usuarios=total_usuarios,
-                           total_plantios=total_plantios,
-                           total_fornecedores=total_fornecedores,
-                           total_voluntarios=total_voluntarios)
+                           total_usuarios=totais["usuarios"],
+                           total_plantios=totais["plantios"],
+                           total_fornecedores=totais["fornecedores"],
+                           total_voluntarios=totais["voluntarios"],
+                           informativo_ativo=informativo_ativo,
+                           informativo_emails=informativo_emails)
+
+
+# ===================== PARÂMETROS: INFORMATIVO DIÁRIO =====================
+# Liga/desliga o envio e gerencia a lista de e-mails que recebem o resumo diário
+# do dashboard (ver cron_informativo_diario mais abaixo, que faz o envio de fato).
+@app.route("/super-admin/parametros/informativo/toggle", methods=["POST"])
+def super_admin_informativo_toggle():
+    if not session.get("super_admin"):
+        return redirect("/super-admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT ativo FROM informativo_config WHERE id = 1")
+    linha = cursor.fetchone()
+    novo_estado = 0 if (linha and linha[0]) else 1
+    cursor.execute("UPDATE informativo_config SET ativo = ? WHERE id = 1", (novo_estado,))
+    conn.commit()
+    conn.close()
+
+    flash(
+        "Informativo diário ativado." if novo_estado else "Informativo diário desativado.",
+        "sucesso"
+    )
+    return redirect("/super-admin/painel")
+
+
+@app.route("/super-admin/parametros/informativo/emails/adicionar", methods=["POST"])
+def super_admin_informativo_email_adicionar():
+    if not session.get("super_admin"):
+        return redirect("/super-admin/login")
+
+    email = request.form.get("email", "").strip().lower()
+    if not email or "@" not in email:
+        flash("Informe um e-mail válido.", "erro")
+        return redirect("/super-admin/painel")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO informativo_emails (email) VALUES (?)", (email,))
+        conn.commit()
+        flash(f"E-mail {email} cadastrado para receber o informativo.", "sucesso")
+    except Exception:
+        conn.rollback()
+        flash("Este e-mail já está cadastrado.", "erro")
+    finally:
+        conn.close()
+
+    return redirect("/super-admin/painel")
+
+
+@app.route("/super-admin/parametros/informativo/emails/<int:email_id>/remover", methods=["POST"])
+def super_admin_informativo_email_remover(email_id):
+    if not session.get("super_admin"):
+        return redirect("/super-admin/login")
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM informativo_emails WHERE id = ?", (email_id,))
+    conn.commit()
+    conn.close()
+
+    flash("E-mail removido da lista do informativo.", "sucesso")
+    return redirect("/super-admin/painel")
 
 
 # ===================== ROTA SUPER ADMIN: MAPA DE PLANTIOS VOLUNTÁRIOS =====================

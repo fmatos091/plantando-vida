@@ -93,6 +93,105 @@
         </div>
         <!-- fim dos cards de estatísticas -->
 
+        <!-- ===================== PARÂMETROS: INFORMATIVO DIÁRIO =====================
+             Liga/desliga o envio e gerencia os e-mails que recebem o resumo diário
+             do dashboard. O envio de fato acontece em /admin/cron/informativo-diario,
+             chamado uma vez por dia por um cron externo (ex: cron-job.org) — este
+             interruptor só decide se, quando o cron chamar, o e-mail sai ou não.
+        -->
+        <div class="bg-white rounded-xl shadow p-6 mb-8">
+            <h2 class="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
+                <span>⚙️</span> Parâmetros
+            </h2>
+            <p class="text-gray-400 text-xs mb-5">
+                Informativo diário por e-mail com o resumo das atualizações do dashboard.
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <!-- Coluna A: interruptor ativo/desativado -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-700 mb-3">
+                        Envio de Informativos do Dashboard
+                    </h3>
+                    <div class="flex items-center gap-3">
+                        {% if informativo_ativo %}
+                            <span class="inline-block bg-green-100 text-green-700
+                                         font-semibold px-3 py-1 rounded-full text-xs">
+                                ✅ Ativo
+                            </span>
+                        {% else %}
+                            <span class="inline-block bg-red-100 text-red-700
+                                         font-semibold px-3 py-1 rounded-full text-xs">
+                                ❌ Desativado
+                            </span>
+                        {% endif %}
+
+                        <form method="POST" action="/super-admin/parametros/informativo/toggle">
+                            <button type="submit"
+                                class="{{ 'bg-red-100 hover:bg-red-200 text-red-700' if informativo_ativo else 'bg-green-100 hover:bg-green-200 text-green-700' }}
+                                       text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                                {% if informativo_ativo %}Desativar{% else %}Ativar{% endif %}
+                            </button>
+                        </form>
+                    </div>
+                    <p class="text-gray-400 text-xs mt-3 leading-relaxed">
+                        Quando ativo, um e-mail diário detalha o aumento dos últimos 5 dias em
+                        Usuários Totais, Plantios Aprovados, Fornecedores Ativos e Plantios
+                        Voluntários, além dos totais atualizados.
+                    </p>
+                </div>
+
+                <!-- Coluna B: e-mails cadastrados -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-700 mb-3">
+                        E-mails que recebem o informativo
+                    </h3>
+
+                    <!-- Formulário de cadastro de novo e-mail -->
+                    <form method="POST" action="/super-admin/parametros/informativo/emails/adicionar"
+                          class="flex gap-2 mb-3">
+                        <input
+                            type="email"
+                            name="email"
+                            required
+                            placeholder="email@exemplo.com"
+                            class="flex-1 p-2 border border-gray-300 rounded-lg text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-purple-400"
+                        />
+                        <button type="submit"
+                            class="bg-purple-700 hover:bg-purple-600 text-white text-xs
+                                   font-semibold px-4 rounded-lg transition">
+                            + Adicionar
+                        </button>
+                    </form>
+
+                    <!-- Lista de e-mails cadastrados -->
+                    {% if informativo_emails %}
+                        <ul class="space-y-1.5 max-h-40 overflow-y-auto">
+                            {% for e in informativo_emails %}
+                            <li class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-1.5">
+                                <span class="text-sm text-gray-700">{{ e[1] }}</span>
+                                <form method="POST"
+                                      action="/super-admin/parametros/informativo/emails/{{ e[0] }}/remover"
+                                      onsubmit="return confirm('Remover {{ e[1] }} da lista do informativo?')">
+                                    <button type="submit"
+                                        class="text-red-500 hover:text-red-700 text-xs font-semibold">
+                                        ✕ remover
+                                    </button>
+                                </form>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-gray-400 text-xs">Nenhum e-mail cadastrado ainda.</p>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+        <!-- fim de Parâmetros -->
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             <!-- ===================== COLUNA ESQUERDA: FORMULÁRIO CRIAR TENANT =====================

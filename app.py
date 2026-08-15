@@ -338,6 +338,42 @@ def init_db():
     )
     """)
 
+    # ===================== INFORMATIVO DIÁRIO DO SUPER ADMIN =====================
+    # Painel "Parâmetros" em /super-admin/painel: liga/desliga o envio e cadastra
+    # os e-mails que recebem o resumo diário do dashboard.
+    # informativo_config: registro único (id=1) com o interruptor ativo/desativado.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS informativo_config (
+        id    {pk},
+        ativo INTEGER DEFAULT 0
+    )
+    """)
+
+    # E-mails que recebem o informativo diário (lista livre, sem limite).
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS informativo_emails (
+        id        {pk},
+        email     TEXT NOT NULL UNIQUE,
+        criado_em TEXT DEFAULT ({ts})
+    )
+    """)
+
+    # Snapshot diário dos totais do dashboard. Necessário porque nem toda tabela
+    # tem coluna de data de criação (ex: fornecedores) — comparar o snapshot de
+    # hoje com o de ~5 dias atrás dá o "aumento" sem depender disso.
+    # data: chave única no formato YYYY-MM-DD (fuso Brasil), 1 snapshot por dia.
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS informativo_snapshots (
+        id                        {pk},
+        data                      TEXT NOT NULL UNIQUE,
+        total_usuarios            INTEGER NOT NULL DEFAULT 0,
+        total_plantios_aprovados  INTEGER NOT NULL DEFAULT 0,
+        total_fornecedores_ativos INTEGER NOT NULL DEFAULT 0,
+        total_voluntarios         INTEGER NOT NULL DEFAULT 0,
+        criado_em                 TEXT DEFAULT ({ts})
+    )
+    """)
+
     # ===================== TABELA TENANTS (MULTI-TENANT) =====================
     # Cada tenant representa um cliente/projeto independente do sistema.
     # O Super Admin cria tenants via /super-admin/painel.
@@ -379,6 +415,10 @@ def init_db():
             "entidade_educacional_id INTEGER",
             "tenant_id INTEGER DEFAULT 1",
             "lembrete_rega_enviado_em TEXT",
+            # Sem DEFAULT: cadastros existentes ficam NULL e nunca contam como "novo
+            # usuário" no informativo diário — só passa a ser preenchido a partir
+            # daqui pelo INSERT em /cadastros (etapa "senha").
+            "criado_em TEXT",
         ],
         # tenant_id: isolamento de plantios por projeto/cliente.
         "plantios": [
@@ -489,6 +529,20 @@ def init_db():
                 conn.rollback()
             except Exception:
                 pass
+
+    # ===================== SEED: CONFIG DO INFORMATIVO DIÁRIO =====================
+    # Garante que sempre exista o registro id=1 (desativado por padrão), para o
+    # painel Super Admin poder ler/gravar sem checar existência toda vez.
+    try:
+        cursor.execute("SELECT id FROM informativo_config WHERE id = 1")
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO informativo_config (id, ativo) VALUES (1, 0)")
+            conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
     conn.close()
 
