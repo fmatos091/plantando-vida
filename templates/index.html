@@ -109,6 +109,31 @@
       transition: stroke-dashoffset 1s linear;
     }
 
+    /* Rótulo "Descobrir Espécie" no mobile: fica recolhido (só o ícone de câmera
+       cabe ao lado da logo) e revela o texto por alguns segundos ao carregar a
+       página e sempre que o usuário volta pro topo — ver JS mais abaixo. A
+       partir de sm (desktop) o texto já fica sempre visível. */
+    #label-descobrir {
+      display: inline-block;
+      max-width: 0;
+      opacity: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      transition: max-width 0.4s ease, opacity 0.3s ease;
+    }
+
+    #label-descobrir.label-aberto {
+      max-width: 9rem;
+      opacity: 1;
+    }
+
+    @media (min-width: 640px) {
+      #label-descobrir {
+        max-width: none;
+        opacity: 1;
+      }
+    }
+
     /* ===================== RELÓGIO FLUTUANTE DE OXIGÊNIO =====================
        Pílula que mostra o O₂ produzido na hora atual e fica vagando devagar pela
        parte inferior da tela, chamando a atenção do usuário. Ao ser clicada, rola
@@ -415,7 +440,7 @@
         class="bg-white/15 hover:bg-white/25 border border-white/40 text-white font-semibold px-3 py-2 sm:px-4 rounded-full shadow-md transition flex items-center gap-1.5 text-sm">
         <!-- Ícone de câmera fotográfica: indica que a ação usa a câmera -->
         <i data-lucide="camera" width="18" height="18"></i>
-        <span class="hidden sm:inline">Descobrir Espécie</span>
+        <span id="label-descobrir">Descobrir Espécie</span>
       </button>
 
       <!-- Sobre Nós: explica brevemente o objetivo do projeto -->
@@ -628,6 +653,38 @@
 
       tickCo2();
       setInterval(tickCo2, 1000);
+    })();
+  </script>
+
+  <!-- ===================== RÓTULO "DESCOBRIR ESPÉCIE" NO MOBILE =====================
+       No mobile o botão mostra só o ícone de câmera (ver #label-descobrir no <style>).
+       Revela o texto por ~2,2s ao carregar a página e de novo toda vez que o usuário
+       volta pro topo depois de ter rolado a tela, pra ficar descobrível sem ocupar
+       espaço fixo na barra superior. A partir de sm o CSS já mantém sempre visível. -->
+  <script>
+    (function () {
+      const rotulo = document.getElementById('label-descobrir');
+      if (!rotulo) return;
+
+      let rolouParaBaixo = false; // só conta "voltou ao topo" depois de ter saído dele
+      let timerColapso = null;
+
+      function revelar() {
+        rotulo.classList.add('label-aberto');
+        clearTimeout(timerColapso);
+        timerColapso = setTimeout(() => rotulo.classList.remove('label-aberto'), 2200);
+      }
+
+      revelar(); // primeira exibição, ao carregar a página
+
+      window.addEventListener('scroll', () => {
+        if (window.scrollY > 80) {
+          rolouParaBaixo = true;
+        } else if (rolouParaBaixo && window.scrollY <= 10) {
+          rolouParaBaixo = false;
+          revelar();
+        }
+      }, { passive: true });
     })();
   </script>
 
