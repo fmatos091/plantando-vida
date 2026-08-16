@@ -24,7 +24,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.utils import formataddr, parseaddr
-from flask import render_template, request, redirect, session, flash, jsonify, g, send_from_directory
+from flask import render_template, request, redirect, session, flash, jsonify, g, send_from_directory, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import cloudinary
@@ -2951,14 +2951,20 @@ def super_admin_painel():
 
     conn.close()
 
-    return render_template("super_admin_painel.html",
+    resposta = make_response(render_template("super_admin_painel.html",
                            tenants=tenants,
                            total_usuarios=totais["usuarios"],
                            total_plantios=totais["plantios"],
                            total_fornecedores=totais["fornecedores"],
                            total_voluntarios=totais["voluntarios"],
                            informativo_ativo=informativo_ativo,
-                           informativo_emails=informativo_emails)
+                           informativo_emails=informativo_emails))
+    # Evita que o navegador ou algum proxy/CDN na frente do Render sirva uma
+    # versão em cache desta página logo após ativar/desativar o informativo ou
+    # cadastrar/remover e-mail — o painel precisa refletir o estado real do banco
+    # a cada carregamento, nunca uma cópia antiga.
+    resposta.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    return resposta
 
 
 # ===================== PARÂMETROS: INFORMATIVO DIÁRIO =====================
@@ -2977,8 +2983,19 @@ def super_admin_informativo_toggle():
 
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE informativo_config SET ativo = ? WHERE id = 1", (novo_estado,))
+    # UPSERT em vez de UPDATE puro: se por algum motivo o registro id=1 ainda não
+    # existir (ex: falha no seed de inicialização), o UPDATE afetaria 0 linhas e
+    # o estado pareceria "não salvar" — o ON CONFLICT garante que sempre existe
+    # e sempre reflete o valor enviado. Sintaxe idêntica em SQLite e PostgreSQL.
+    cursor.execute("""
+        INSERT INTO informativo_config (id, ativo) VALUES (1, ?)
+        ON CONFLICT (id) DO UPDATE SET ativo = excluded.ativo
+    """, (novo_estado,))
     conn.commit()
+
+    import sys
+    print(f"[INFORMATIVO] toggle -> form.ativo={request.form.get('ativo')!r} novo_estado={novo_estado} rowcount={cursor.rowcount}", file=sys.stderr)
+
     conn.close()
 
     flash(
