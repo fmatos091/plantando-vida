@@ -2964,16 +2964,19 @@ def super_admin_painel():
 # ===================== PARÂMETROS: INFORMATIVO DIÁRIO =====================
 # Liga/desliga o envio e gerencia a lista de e-mails que recebem o resumo diário
 # do dashboard (ver cron_informativo_diario mais abaixo, que faz o envio de fato).
+# Estado sempre DEFINIDO explicitamente pelo checkbox marcado/desmarcado no submit
+# (nunca invertido a partir do valor atual) — um duplo clique/duplo submit não
+# muda o resultado, sempre cai no mesmo estado que o checkbox mostrava.
 @app.route("/super-admin/parametros/informativo/toggle", methods=["POST"])
 def super_admin_informativo_toggle():
     if not session.get("super_admin"):
         return redirect("/super-admin/login")
 
+    # Checkbox HTML só manda o campo quando marcado ("on"); ausente = desmarcado
+    novo_estado = 1 if request.form.get("ativo") == "on" else 0
+
     conn   = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT ativo FROM informativo_config WHERE id = 1")
-    linha = cursor.fetchone()
-    novo_estado = 0 if (linha and linha[0]) else 1
     cursor.execute("UPDATE informativo_config SET ativo = ? WHERE id = 1", (novo_estado,))
     conn.commit()
     conn.close()

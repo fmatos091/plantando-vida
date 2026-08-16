@@ -114,27 +114,30 @@
                     <h3 class="text-sm font-semibold text-gray-700 mb-3">
                         Envio de Informativos do Dashboard
                     </h3>
-                    <div class="flex items-center gap-3">
-                        {% if informativo_ativo %}
-                            <span class="inline-block bg-green-100 text-green-700
-                                         font-semibold px-3 py-1 rounded-full text-xs">
-                                ✅ Ativo
-                            </span>
-                        {% else %}
-                            <span class="inline-block bg-red-100 text-red-700
-                                         font-semibold px-3 py-1 rounded-full text-xs">
-                                ❌ Desativado
-                            </span>
-                        {% endif %}
 
-                        <form method="POST" action="/super-admin/parametros/informativo/toggle">
-                            <button type="submit"
-                                class="{{ 'bg-red-100 hover:bg-red-200 text-red-700' if informativo_ativo else 'bg-green-100 hover:bg-green-200 text-green-700' }}
-                                       text-xs font-semibold px-3 py-1.5 rounded-lg transition">
-                                {% if informativo_ativo %}Desativar{% else %}Ativar{% endif %}
-                            </button>
-                        </form>
-                    </div>
+                    <!-- Checkbox que sempre DEFINE o estado (marcado = ativo, desmarcado =
+                         desativado) em vez de inverter o valor atual — reenviar o mesmo
+                         formulário (ex: clique duplo) nunca muda o resultado por engano.
+                         onchange envia sozinho, sem precisar de botão "Salvar" separado. -->
+                    <form method="POST" action="/super-admin/parametros/informativo/toggle"
+                          id="form-informativo-toggle">
+                        <label class="inline-flex items-center gap-3 cursor-pointer select-none">
+                            <span class="relative inline-block w-11 h-6 flex-shrink-0">
+                                <input type="checkbox" name="ativo" class="peer sr-only"
+                                    {% if informativo_ativo %}checked{% endif %}
+                                    onchange="document.getElementById('form-informativo-toggle').submit()">
+                                <span class="absolute inset-0 bg-gray-300 rounded-full
+                                             peer-checked:bg-green-500 transition-colors pointer-events-none"></span>
+                                <span class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow
+                                             transition-transform peer-checked:translate-x-5 pointer-events-none"></span>
+                            </span>
+                            <span class="{{ 'text-green-700' if informativo_ativo else 'text-red-700' }}
+                                         font-semibold text-xs">
+                                {% if informativo_ativo %}✅ Ativo{% else %}❌ Desativado{% endif %}
+                            </span>
+                        </label>
+                    </form>
+
                     <p class="text-gray-400 text-xs mt-3 leading-relaxed">
                         Quando ativo, um e-mail diário detalha o aumento dos últimos 5 dias em
                         Usuários Totais, Plantios Aprovados, Fornecedores Ativos e Plantios
