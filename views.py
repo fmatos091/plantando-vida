@@ -4,6 +4,7 @@ import random
 import os
 import re
 import sys
+import time
 # google-genai: SDK oficial do Gemini, usado para identificar espécies por foto
 # (ver /api/identificar-especie). A Gemini é uma IA multimodal generalista, não um
 # serviço botânico dedicado, mas foi a alternativa escolhida por ter cadastro
@@ -1018,38 +1019,46 @@ def api_identificar_especie():
     if len(conteudo) > IDENTIFICAR_MAX_BYTES:
         return jsonify({"ok": False, "erro": "A foto é muito grande. Tire outra um pouco mais distante."})
 
-    try:
-        resposta = _cliente_gemini.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=[
-                _PROMPT_IDENTIFICACAO,
-                genai_types.Part.from_bytes(data=conteudo, mime_type=foto.mimetype or "image/jpeg"),
-            ],
-            config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
-        )
-    except genai_errors.ClientError as erro:
-        # 429 = cota diária do nível gratuito esgotada; demais erros de cliente
-        # (ex: chave inválida, modelo indisponível) não devem expor detalhes
-        # internos ao usuário final — mas ficam logados para diagnóstico no Railway.
-        print(f"[ESPECIE] ClientError code={getattr(erro, 'code', None)}: {erro}", file=sys.stderr)
-        if getattr(erro, "code", None) == 429:
+    for tentativa in (1, 2):
+        try:
+            resposta = _cliente_gemini.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=[
+                    _PROMPT_IDENTIFICACAO,
+                    genai_types.Part.from_bytes(data=conteudo, mime_type=foto.mimetype or "image/jpeg"),
+                ],
+                config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+            )
+            break
+        except genai_errors.ClientError as erro:
+            # 429 = cota diária do nível gratuito esgotada; demais erros de cliente
+            # (ex: chave inválida, modelo indisponível) não devem expor detalhes
+            # internos ao usuário final — mas ficam logados para diagnóstico no Railway.
+            print(f"[ESPECIE] ClientError code={getattr(erro, 'code', None)}: {erro}", file=sys.stderr)
+            if getattr(erro, "code", None) == 429:
+                return jsonify({
+                    "ok": False,
+                    "erro": "O limite diário de identificações foi atingido. Tente novamente amanhã.",
+                })
+            return jsonify({"ok": False, "erro": "Não foi possível analisar esta foto. Tente novamente."})
+        except genai_errors.APIError as erro:
+            # 503 costuma ser pico passageiro de demanda na Gemini (segundos),
+            # então vale uma segunda tentativa antes de avisar o usuário.
+            if getattr(erro, "code", None) == 503 and tentativa == 1:
+                print(f"[ESPECIE] APIError 503, retentando em 1.5s: {erro}", file=sys.stderr)
+                time.sleep(1.5)
+                continue
+            print(f"[ESPECIE] APIError code={getattr(erro, 'code', None)}: {erro}", file=sys.stderr)
             return jsonify({
                 "ok": False,
-                "erro": "O limite diário de identificações foi atingido. Tente novamente amanhã.",
+                "erro": "O serviço de identificação está indisponível neste momento. Tente mais tarde.",
             })
-        return jsonify({"ok": False, "erro": "Não foi possível analisar esta foto. Tente novamente."})
-    except genai_errors.APIError as erro:
-        print(f"[ESPECIE] APIError code={getattr(erro, 'code', None)}: {erro}", file=sys.stderr)
-        return jsonify({
-            "ok": False,
-            "erro": "O serviço de identificação está indisponível neste momento. Tente mais tarde.",
-        })
-    except Exception as erro:
-        print(f"[ESPECIE] ERRO inesperado {type(erro).__name__}: {erro}", file=sys.stderr)
-        return jsonify({
-            "ok": False,
-            "erro": "Não conseguimos falar com o serviço de identificação. Verifique sua internet.",
-        })
+        except Exception as erro:
+            print(f"[ESPECIE] ERRO inesperado {type(erro).__name__}: {erro}", file=sys.stderr)
+            return jsonify({
+                "ok": False,
+                "erro": "Não conseguimos falar com o serviço de identificação. Verifique sua internet.",
+            })
 
     dados = _extrair_json(getattr(resposta, "text", ""))
     if dados is None:
