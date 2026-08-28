@@ -3,6 +3,7 @@ import secrets
 import random
 import os
 import re
+import sys
 # google-genai: SDK oficial do Gemini, usado para identificar espécies por foto
 # (ver /api/identificar-especie). A Gemini é uma IA multimodal generalista, não um
 # serviço botânico dedicado, mas foi a alternativa escolhida por ter cadastro
