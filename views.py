@@ -954,8 +954,10 @@ def oxigenio():
 #
 # A rota sempre responde JSON no formato {ok: true, ...} ou {ok: false, erro: "..."},
 # para o modal da home exibir a mensagem pronta ao usuário sem traduzir códigos.
-GEMINI_MODEL           = "gemini-flash-latest"  # alias que a Google mantém no modelo flash vigente,
-                                                 # evita quebrar de novo quando uma versão fixa (ex: 2.5-flash) for desativada
+GEMINI_MODEL           = "gemini-2.5-flash"  # fixo (não "gemini-flash-latest"): o alias "latest" migrou para o
+                                              # gemini-3.7-flash, que no free tier tem cota de só 20 req/dia e
+                                              # sofre 503 de alta demanda quase o tempo todo. O 2.5-flash tem
+                                              # cota gratuita bem maior e é estável. Reavaliar se for desativado.
 IDENTIFICAR_MAX_BYTES  = 8 * 1024 * 1024    # 8 MB — o front já reduz a imagem antes de enviar
 
 # Cliente único, reaproveitado entre requisições — criado uma vez na subida do app,
