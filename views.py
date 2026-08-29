@@ -954,10 +954,20 @@ def oxigenio():
 #
 # A rota sempre responde JSON no formato {ok: true, ...} ou {ok: false, erro: "..."},
 # para o modal da home exibir a mensagem pronta ao usuário sem traduzir códigos.
-GEMINI_MODEL           = "gemini-2.5-flash"  # fixo (não "gemini-flash-latest"): o alias "latest" migrou para o
-                                              # gemini-3.7-flash, que no free tier tem cota de só 20 req/dia e
-                                              # sofre 503 de alta demanda quase o tempo todo. O 2.5-flash tem
-                                              # cota gratuita bem maior e é estável. Reavaliar se for desativado.
+# Histórico: já usamos um alias "latest" (74dc196), que migrou sozinho para um
+# modelo com cota de 20 req/dia e 503 constante; depois fixamos "gemini-2.5-flash"
+# (615125f), que a Google aposentou para chaves novas (404 "no longer available
+# to new users"). Cada vez que a Google troca o modelo default, o fixo quebra e
+# exige deploy. Por isso a rota tenta esta lista em ordem e guarda em cache o
+# primeiro que responder — se a Google aposentar o modelo do topo, a próxima
+# requisição já cai pro seguinte sozinha, sem precisar mexer em código.
+# Atualizar esta lista quando a Google avisar de nova migração (ex: a mensagem
+# de erro 404 sempre indica o substituto recomendado).
+GEMINI_MODELOS_FALLBACK = [
+    "gemini-2.5-flash",
+    "gemini-3.6-flash",
+    "gemini-flash-latest",
+]
 IDENTIFICAR_MAX_BYTES  = 8 * 1024 * 1024    # 8 MB — o front já reduz a imagem antes de enviar
 
 # Cliente único, reaproveitado entre requisições — criado uma vez na subida do app,
@@ -965,6 +975,10 @@ IDENTIFICAR_MAX_BYTES  = 8 * 1024 * 1024    # 8 MB — o front já reduz a image
 # que a rota trata como "ferramenta ainda não ativada" em vez de estourar erro.
 _GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY_ESPECIES", "").strip()
 _cliente_gemini = genai.Client(api_key=_GEMINI_API_KEY) if _GEMINI_API_KEY else None
+
+# Cache do último modelo da lista acima que respondeu com sucesso, pra não
+# reprovar um modelo já sabido aposentado a cada requisição.
+_modelo_gemini_ativo = GEMINI_MODELOS_FALLBACK[0]
 
 # Instrui a IA a se comportar como um identificador botânico e a responder em um
 # JSON fixo — o mesmo formato que a rota espera para montar a resposta ao front.
@@ -1021,46 +1035,72 @@ def api_identificar_especie():
     if len(conteudo) > IDENTIFICAR_MAX_BYTES:
         return jsonify({"ok": False, "erro": "A foto é muito grande. Tire outra um pouco mais distante."})
 
-    for tentativa in (1, 2):
-        try:
-            resposta = _cliente_gemini.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=[
-                    _PROMPT_IDENTIFICACAO,
-                    genai_types.Part.from_bytes(data=conteudo, mime_type=foto.mimetype or "image/jpeg"),
-                ],
-                config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
-            )
-            break
-        except genai_errors.ClientError as erro:
-            # 429 = cota diária do nível gratuito esgotada; demais erros de cliente
-            # (ex: chave inválida, modelo indisponível) não devem expor detalhes
-            # internos ao usuário final — mas ficam logados para diagnóstico no Railway.
-            print(f"[ESPECIE] ClientError code={getattr(erro, 'code', None)}: {erro}", file=sys.stderr)
-            if getattr(erro, "code", None) == 429:
+    global _modelo_gemini_ativo
+    # Tenta primeiro o modelo em cache (o último que funcionou); se ele não
+    # estiver mais na lista de fallback (lista editada), volta pro topo dela.
+    modelos_a_tentar = [_modelo_gemini_ativo] + [
+        m for m in GEMINI_MODELOS_FALLBACK if m != _modelo_gemini_ativo
+    ]
+
+    resposta = None
+    for modelo in modelos_a_tentar:
+        proximo_modelo = False
+        for tentativa in (1, 2):
+            try:
+                resposta = _cliente_gemini.models.generate_content(
+                    model=modelo,
+                    contents=[
+                        _PROMPT_IDENTIFICACAO,
+                        genai_types.Part.from_bytes(data=conteudo, mime_type=foto.mimetype or "image/jpeg"),
+                    ],
+                    config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+                )
+                break
+            except genai_errors.ClientError as erro:
+                # 429 = cota diária do nível gratuito esgotada; 404 = a Google
+                # aposentou este modelo (acontece sem aviso) — nesses dois casos
+                # não adianta insistir no mesmo modelo, mas o 404 ainda pode
+                # funcionar no próximo item da lista de fallback. Demais erros
+                # de cliente (ex: chave inválida) ficam só logados para
+                # diagnóstico no Railway, sem expor detalhes ao usuário final.
+                codigo = getattr(erro, "code", None)
+                print(f"[ESPECIE] ClientError modelo={modelo} code={codigo}: {erro}", file=sys.stderr)
+                if codigo == 429:
+                    return jsonify({
+                        "ok": False,
+                        "erro": "O limite diário de identificações foi atingido. Tente novamente amanhã.",
+                    })
+                if codigo == 404:
+                    proximo_modelo = True
+                    break
+                return jsonify({"ok": False, "erro": "Não foi possível analisar esta foto. Tente novamente."})
+            except genai_errors.APIError as erro:
+                # 503 costuma ser pico passageiro de demanda na Gemini (segundos),
+                # então vale uma segunda tentativa antes de tentar o próximo modelo.
+                if getattr(erro, "code", None) == 503 and tentativa == 1:
+                    print(f"[ESPECIE] APIError 503 modelo={modelo}, retentando em 1.5s: {erro}", file=sys.stderr)
+                    time.sleep(1.5)
+                    continue
+                print(f"[ESPECIE] APIError modelo={modelo} code={getattr(erro, 'code', None)}: {erro}", file=sys.stderr)
+                proximo_modelo = True
+                break
+            except Exception as erro:
+                print(f"[ESPECIE] ERRO inesperado {type(erro).__name__}: {erro}", file=sys.stderr)
                 return jsonify({
                     "ok": False,
-                    "erro": "O limite diário de identificações foi atingido. Tente novamente amanhã.",
+                    "erro": "Não conseguimos falar com o serviço de identificação. Verifique sua internet.",
                 })
-            return jsonify({"ok": False, "erro": "Não foi possível analisar esta foto. Tente novamente."})
-        except genai_errors.APIError as erro:
-            # 503 costuma ser pico passageiro de demanda na Gemini (segundos),
-            # então vale uma segunda tentativa antes de avisar o usuário.
-            if getattr(erro, "code", None) == 503 and tentativa == 1:
-                print(f"[ESPECIE] APIError 503, retentando em 1.5s: {erro}", file=sys.stderr)
-                time.sleep(1.5)
-                continue
-            print(f"[ESPECIE] APIError code={getattr(erro, 'code', None)}: {erro}", file=sys.stderr)
-            return jsonify({
-                "ok": False,
-                "erro": "O serviço de identificação está indisponível neste momento. Tente mais tarde.",
-            })
-        except Exception as erro:
-            print(f"[ESPECIE] ERRO inesperado {type(erro).__name__}: {erro}", file=sys.stderr)
-            return jsonify({
-                "ok": False,
-                "erro": "Não conseguimos falar com o serviço de identificação. Verifique sua internet.",
-            })
+        if resposta is not None:
+            _modelo_gemini_ativo = modelo
+            break
+        if not proximo_modelo:
+            break
+
+    if resposta is None:
+        return jsonify({
+            "ok": False,
+            "erro": "O serviço de identificação está indisponível neste momento. Tente mais tarde.",
+        })
 
     dados = _extrair_json(getattr(resposta, "text", ""))
     if dados is None:
