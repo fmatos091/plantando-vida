@@ -381,19 +381,96 @@
 
     // ---- Upload de comprovante ----
 
-    // Atualiza o label e ícone da área de upload com o nome do arquivo selecionado
-    function atualizarNomeArquivo(input) {
+    // Comprime o comprovante antes do envio, igual ao fluxo de fotos do plantio:
+    // um comprovante fotografado direto da câmera passa de 5MB e deixa o envio
+    // lento em rede móvel. PDFs não são fotos — seguem sem alteração.
+    const COMPROVANTE_LADO_MAX  = 1280;   // px — maior lado da imagem enviada
+    const COMPROVANTE_QUALIDADE = 0.85;   // compressão JPEG: leve, sem perder legibilidade
+
+    async function comprimirComprovante(arquivo) {
+        if (!arquivo.type || !arquivo.type.startsWith('image/')) {
+            return arquivo;   // PDF ou tipo desconhecido: envia como está
+        }
+
+        if (window.createImageBitmap) {
+            try {
+                const bitmap = await createImageBitmap(arquivo);
+                const escala = Math.min(1, COMPROVANTE_LADO_MAX / Math.max(bitmap.width, bitmap.height));
+                const canvas = document.createElement('canvas');
+                canvas.width  = Math.round(bitmap.width * escala);
+                canvas.height = Math.round(bitmap.height * escala);
+                canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                bitmap.close();
+                const blob = await new Promise((resolve) =>
+                    canvas.toBlob((b) => resolve(b || arquivo), 'image/jpeg', COMPROVANTE_QUALIDADE)
+                );
+                canvas.width = canvas.height = 0;
+                return blob;
+            } catch (e) {
+                // Segue para o método de compatibilidade abaixo (ex: Safari antigo)
+            }
+        }
+
+        return new Promise((resolve) => {
+            const img = new Image();
+            const urlTemp = URL.createObjectURL(arquivo);
+            img.onload = () => {
+                try {
+                    const escala = Math.min(1, COMPROVANTE_LADO_MAX / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width  = Math.round(img.width * escala);
+                    canvas.height = Math.round(img.height * escala);
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob((blob) => {
+                        canvas.width = canvas.height = 0;
+                        URL.revokeObjectURL(urlTemp);
+                        resolve(blob || arquivo);
+                    }, 'image/jpeg', COMPROVANTE_QUALIDADE);
+                } catch (e) {
+                    URL.revokeObjectURL(urlTemp);
+                    resolve(arquivo);
+                }
+            };
+            img.onerror = () => { URL.revokeObjectURL(urlTemp); resolve(arquivo); };
+            img.src = urlTemp;
+        });
+    }
+
+    // Substitui o arquivo do input pela versão comprimida (via DataTransfer),
+    // preservando o nome original exibido ao usuário.
+    function substituirArquivoComprovante(input, blobComprimido, nomeOriginal) {
+        try {
+            const arquivoComprimido = new File([blobComprimido], nomeOriginal || 'comprovante.jpg',
+                { type: blobComprimido.type || 'image/jpeg' });
+            const dt = new DataTransfer();
+            dt.items.add(arquivoComprimido);
+            input.files = dt.files;
+        } catch (e) {
+            // DataTransfer indisponível: mantém o arquivo original no input
+        }
+    }
+
+    // Atualiza o label e ícone da área de upload com o nome do arquivo selecionado,
+    // comprimindo a foto antes de habilitar o envio (PDFs seguem sem alteração).
+    async function atualizarNomeArquivo(input) {
         const label = document.getElementById('upload-label');
         const icone = document.getElementById('upload-icone');
         const area  = document.getElementById('upload-area');
 
-        if (input.files && input.files[0]) {
-            // Exibe o nome do arquivo e muda o estilo para "selecionado"
-            label.textContent = input.files[0].name;
-            icone.textContent = '✅';
-            area.classList.remove('border-gray-300');
-            area.classList.add('border-green-400', 'bg-green-50');
+        const arquivo = input.files && input.files[0];
+        if (!arquivo) return;
+
+        const nomeOriginal = arquivo.name;
+        const comprimido = await comprimirComprovante(arquivo);
+        if (comprimido !== arquivo) {
+            substituirArquivoComprovante(input, comprimido, nomeOriginal);
         }
+
+        // Exibe o nome do arquivo e muda o estilo para "selecionado"
+        label.textContent = nomeOriginal;
+        icone.textContent = '✅';
+        area.classList.remove('border-gray-300');
+        area.classList.add('border-green-400', 'bg-green-50');
     }
 
     // ---- Copiar chave PIX ----

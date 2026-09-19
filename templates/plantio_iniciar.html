@@ -10,6 +10,20 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- html5-qrcode: biblioteca para leitura de QR Code via câmera do dispositivo -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    /* Spinner do overlay "Aguarde..." exibido durante o envio final (Etapa 5) */
+    .spinner-plantio {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #DCFCE7;
+      border-top-color: #15803d;
+      border-radius: 50%;
+      animation: girarSpinnerPlantio 0.9s linear infinite;
+    }
+    @keyframes girarSpinnerPlantio {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 
 <body class="bg-green-50 min-h-screen">
@@ -478,6 +492,20 @@
   </div>
   <!-- fim container -->
 
+  <!-- ===================== OVERLAY "AGUARDE..." =====================
+       Exibido no submit final (Etapa 5) enquanto as fotos sobem para o servidor.
+       Sem isso, o usuário não tinha nenhum feedback durante os segundos de
+       envio e achava que o app tinha travado. O navegador mantém esta tela até
+       a resposta do servidor (redirect para /plantios/pendentes), então ela
+       nunca precisa ser escondida manualmente. -->
+  <div id="overlay-enviando" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-6">
+    <div class="bg-white rounded-2xl shadow-xl px-8 py-7 text-center max-w-xs">
+      <div class="spinner-plantio mx-auto mb-4"></div>
+      <p class="text-sm font-bold text-green-800">Aguarde…</p>
+      <p class="text-xs text-gray-500 mt-1">Estamos registrando seu plantio. Isso pode levar alguns instantes.</p>
+    </div>
+  </div>
+
 
   <!-- ===================== JAVASCRIPT ===================== -->
   <script>
@@ -782,10 +810,81 @@
 
     // ---- Fotos (Etapas 3 e 4) ----
 
-    // Exibe preview da foto selecionada e habilita o botão Próximo
-    function previewFoto(input, imgId, previewId, btnId) {
+    // Fotos de câmera costumam passar de 5 MB; sem redução, o envio final da
+    // Etapa 5 (duas fotos de uma vez) chegava a ~30s em rede móvel. Os mesmos
+    // parâmetros usados no "Descobrir Espécie" da Home.
+    const FOTO_LADO_MAX  = 1280;   // px — maior lado da foto enviada ao servidor
+    const FOTO_QUALIDADE = 0.85;   // compressão JPEG: leve, sem perder nitidez útil
+
+    // Reduz a foto no navegador antes do upload. createImageBitmap decodifica
+    // com bem menos uso de memória que Image()+canvas; cai no método de
+    // compatibilidade só se não estiver disponível (ex: Safari muito antigo).
+    async function comprimirFoto(arquivo) {
+      if (window.createImageBitmap) {
+        try {
+          const bitmap = await createImageBitmap(arquivo);
+          const escala = Math.min(1, FOTO_LADO_MAX / Math.max(bitmap.width, bitmap.height));
+          const canvas = document.createElement('canvas');
+          canvas.width  = Math.round(bitmap.width * escala);
+          canvas.height = Math.round(bitmap.height * escala);
+          canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          bitmap.close();
+          const blob = await new Promise((resolve) =>
+            canvas.toBlob((b) => resolve(b || arquivo), 'image/jpeg', FOTO_QUALIDADE)
+          );
+          canvas.width = canvas.height = 0;
+          return blob;
+        } catch (e) {
+          // Segue para o método de compatibilidade abaixo
+        }
+      }
+
+      return new Promise((resolve) => {
+        const img = new Image();
+        const urlTemp = URL.createObjectURL(arquivo);
+        img.onload = () => {
+          try {
+            const escala = Math.min(1, FOTO_LADO_MAX / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width  = Math.round(img.width * escala);
+            canvas.height = Math.round(img.height * escala);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob((blob) => {
+              canvas.width = canvas.height = 0;
+              URL.revokeObjectURL(urlTemp);
+              resolve(blob || arquivo);
+            }, 'image/jpeg', FOTO_QUALIDADE);
+          } catch (e) {
+            URL.revokeObjectURL(urlTemp);
+            resolve(arquivo);
+          }
+        };
+        img.onerror = () => { URL.revokeObjectURL(urlTemp); resolve(arquivo); };
+        img.src = urlTemp;
+      });
+    }
+
+    // Substitui o arquivo do input pela versão comprimida (via DataTransfer),
+    // preservando o nome — é essa versão menor que acaba sendo enviada no POST.
+    function substituirArquivoInput(input, blobComprimido, nomeOriginal) {
+      try {
+        const arquivoComprimido = new File([blobComprimido], nomeOriginal || 'foto.jpg', { type: 'image/jpeg' });
+        const dt = new DataTransfer();
+        dt.items.add(arquivoComprimido);
+        input.files = dt.files;
+      } catch (e) {
+        // DataTransfer indisponível: mantém o arquivo original no input
+      }
+    }
+
+    // Exibe preview da foto selecionada e habilita o botão Próximo.
+    // Comprime a foto antes: acelera tanto o preview quanto o envio da Etapa 5.
+    async function previewFoto(input, imgId, previewId, btnId) {
       const file = input.files[0];
       if (!file) return;
+
+      const comprimida = await comprimirFoto(file);
+      substituirArquivoInput(input, comprimida, file.name);
 
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -796,7 +895,7 @@
         preview.classList.add('hidden');
         document.getElementById(btnId).disabled = false;
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(comprimida);
     }
 
     // ---- Plantio Voluntário: validação do campo espécie na Etapa 5 ----
@@ -808,6 +907,15 @@
         btn.disabled = campo.value.trim().length === 0;
       }
     }
+
+    // ---- Envio final (Etapa 5): overlay "Aguarde..." ----
+    // O formulário é um POST multipart tradicional (não AJAX), então o próprio
+    // navegador mantém esta tela visível até a resposta do servidor chegar e a
+    // navegação para /plantios/pendentes acontecer — sem precisar escondê-la.
+    document.getElementById('form-plantio').addEventListener('submit', () => {
+      document.getElementById('overlay-enviando').classList.remove('hidden');
+      document.getElementById('btn-finalizar').disabled = true;
+    });
 
     // ---- Inicialização ----
     document.addEventListener('DOMContentLoaded', () => {

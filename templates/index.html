@@ -1120,9 +1120,39 @@
 
       // Reduz a foto antes do upload: fotos de celular passam de 5 MB e deixariam
       // o envio lento em rede móvel. Se o canvas falhar, envia o arquivo original.
-      function reduzirFoto(arquivo) {
+      //
+      // Em aparelhos com pouca RAM (relatado em celulares de 4GB), o app fechava
+      // logo após tirar a foto: fotos de câmera moderna (12MP+) decodificadas em
+      // memória chegam a ~40-50MB de bitmap bruto. O código antigo decodificava a
+      // foto original DUAS vezes ao mesmo tempo — uma para a prévia (esp-previa
+      // usava a imagem crua) e outra aqui dentro (Image + canvas) — dobrando o
+      // pico de memória e derrubando o navegador. createImageBitmap() decodifica
+      // fora da pipeline de <img>/paint e com bem menos overhead, e a prévia
+      // (ver abaixo) passou a usar a própria foto já reduzida em vez da original.
+      async function reduzirFoto(arquivo) {
+        if (window.createImageBitmap) {
+          try {
+            const bitmap = await createImageBitmap(arquivo);
+            const escala = Math.min(1, LADO_MAX / Math.max(bitmap.width, bitmap.height));
+            const canvas = document.createElement('canvas');
+            canvas.width  = Math.round(bitmap.width * escala);
+            canvas.height = Math.round(bitmap.height * escala);
+            canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            bitmap.close();   // libera o bitmap decodificado assim que possível
+            const blob = await new Promise((resolve) =>
+              canvas.toBlob((b) => resolve(b || arquivo), 'image/jpeg', QUALIDADE)
+            );
+            canvas.width = canvas.height = 0;   // ajuda o navegador a soltar o buffer
+            return blob;
+          } catch (e) {
+            // Segue para o método de compatibilidade abaixo (ex: Safari antigo)
+          }
+        }
+
+        // Compatibilidade: navegadores sem createImageBitmap
         return new Promise((resolve) => {
           const img = new Image();
+          const urlTemp = URL.createObjectURL(arquivo);
 
           img.onload = () => {
             try {
@@ -1131,15 +1161,19 @@
               canvas.width = Math.round(img.width * escala);
               canvas.height = Math.round(img.height * escala);
               canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-              // toBlob é assíncrono; blob nulo (navegador antigo) cai no original
-              canvas.toBlob((blob) => resolve(blob || arquivo), 'image/jpeg', QUALIDADE);
+              canvas.toBlob((blob) => {
+                canvas.width = canvas.height = 0;
+                URL.revokeObjectURL(urlTemp);
+                resolve(blob || arquivo);
+              }, 'image/jpeg', QUALIDADE);
             } catch (e) {
+              URL.revokeObjectURL(urlTemp);
               resolve(arquivo);
             }
           };
 
-          img.onerror = () => resolve(arquivo);
-          img.src = urlPrevia;   // reaproveita o object URL já criado para a prévia
+          img.onerror = () => { URL.revokeObjectURL(urlTemp); resolve(arquivo); };
+          img.src = urlTemp;
         });
       }
 
@@ -1159,16 +1193,20 @@
         const arquivo = inputFoto.files && inputFoto.files[0];
         if (!arquivo) return;   // usuário cancelou a câmera
 
-        limparPrevia();
-        urlPrevia = URL.createObjectURL(arquivo);
-        document.getElementById('esp-previa').src = urlPrevia;
-
         abrir(modalEspecie);
         mostrar(blocoCarregando);
 
         let relogio = null;
         try {
           const foto = await reduzirFoto(arquivo);
+
+          // A prévia usa a foto JÁ REDUZIDA (não a original em tamanho de câmera):
+          // evita decodificar a mesma imagem grande duas vezes ao mesmo tempo,
+          // que é o que derrubava o app em aparelhos com pouca RAM.
+          limparPrevia();
+          urlPrevia = URL.createObjectURL(foto);
+          document.getElementById('esp-previa').src = urlPrevia;
+
           const dados = new FormData();
           dados.append('foto', foto, 'planta.jpg');
 

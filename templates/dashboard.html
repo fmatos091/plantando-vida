@@ -55,8 +55,55 @@
             <i data-lucide="leaf" class="text-white" width="22" height="22" stroke-width="2.5"></i>
             <a href="/" class="text-xl font-bold hover:text-green-200 transition">Plantando Vida</a>
         </div>
-        <!-- Saudação com nome do usuário logado -->
-        <span class="text-sm text-green-200">Olá, <strong class="text-white">{{ nome }}</strong>!</span>
+        <!-- Notificações + saudação com nome do usuário logado -->
+        <div class="flex items-center gap-3">
+
+            <!-- ===================== SINO DE NOTIFICAÇÕES =====================
+                 Emoji padrão de sino (🔔), igual ao restante do app que usa emojis
+                 diretos em vez de ícone customizado. O badge só aparece quando há
+                 notificações não lidas (ver /dashboard em views.py). -->
+            <div class="relative">
+                <button type="button" id="btn-notificacoes" onclick="toggleNotificacoes(event)"
+                        aria-label="Notificações" aria-haspopup="true"
+                        class="relative text-xl leading-none hover:opacity-80 transition">
+                    🔔
+                    {% if notificacoes %}
+                    <span id="badge-notificacoes"
+                          class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px]
+                                 font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                        {{ notificacoes|length }}
+                    </span>
+                    {% endif %}
+                </button>
+
+                <!-- Painel dropdown: oculto por padrão, alternado por toggleNotificacoes() -->
+                <div id="painel-notificacoes"
+                     class="hidden absolute right-0 mt-3 w-80 max-w-[85vw] bg-white text-gray-800
+                            rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+                    <div class="px-4 py-3 bg-green-700 text-white text-sm font-bold">
+                        🔔 Notificações
+                    </div>
+                    <div id="lista-notificacoes" class="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                        {% for n in notificacoes %}
+                        <div class="p-3 flex flex-col gap-1.5" id="notif-{{ n[0] }}">
+                            <p class="text-sm font-semibold text-green-700">{{ n[1] }}</p>
+                            <p class="text-xs text-gray-500 leading-snug">{{ n[2] }}</p>
+                            <button type="button" onclick="marcarNotificacaoLida({{ n[0] }})"
+                                    class="self-end text-xs font-semibold text-green-600 hover:text-green-800 mt-1">
+                                ✓ Lido
+                            </button>
+                        </div>
+                        {% else %}
+                        <p class="text-xs text-gray-400 text-center py-6" id="msg-sem-notificacoes">
+                            Nenhuma notificação por aqui.
+                        </p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <span class="text-sm text-green-200">Olá, <strong class="text-white">{{ nome }}</strong>!</span>
+        </div>
     </nav>
     <!-- fim da navbar -->
 
@@ -285,6 +332,62 @@
                 // Abre o submenu e rotaciona a seta 90° para indicar expansão
                 submenu.classList.remove('hidden');
                 seta.style.transform = 'rotate(90deg)';
+            }
+        }
+
+        // ---- Notificações (sino) ----
+
+        // Abre/fecha o painel dropdown. stopPropagation evita que o listener
+        // de "clique fora" (abaixo) feche o painel no mesmo clique que o abriu.
+        function toggleNotificacoes(evento) {
+            evento.stopPropagation();
+            document.getElementById('painel-notificacoes').classList.toggle('hidden');
+        }
+
+        // Fecha o painel ao clicar em qualquer lugar fora dele
+        document.addEventListener('click', function (evento) {
+            const painel = document.getElementById('painel-notificacoes');
+            const botao  = document.getElementById('btn-notificacoes');
+            if (!painel || painel.classList.contains('hidden')) return;
+            if (!painel.contains(evento.target) && evento.target !== botao) {
+                painel.classList.add('hidden');
+            }
+        });
+
+        // Marca a notificação como lida no servidor e remove o item da lista —
+        // é assim que o botão "Lido" vai "limpando" cada notificação.
+        async function marcarNotificacaoLida(id) {
+            try {
+                const resposta = await fetch('/notificacoes/marcar-lida', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                const dados = await resposta.json();
+                if (dados.ok) {
+                    const item = document.getElementById('notif-' + id);
+                    if (item) item.remove();
+                    atualizarBadgeNotificacoes();
+                }
+            } catch (e) {
+                alert('Não foi possível marcar a notificação como lida. Tente novamente.');
+            }
+        }
+
+        // Atualiza (ou remove) o badge numérico e mostra a mensagem de "vazio"
+        // quando a última notificação da lista é marcada como lida.
+        function atualizarBadgeNotificacoes() {
+            const lista     = document.getElementById('lista-notificacoes');
+            const badge     = document.getElementById('badge-notificacoes');
+            const restantes = lista.querySelectorAll('[id^="notif-"]').length;
+
+            if (restantes === 0) {
+                if (badge) badge.remove();
+                if (!document.getElementById('msg-sem-notificacoes')) {
+                    lista.innerHTML = '<p class="text-xs text-gray-400 text-center py-6" id="msg-sem-notificacoes">Nenhuma notificação por aqui.</p>';
+                }
+            } else if (badge) {
+                badge.textContent = restantes;
             }
         }
     </script>

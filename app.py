@@ -392,6 +392,27 @@ def init_db():
     )
     """)
 
+    # ===================== TABELA NOTIFICAÇÕES (SINO DO DASHBOARD) =====================
+    # Notificações in-app exibidas no sino ao lado de "Olá, {nome}" no /dashboard.
+    # tipo: "sem_plantio" (usuário nunca registrou um plantio) ou "lembrete_rega"
+    # (usuário já tem ao menos 1 plantio — lembrete de regar/registrar acompanhamento).
+    # Geradas sob demanda a cada carregamento do /dashboard (ver _gerar_notificacoes_usuario
+    # em views.py) — não precisam de cron externo, pois só fazem sentido quando o
+    # usuário está de fato olhando o painel.
+    # lida: 0 = não lida (aparece no sino) / 1 = lida (botão "Lido" marca e some da lista).
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS notificacoes (
+        id          {pk},
+        usuario_id  INTEGER NOT NULL,
+        tipo        TEXT    NOT NULL,
+        titulo      TEXT    NOT NULL,
+        mensagem    TEXT    NOT NULL,
+        lida        INTEGER DEFAULT 0,
+        criado_em   TEXT    DEFAULT ({ts}),
+        tenant_id   INTEGER DEFAULT 1
+    )
+    """)
+
     # ---- Migrações seguras para bancos já existentes ----
     # Adiciona colunas que podem não existir em instalações anteriores.
     # SQLite: try/except (não suporta IF NOT EXISTS no ADD COLUMN antes da v3.37)
@@ -419,6 +440,10 @@ def init_db():
             # usuário" no informativo diário — só passa a ser preenchido a partir
             # daqui pelo INSERT em /cadastros (etapa "senha").
             "criado_em TEXT",
+            # notif_sem_plantio_enviada_em: data/hora (ISO) do último e-mail "Sentimos
+            # sua falta" enviado a quem nunca registrou um plantio — usada pela rotina
+            # de 20 em 20 dias (/admin/cron/lembrete-primeiro-plantio). NULL = nunca recebeu.
+            "notif_sem_plantio_enviada_em TEXT",
         ],
         # tenant_id: isolamento de plantios por projeto/cliente.
         "plantios": [

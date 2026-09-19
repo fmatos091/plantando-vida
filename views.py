@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+import concurrent.futures
 # google-genai: SDK oficial do Gemini, usado para identificar espécies por foto
 # (ver /api/identificar-especie). A Gemini é uma IA multimodal generalista, não um
 # serviço botânico dedicado, mas foi a alternativa escolhida por ter cadastro
@@ -589,6 +590,164 @@ def cron_lembrete_rega():
                 (agora.isoformat(), uid)
             )
             conn.commit()  # comita a cada envio para não reenviar em caso de falha adiante no lote
+            enviados.append(email)
+        else:
+            falhas.append(email)
+
+    conn.close()
+
+    return jsonify({
+        "elegiveis_no_total":     len(candidatos),
+        "devidos_no_total":       len(devidos),
+        "processados_neste_lote": len(lote),
+        "enviados":               len(enviados),
+        "falhas":                 len(falhas),
+    }), 200
+
+
+# ===================== TEMPLATE: SENTIMOS SUA FALTA (SEM PRIMEIRO PLANTIO) =====================
+# Contraparte do lembrete de rega acima, mas para quem se cadastrou e nunca chegou
+# a registrar o primeiro plantio. Mesma identidade visual (header verde, card branco).
+def _template_sentimos_sua_falta(nome):
+    link_app = os.environ.get("APP_URL", "http://localhost:5000") + "/dashboard"
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentimos sua falta — Plantando Vida</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:16px;overflow:hidden;
+                      box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:560px;width:100%;">
+
+          <!-- Header verde -->
+          <tr>
+            <td style="background:#166534;padding:32px 40px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:22px;font-weight:700;color:#ffffff;
+                        letter-spacing:0.5px;">🌱 Plantando Vida</p>
+              <p style="margin:0;font-size:13px;color:#bbf7d0;letter-spacing:1px;
+                        text-transform:uppercase;">Sentimos sua falta</p>
+            </td>
+          </tr>
+
+          <!-- Corpo -->
+          <tr>
+            <td style="padding:36px 40px 8px;">
+              <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">
+                Ola, {nome}!
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#4b5563;line-height:1.6;">
+                Notamos que voce se cadastrou no Projeto Plantando Vida, mas ainda nao
+                registrou o seu primeiro plantio. Cada muda plantada e um passo concreto
+                por um futuro mais verde — e queremos muito ver a sua!
+              </p>
+              <p style="margin:0 0 20px;font-size:15px;color:#4b5563;line-height:1.6;">
+                Leva poucos minutos para comecar: escolha como quer plantar (com uma
+                muda adquirida ou uma que voce ja tem em maos) e registre direto pelo app.
+              </p>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td style="padding:8px 40px 32px;text-align:center;">
+              <a href="{link_app}"
+                 style="display:inline-block;background:#16a34a;color:#ffffff;
+                        padding:14px 32px;border-radius:10px;text-decoration:none;
+                        font-weight:700;font-size:15px;">
+                🌿 Registrar meu primeiro plantio
+              </a>
+            </td>
+          </tr>
+
+          <tr><td style="padding:0 40px;"><hr style="border:none;border-top:1px solid #e5e7eb;margin:0;"></td></tr>
+
+          <!-- Fechamento -->
+          <tr>
+            <td style="padding:20px 40px 36px;">
+              <p style="margin:0 0 4px;font-size:14px;color:#111827;">Te esperamos por aqui.</p>
+              <p style="margin:0 0 20px;font-size:14px;color:#111827;">Com carinho,<br>Equipe Projeto Plantando Vida</p>
+              <p style="margin:0;font-size:13px;color:#166534;font-weight:600;">
+                🌱 Cada muda conta. Cada crianca importa. Cada futuro comeca aqui.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
+# ===================== ROTA CRON: SENTIMOS SUA FALTA (SEM PRIMEIRO PLANTIO) =====================
+# Mesmo modelo de cron_lembrete_rega (protegido por CRON_SECRET, chamado por um cron
+# externo como cron-job.org), mas para o público oposto: quem se cadastrou e nunca
+# registrou nenhum plantio em plantas_go. Cadência de 20 dias controlada pela coluna
+# usuarios.notif_sem_plantio_enviada_em — NULL conta como "devendo" imediatamente,
+# igual ao lembrete de rega.
+NOTIF_SEM_PLANTIO_INTERVALO_DIAS = 20
+NOTIF_SEM_PLANTIO_BATCH = 50
+
+@app.route("/admin/cron/lembrete-primeiro-plantio", methods=["GET", "POST"])
+def cron_lembrete_primeiro_plantio():
+    token_esperado  = os.environ.get("CRON_SECRET", "")
+    token_recebido  = request.headers.get("X-Cron-Token", "") or request.args.get("token", "")
+
+    if not token_esperado or not secrets.compare_digest(token_recebido, token_esperado):
+        return jsonify({"erro": "não autorizado"}), 401
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    # Só quem nunca registrou nenhum plantio (qualquer status) em plantas_go.
+    cursor.execute("""
+        SELECT u.id, u.nome, u.email, u.notif_sem_plantio_enviada_em
+        FROM usuarios u
+        WHERE u.email IS NOT NULL AND u.email != ''
+          AND NOT EXISTS (SELECT 1 FROM plantas_go pg WHERE pg.responsavel_id = u.id)
+    """)
+    candidatos = cursor.fetchall()
+
+    agora     = datetime.now(TZ_BRASIL)
+    intervalo = timedelta(days=NOTIF_SEM_PLANTIO_INTERVALO_DIAS)
+    devidos   = []  # cada item: (id, nome, email, nunca_enviado)
+
+    for uid, nome, email, ultimo_envio in candidatos:
+        if not ultimo_envio:
+            devidos.append((uid, nome, email, True))
+            continue
+        try:
+            dt_ultimo = datetime.fromisoformat(str(ultimo_envio))
+            if dt_ultimo.tzinfo is None:
+                dt_ultimo = dt_ultimo.replace(tzinfo=TZ_BRASIL)
+        except Exception:
+            devidos.append((uid, nome, email, True))
+            continue
+        if agora - dt_ultimo >= intervalo:
+            devidos.append((uid, nome, email, False))
+
+    # Prioriza quem nunca recebeu, depois quem espera há mais tempo
+    devidos.sort(key=lambda d: not d[3])
+    lote = devidos[:NOTIF_SEM_PLANTIO_BATCH]
+
+    enviados = []
+    falhas   = []
+    for uid, nome, email, _ in lote:
+        html = _template_sentimos_sua_falta(nome)
+        ok   = enviar_email(email, "🌱 Sentimos sua falta — registre seu primeiro plantio!", html)
+        if ok:
+            cursor.execute(
+                "UPDATE usuarios SET notif_sem_plantio_enviada_em = ? WHERE id = ?",
+                (agora.isoformat(), uid)
+            )
+            conn.commit()
             enviados.append(email)
         else:
             falhas.append(email)
@@ -1366,6 +1525,68 @@ def termos():
     return render_template("termos.html", versao=VERSAO_TERMOS, logado=("usuario_id" in session))
 
 
+# ===================== NOTIFICAÇÕES DO SINO (DASHBOARD) =====================
+# Gatilho: 20 dias desde a criação do cadastro (ou desde a última notificação do
+# mesmo tipo, o que for mais recente) — no máximo UMA nova notificação por tipo a
+# cada chamada, para não empilhar de uma vez todos os ciclos atrasados de contas antigas.
+# Roda a cada carregamento do /dashboard (só para o usuário logado, custo mínimo):
+# diferente do lembrete por e-mail, a notificação in-app só faz sentido quando o
+# usuário está de fato olhando o painel, então não precisa de cron externo.
+NOTIFICACAO_INTERVALO_DIAS = 20
+
+def _gerar_notificacoes_usuario(cursor, usuario_id, criado_em_usuario, tenant_id):
+    agora     = datetime.now(TZ_BRASIL)
+    intervalo = timedelta(days=NOTIFICACAO_INTERVALO_DIAS)
+
+    # Base: data de criação do cadastro. Contas antigas sem essa data (NULL, ver
+    # migração de "usuarios" em app.py) usam "agora" como base — mais seguro do
+    # que inventar uma data no passado, e ainda garante a notificação em 20 dias.
+    try:
+        base_criacao = datetime.fromisoformat(str(criado_em_usuario)) if criado_em_usuario else agora
+        if base_criacao.tzinfo is None:
+            base_criacao = base_criacao.replace(tzinfo=TZ_BRASIL)
+    except Exception:
+        base_criacao = agora
+
+    # Define o tipo de notificação pela existência (ou não) de QUALQUER plantio
+    # registrado em plantas_go, independente do status de aprovação.
+    cursor.execute("SELECT COUNT(*) FROM plantas_go WHERE responsavel_id = ?", (usuario_id,))
+    tem_plantio = cursor.fetchone()[0] > 0
+
+    if tem_plantio:
+        tipo     = "lembrete_rega"
+        titulo   = "🌱 Sua árvore precisa de você"
+        mensagem = "Já faz um tempo desde o seu último acesso. Regue sua muda e registre um novo acompanhamento com foto!"
+    else:
+        tipo     = "sem_plantio"
+        titulo   = "🌱 Sentimos sua falta"
+        mensagem = "Você ainda não registrou seu primeiro plantio. Que tal começar agora?"
+
+    # Checkpoint: notificação mais recente já gerada deste tipo para o usuário,
+    # ou a criação do cadastro quando ainda não existe nenhuma.
+    cursor.execute("""
+        SELECT criado_em FROM notificacoes
+        WHERE usuario_id = ? AND tipo = ?
+        ORDER BY criado_em DESC LIMIT 1
+    """, (usuario_id, tipo))
+    ultima = cursor.fetchone()
+
+    base = base_criacao
+    if ultima and ultima[0]:
+        try:
+            base = datetime.fromisoformat(str(ultima[0]))
+            if base.tzinfo is None:
+                base = base.replace(tzinfo=TZ_BRASIL)
+        except Exception:
+            base = base_criacao
+
+    if agora - base >= intervalo:
+        cursor.execute("""
+            INSERT INTO notificacoes (usuario_id, tipo, titulo, mensagem, lida, criado_em, tenant_id)
+            VALUES (?, ?, ?, ?, 0, ?, ?)
+        """, (usuario_id, tipo, titulo, mensagem, agora.isoformat(), tenant_id))
+
+
 # Exibe o painel do usuário após login.
 # Se o usuário não estiver logado (sem sessão), redireciona para /login.
 # Se os termos ainda não foram aceitos na sessão atual, redireciona para /termos.
@@ -1396,9 +1617,21 @@ def dashboard():
     # Verifica se o CPF do usuário logado está cadastrado como membro da administração.
     # Somente membros cadastrados em "Cad. Administração" podem ver o botão
     # "Adquirir em Local Credenciado" no dashboard.
-    cursor.execute("SELECT cpf FROM usuarios WHERE id = ?", (session["usuario_id"],))
+    cursor.execute("SELECT cpf, criado_em FROM usuarios WHERE id = ?", (session["usuario_id"],))
     usuario_row  = cursor.fetchone()
     cpf_usuario  = re.sub(r"\D", "", usuario_row[0] or "") if usuario_row else ""
+    criado_em_usuario = usuario_row[1] if usuario_row else None
+
+    # Gera (se estiver na hora) a notificação do sino para o usuário logado, e
+    # busca as ainda não lidas para exibir no dashboard.
+    _gerar_notificacoes_usuario(cursor, session["usuario_id"], criado_em_usuario, tid_pub)
+    conn.commit()
+    cursor.execute("""
+        SELECT id, titulo, mensagem FROM notificacoes
+        WHERE usuario_id = ? AND lida = 0
+        ORDER BY criado_em DESC
+    """, (session["usuario_id"],))
+    notificacoes = cursor.fetchall()
 
     e_membro_admin   = False
     e_membro_escolar = False
@@ -1438,7 +1671,32 @@ def dashboard():
                            fornecedores_ativos=fornecedores_ativos,
                            e_membro_admin=e_membro_admin,
                            e_membro_escolar=e_membro_escolar,
-                           entidades_edu_ativas=entidades_edu_ativas)
+                           entidades_edu_ativas=entidades_edu_ativas,
+                           notificacoes=notificacoes)
+
+
+# ===================== ROTA: MARCAR NOTIFICAÇÃO COMO LIDA =====================
+# Chamada via AJAX pelo botão "Lido" no painel de notificações do /dashboard.
+# WHERE usuario_id garante que um usuário só consiga marcar as próprias notificações.
+@app.route("/notificacoes/marcar-lida", methods=["POST"])
+def notificacao_marcar_lida():
+    if "usuario_id" not in session:
+        return jsonify({"ok": False, "erro": "não autenticado"}), 401
+
+    dados    = request.get_json(silent=True) or {}
+    notif_id = dados.get("id")
+    if not notif_id:
+        return jsonify({"ok": False, "erro": "id não informado"}), 400
+
+    conn   = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE notificacoes SET lida = 1 WHERE id = ? AND usuario_id = ?",
+        (notif_id, session["usuario_id"])
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
 
 
 # ===================== ROTA DE LOGOUT =====================
@@ -6070,29 +6328,36 @@ def plantio_concluir():
         tipo_plantio = "credenciado"
         tipo_muda_voluntario = tipo        # usa o tipo da compra credenciada
 
-    # Salva foto ao lado da cova (Etapa 3) — foto_plantio
-    # Verifica primeiro o input de câmera; se vazio, usa o input de galeria (temporário/emergência)
-    foto_plantio = None
-    for campo_foto in ("foto_plantio", "foto_plantio_galeria"):
-        if campo_foto in request.files:
-            arq = request.files[campo_foto]
-            if arq and arq.filename:
-                ext = arq.filename.rsplit(".", 1)[-1].lower()
-                if ext in EXTENSOES_PERMITIDAS:
-                    foto_plantio = upload_cloudinary(arq, pasta="plantando-vida/plantios")
-                    break  # usa o primeiro arquivo válido encontrado
+    # Localiza o primeiro arquivo válido entre os campos de câmera/galeria, sem
+    # já fazer upload — o upload em si acontece abaixo, em paralelo.
+    def _arquivo_valido(campos):
+        for campo_foto in campos:
+            if campo_foto in request.files:
+                arq = request.files[campo_foto]
+                if arq and arq.filename:
+                    ext = arq.filename.rsplit(".", 1)[-1].lower()
+                    if ext in EXTENSOES_PERMITIDAS:
+                        return arq
+        return None
 
-    # Salva foto com a planta na cova e regada (Etapa 4) — acompanhamento_1
-    # Verifica primeiro o input de câmera; se vazio, usa o input de galeria (temporário/emergência)
+    arq_plantio = _arquivo_valido(("foto_plantio", "foto_plantio_galeria"))
+    arq_acomp1  = _arquivo_valido(("foto_acomp1", "foto_acomp1_galeria"))
+
+    # Foto ao lado da cova (Etapa 3) e foto na cova regada (Etapa 4) sobem para o
+    # Cloudinary em paralelo — cada upload é uma chamada de rede independente, e
+    # rodá-las em série (uma depois da outra) era a principal causa dos ~30s de
+    # espera relatados no registro final do plantio em conexão móvel.
+    foto_plantio = None
     foto_1 = None
-    for campo_foto in ("foto_acomp1", "foto_acomp1_galeria"):
-        if campo_foto in request.files:
-            arq = request.files[campo_foto]
-            if arq and arq.filename:
-                ext = arq.filename.rsplit(".", 1)[-1].lower()
-                if ext in EXTENSOES_PERMITIDAS:
-                    foto_1 = upload_cloudinary(arq, pasta="plantando-vida/acompanhamentos")
-                    break  # usa o primeiro arquivo válido encontrado
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        futuro_plantio = (executor.submit(upload_cloudinary, arq_plantio, "plantando-vida/plantios")
+                           if arq_plantio else None)
+        futuro_acomp1 = (executor.submit(upload_cloudinary, arq_acomp1, "plantando-vida/acompanhamentos")
+                          if arq_acomp1 else None)
+        if futuro_plantio:
+            foto_plantio = futuro_plantio.result()
+        if futuro_acomp1:
+            foto_1 = futuro_acomp1.result()
 
     # Usa data no fuso Brasil (UTC-3) — evita registrar amanhã quando o servidor roda em UTC.
     data_hoje = datetime.now(TZ_BRASIL).strftime("%Y-%m-%d")
@@ -6143,7 +6408,7 @@ def plantio_concluir():
         flash("🌿 Plantio Voluntário registrado com sucesso! Obrigado pela sua contribuição.", "sucesso")
         return redirect("/dashboard")
 
-    flash("Plantio registrado com sucesso! Acompanhe o desenvolvimento da sua muda.", "sucesso")
+    flash("🌱 Seu plantio foi registrado com sucesso! Parabéns! Acompanhe o desenvolvimento da sua muda.", "sucesso")
     return redirect("/plantios/pendentes")
 
 
