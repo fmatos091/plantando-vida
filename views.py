@@ -1699,6 +1699,47 @@ def notificacao_marcar_lida():
     return jsonify({"ok": True})
 
 
+# ===================== ROTA CRON: FORÇAR GERAÇÃO DE NOTIFICAÇÕES DO SINO =====================
+# O /dashboard já gera a notificação sob demanda quando o próprio usuário abre o
+# painel (ver _gerar_notificacoes_usuario), mas isso significa esperar cada um
+# logar para "descobrir" que está devendo. Esta rota roda a MESMA regra para todos
+# os usuários de uma vez — mesmo checkpoint de 20 dias, mesma dedução por tipo —
+# então não duplica nada: só adianta a geração para quem ainda não abriu o app.
+# Protegida por CRON_SECRET, mesmo modelo dos crons de e-mail. Pode ser chamada por
+# um cron externo (ex: 1x por dia, mesmo horário do lembrete-primeiro-plantio) ou
+# disparada manualmente (ex: "Test run" no cron-job.org) para forçar agora.
+@app.route("/admin/cron/gerar-notificacoes", methods=["GET", "POST"])
+def cron_gerar_notificacoes():
+    token_esperado  = os.environ.get("CRON_SECRET", "")
+    token_recebido  = request.headers.get("X-Cron-Token", "") or request.args.get("token", "")
+
+    if not token_esperado or not secrets.compare_digest(token_recebido, token_esperado):
+        return jsonify({"erro": "não autorizado"}), 401
+
+    conn   = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, criado_em, tenant_id FROM usuarios")
+    usuarios = cursor.fetchall()
+
+    cursor.execute("SELECT COUNT(*) FROM notificacoes")
+    total_antes = cursor.fetchone()[0]
+
+    for uid, criado_em, tenant_id in usuarios:
+        _gerar_notificacoes_usuario(cursor, uid, criado_em, tenant_id or 1)
+    conn.commit()
+
+    cursor.execute("SELECT COUNT(*) FROM notificacoes")
+    total_depois = cursor.fetchone()[0]
+
+    conn.close()
+
+    return jsonify({
+        "usuarios_verificados":  len(usuarios),
+        "notificacoes_geradas":  total_depois - total_antes,
+    }), 200
+
+
 # ===================== ROTA DE LOGOUT =====================
 # Limpa todos os dados da sessão e redireciona para /login.
 @app.route("/logout")
