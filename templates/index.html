@@ -290,6 +290,11 @@
       .o2-destaque {
         animation: none;
       }
+
+      /* Halo do botão "Dúvidas" (WhatsApp): para de pulsar, mas o botão continua visível e clicável */
+      #btn-duvidas-whatsapp .animate-ping {
+        animation: none;
+      }
     }
 
     /* ===================== MODAIS DA HOME =====================
@@ -399,6 +404,28 @@
       </span>
     </span>
   </button>
+
+  <!-- ===================== BOTÃO FLUTUANTE "DÚVIDAS" (WHATSAPP) =====================
+       Fixo no canto inferior direito, com halo verde pulsando (Tailwind animate-ping)
+       para chamar atenção sem ser irritante. Mesmo número de WhatsApp do rodapé, mas
+       com mensagem pré-escrita própria de suporte, já que aqui o contexto é dúvida
+       pontual e não "conhecer o projeto". z-40 (mesma camada do relógio de O₂) —
+       fica coberto pelo fundo escuro quando um modal (z-60) abre por cima. -->
+  <a href="https://wa.me/5543999582438?text=Ol%C3%A1%21%20Estou%20com%20uma%20d%C3%BAvida%20sobre%20o%20Projeto%20Plantando%20Vida."
+     target="_blank" rel="noopener" id="btn-duvidas-whatsapp"
+     aria-label="Dúvidas? Fale conosco pelo WhatsApp"
+     class="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20BD5A]
+            text-white font-bold pl-2.5 pr-4 py-2.5 rounded-full shadow-xl transition-transform
+            hover:scale-105">
+    <span class="relative flex items-center justify-center w-10 h-10 shrink-0">
+      <!-- Halo pulsante: expande e desaparece em loop, chamando o olhar pro botão -->
+      <span aria-hidden="true"
+            class="absolute inset-0 rounded-full bg-white/60 animate-ping [animation-duration:2.2s]"></span>
+      <img src="{{ url_for('static', filename='imagens/icone-whatsapp.png') }}" alt=""
+           class="relative w-10 h-10 rounded-full">
+    </span>
+    <span class="text-sm sm:text-base">Dúvidas</span>
+  </a>
 
   <!-- ===================== HERO (BANNER PRINCIPAL) =====================
          Imagem de fundo: criança plantando uma muda (Unsplash, gratuito).
@@ -1308,6 +1335,9 @@
       const MARGEM = 18;             // respiro mínimo em relação às bordas
       const FAIXA_ALTURA = 0.30;     // vaga apenas nos 30% inferiores da tela
       const VELOCIDADE = 0.00016;    // radianos por ms → ~65s para ir e voltar
+      // Reserva a coluna do canto inferior direito onde fica o botão fixo "Dúvidas"
+      // (WhatsApp) — sem isso a pílula de O₂ vagueia por baixo dele.
+      const RESERVA_DIREITA = 190;
 
       const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       let pausado = false;
@@ -1319,7 +1349,7 @@
       function posicionar() {
         const larg = bolha.offsetWidth;
         const alt = bolha.offsetHeight;
-        const faixaX = Math.max(0, window.innerWidth - larg - MARGEM * 2);
+        const faixaX = Math.max(0, window.innerWidth - larg - MARGEM * 2 - RESERVA_DIREITA);
         const faixaY = Math.max(0, window.innerHeight * FAIXA_ALTURA - alt);
 
         const x = MARGEM + (0.5 + 0.5 * Math.sin(t)) * faixaX;
