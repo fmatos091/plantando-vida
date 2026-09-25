@@ -105,6 +105,17 @@ from datetime import datetime, timezone, timedelta
 # Fuso horário do Brasil (UTC-3) — usado para datas locais e exibição de timestamps
 TZ_BRASIL = timezone(timedelta(hours=-3))
 
+
+# ===================== HELPER: URL BASE DO APP (LINKS EM EMAIL) =====================
+# Lê APP_URL do ambiente para montar links clicáveis nos emails (redefinir senha,
+# plantio aprovado, etc). .strip() é essencial: um espaço ou quebra de linha a mais
+# ao colar o valor no painel do Render/Railway entra como caractere de controle real
+# na URL montada (ex: "https://dominio.com\n/redefinir-senha/token") — o link
+# resultante quebra o parser da Brevo ao reescrever o link para rastreamento de
+# clique, e o usuário cai numa página 404 da Brevo em vez do app.
+def _app_url():
+    return os.environ.get("APP_URL", "http://127.0.0.1:5000").strip()
+
 # Filtro Jinja2: converte qualquer valor de data/datetime para DD/MM/YYYY no fuso Brasil.
 # Aceita strings ISO (YYYY-MM-DD, com ou sem hora e timezone) e objetos datetime/date.
 @app.template_filter('data_br')
@@ -609,7 +620,7 @@ def cron_lembrete_rega():
 # Contraparte do lembrete de rega acima, mas para quem se cadastrou e nunca chegou
 # a registrar o primeiro plantio. Mesma identidade visual (header verde, card branco).
 def _template_sentimos_sua_falta(nome):
-    link_app = os.environ.get("APP_URL", "http://localhost:5000") + "/dashboard"
+    link_app = _app_url() + "/dashboard"
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -2478,7 +2489,7 @@ def admin_aprovar_plantio(plantio_id):
             </p>
 
             <div style="text-align:center;margin-top:20px">
-                <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/plantios/aprovados"
+                <a href="{_app_url()}/plantios/aprovados"
                    style="background:#16a34a;color:#ffffff;padding:10px 24px;border-radius:8px;
                           text-decoration:none;font-weight:bold;font-size:14px">
                     Ver meus plantios aprovados
@@ -2582,7 +2593,7 @@ def admin_reprovar_plantio(plantio_id):
             </p>
 
             <div style="text-align:center;margin-top:20px">
-                <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/plantios/pendentes"
+                <a href="{_app_url()}/plantios/pendentes"
                    style="background:#6b7280;color:#ffffff;padding:10px 24px;border-radius:8px;
                           text-decoration:none;font-weight:bold;font-size:14px">
                     Ver meus registros
@@ -2627,7 +2638,7 @@ def esqueci_senha():
             conn.close()
 
             # Monta a URL de redefinição usando a variável APP_URL (Railway) ou localhost
-            base_url = os.environ.get("APP_URL", "http://127.0.0.1:5000")
+            base_url = _app_url()
             link     = f"{base_url}/redefinir-senha/{token}"
 
             # Corpo HTML do email com o link de redefinição
@@ -4260,7 +4271,7 @@ def perfil_solicitar_senha():
         conn.close()
 
         # Monta o link e o email HTML de redefinição de senha
-        base_url   = os.environ.get("APP_URL", "http://127.0.0.1:5000")
+        base_url   = _app_url()
         link       = f"{base_url}/redefinir-senha/{token}"
         corpo_html = f"""
         <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #d1fae5;border-radius:12px;">
@@ -5253,7 +5264,7 @@ def compra_finalizar():
                 </p>
             </div>
             <div style="text-align:center;margin-top:20px">
-                <a href="{os.environ.get('APP_URL', 'http://localhost:5000')}/plantios/pendentes"
+                <a href="{_app_url()}/plantios/pendentes"
                    style="background:#16a34a;color:#ffffff;padding:10px 24px;border-radius:8px;
                           text-decoration:none;font-weight:bold;font-size:14px">
                     Acompanhar minha compra
