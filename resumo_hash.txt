@@ -1,14 +1,14 @@
 ================================================================================
   RESUMO DIGITAL HASH — PROJETO PLANTANDO VIDA
 ================================================================================
-  Data/Hora   : 2026-07-08 09:51:17
+  Data/Hora   : 2026-10-24 11:33:16
   Algoritmo   : SHA-512
-  Arquivos    : 43 arquivos verificados
-  Ultimo commit: f9fcd6a597cd6fc9ccdd81077ff0534f7335ecee | chore: atualizar painel admin, documentos de hash/patente e ignorar .claude/
+  Arquivos    : 46 arquivos verificados
+  Ultimo commit: 9dcb29bde826882c34f8ed30da7ed956cd2beed9 | fix(mapa): usar CARTO_API_KEY nos tiles do CARTO com fallback para OSM
 --------------------------------------------------------------------------------
   HASH MASTER (SHA-512 de todos os hashes combinados):
 
-  f5d41b68d6dac6f13bbf7314a2951366bd4068914fd62a7c8babd31895f22fea468e4f19aefd9140f6d532059e94a80804eae9b41535b0527d27cb742511eed0
+  eb057d0f0c34a356dda5143b06d541089e52831365ca7b9e6f40c6654cf02755c2c8e30e72f3eda052fbfada35f0a5c2fd888951d41c207eec638c90842ab3b8
 
 ================================================================================
   Este hash representa o estado integro do projeto neste momento.
