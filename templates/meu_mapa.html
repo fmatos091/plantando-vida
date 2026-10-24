@@ -249,10 +249,11 @@
         // ---- Mapa com CartoDB Voyager ----
         const mapa = L.map('mapa');
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
-            subdomains: 'abcd',
-            maxZoom: 20
+        // URL/atribuição vêm do context processor injetar_mapa_tiles (views.py):
+        // CARTO com CARTO_API_KEY, ou OpenStreetMap como fallback
+        L.tileLayer({{ mapa_tiles.url|tojson }}, {
+            attribution: {{ mapa_tiles.attribution|tojson }},
+            maxZoom: {{ mapa_tiles.max_zoom }}
         }).addTo(mapa);
 
         // Recalcula dimensões do container após estabilizar o DOM

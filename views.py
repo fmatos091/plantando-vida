@@ -106,7 +106,7 @@ from datetime import datetime, timezone, timedelta
 TZ_BRASIL = timezone(timedelta(hours=-3))
 
 
-# ===================== HELPER: URL BASE DO APP (LINKS EM EMAIL) =====================
+# ===================== HELPER: URL BASE DO APP (LINKS EM EMAIL) ==============
 # Lê APP_URL do ambiente para montar links clicáveis nos emails (redefinir senha,
 # plantio aprovado, etc). .strip() é essencial: um espaço ou quebra de linha a mais
 # ao colar o valor no painel do Render/Railway entra como caractere de controle real
@@ -115,6 +115,33 @@ TZ_BRASIL = timezone(timedelta(hours=-3))
 # clique, e o usuário cai numa página 404 da Brevo em vez do app.
 def _app_url():
     return os.environ.get("APP_URL", "http://127.0.0.1:5000").strip()
+
+# ===================== MAPAS: CAMADA DE TILES (CARTO / OSM) =====================
+# O CARTO passou a exigir chave de API nos basemaps (sem ela, os tiles exibem
+# "API KEY REQUIRED"). A chave é lida da variável de ambiente CARTO_API_KEY
+# (.env local ou variáveis do Railway) — obtenha em https://carto.com/basemaps/apikey.
+# Sem chave configurada, cai para o OpenStreetMap padrão para o mapa nunca ficar quebrado.
+@app.context_processor
+def injetar_mapa_tiles():
+    carto_key = os.environ.get("CARTO_API_KEY", "").strip()
+
+    # Com chave: CARTO Voyager (mesmo visual de antes) autenticado via ?key=
+    if carto_key:
+        tiles = {
+            "url":         "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=" + carto_key,
+            "attribution": '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+            "max_zoom":    20,
+        }
+    # Sem chave: fallback para os tiles públicos do OpenStreetMap
+    else:
+        tiles = {
+            "url":         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "attribution": '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            "max_zoom":    19,
+        }
+
+    # Disponível em todos os templates como {{ mapa_tiles.url }}, etc.
+    return {"mapa_tiles": tiles}
 
 # Filtro Jinja2: converte qualquer valor de data/datetime para DD/MM/YYYY no fuso Brasil.
 # Aceita strings ISO (YYYY-MM-DD, com ou sem hora e timezone) e objetos datetime/date.
